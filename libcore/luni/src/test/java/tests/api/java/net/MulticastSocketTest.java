@@ -17,6 +17,8 @@
 
 package tests.api.java.net;
 
+import dalvik.annotation.KnownFailure;
+
 import java.io.IOException;
 import java.net.BindException;
 import java.net.DatagramPacket;
@@ -162,6 +164,7 @@ public class MulticastSocketTest extends SocketTestCase {
 	/**
 	 * @tests java.net.MulticastSocket#getInterface()
 	 */
+	@KnownFailure(value = "bug 2663157")
 	public void test_getInterface() throws Exception {
 		// Test for method java.net.InetAddress
 		// java.net.MulticastSocket.getInterface()
@@ -217,6 +220,7 @@ public class MulticastSocketTest extends SocketTestCase {
 	 * @throws IOException
 	 * @tests java.net.MulticastSocket#getNetworkInterface()
 	 */
+	@KnownFailure(value = "bug 2663157")
 	public void test_getNetworkInterface() throws IOException {
         int groupPort = Support_PortManager.getNextPortForUDP();
         if (atLeastOneInterface) {
@@ -351,6 +355,7 @@ public class MulticastSocketTest extends SocketTestCase {
 	 * @throws InterruptedException 
 	 * @tests java.net.MulticastSocket#joinGroup(java.net.SocketAddress,java.net.NetworkInterface)
 	 */
+	@KnownFailure(value = "bug 2663157")
 	public void test_joinGroupLjava_net_SocketAddressLjava_net_NetworkInterface() throws IOException, InterruptedException {
 		// security manager that allows us to check that we only return the
 		// addresses that we should
@@ -600,6 +605,7 @@ public class MulticastSocketTest extends SocketTestCase {
 	/**
 	 * @tests java.net.MulticastSocket#leaveGroup(java.net.SocketAddress,java.net.NetworkInterface)
 	 */
+	@KnownFailure(value = "bug 2663157")
 	public void test_leaveGroupLjava_net_SocketAddressLjava_net_NetworkInterface() throws Exception {
 		// security manager that allows us to check that we only return the
 		// addresses that we should
