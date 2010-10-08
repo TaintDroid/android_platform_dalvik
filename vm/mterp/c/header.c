@@ -156,6 +156,31 @@ static const char kSpacing[] = "            ";
 # define DUMP_REGS(_meth, _frame, _inOnly) ((void)0)
 #endif
 
+/*
+ * If enabled, log taint propagation
+ */
+#ifdef WITH_TAINT_TRACKING
+# define TLOGD(...) TLOG(LOG_DEBUG, __VA_ARGS__)
+# define TLOGV(...) TLOG(LOG_VERBOSE, __VA_ARGS__)
+# define TLOGW(...) TLOG(LOG_WARN, __VA_ARGS__)
+# define TLOGE(...) TLOG(LOG_ERROR, __VA_ARGS__)
+# define TLOG(_level, ...) do {                                             \
+        char debugStrBuf[128];                                              \
+        snprintf(debugStrBuf, sizeof(debugStrBuf), __VA_ARGS__);            \
+        if (curMethod != NULL)                                              \
+            LOG(_level, LOG_TAG"t", "%-2d|%04x|%s.%s:%s\n",                    \
+                self->threadId, (int)(pc - curMethod->insns), curMethod->clazz->descriptor, curMethod->name, debugStrBuf); \
+        else                                                                \
+            LOG(_level, LOG_TAG"t", "%-2d|####%s\n",                        \
+                self->threadId, debugStrBuf);                               \
+    } while(false)
+#else
+# define TLOGD(...) ((void)0)
+# define TLOGV(...) ((void)0)
+# define TLOGW(...) ((void)0)
+# define TLOGE(...) ((void)0)
+#endif
+
 /* get a long from an array of u4 */
 static inline s8 getLongFromArray(const u4* ptr, int idx)
 {
@@ -175,6 +200,20 @@ static inline s8 getLongFromArray(const u4* ptr, int idx)
 #endif
 }
 
+#ifdef WITH_TAINT_TRACKING
+/* get a long from an array of u4 */
+static inline s8 getLongFromArrayTaint(const u4* ptr, int idx)
+{
+    /* Need to use the "union" version for taint tracking */
+    union { s8 ll; u4 parts[2]; } conv;
+
+    ptr += idx;
+    conv.parts[0] = ptr[0];
+    conv.parts[1] = ptr[2];
+    return conv.ll;
+}
+#endif
+
 /* store a long into an array of u4 */
 static inline void putLongToArray(u4* ptr, int idx, s8 val)
 {
@@ -191,6 +230,20 @@ static inline void putLongToArray(u4* ptr, int idx, s8 val)
     *((s8*) &ptr[idx]) = val;
 #endif
 }
+
+#ifdef WITH_TAINT_TRACKING
+/* store a long into an array of u4 */
+static inline void putLongToArrayTaint(u4* ptr, int idx, s8 val)
+{
+    /* Need to use the "union" version for taint tracking */
+    union { s8 ll; u4 parts[2]; } conv;
+
+    ptr += idx;
+    conv.ll = val;
+    ptr[0] = conv.parts[0];
+    ptr[2] = conv.parts[1];
+}
+#endif
 
 /* get a double from an array of u4 */
 static inline double getDoubleFromArray(const u4* ptr, int idx)
@@ -211,6 +264,20 @@ static inline double getDoubleFromArray(const u4* ptr, int idx)
 #endif
 }
 
+#ifdef WITH_TAINT_TRACKING
+/* get a double from an array of u4 */
+static inline double getDoubleFromArrayTaint(const u4* ptr, int idx)
+{
+    /* Need to use the "union" version for taint tracking */
+    union { double d; u4 parts[2]; } conv;
+
+    ptr += idx;
+    conv.parts[0] = ptr[0];
+    conv.parts[1] = ptr[2];
+    return conv.d;
+}
+#endif
+
 /* store a double into an array of u4 */
 static inline void putDoubleToArray(u4* ptr, int idx, double dval)
 {
@@ -228,6 +295,20 @@ static inline void putDoubleToArray(u4* ptr, int idx, double dval)
 #endif
 }
 
+#ifdef WITH_TAINT_TRACKING
+/* store a double into an array of u4 */
+static inline void putDoubleToArrayTaint(u4* ptr, int idx, double dval)
+{
+    /* Need to use the "union" version for taint tracking */
+    union { double d; u4 parts[2]; } conv;
+
+    ptr += idx;
+    conv.d = dval;
+    ptr[0] = conv.parts[0];
+    ptr[2] = conv.parts[1];
+}
+#endif
+
 /*
  * If enabled, validate the register number on every access.  Otherwise,
  * just do an array access.
@@ -236,6 +317,55 @@ static inline void putDoubleToArray(u4* ptr, int idx, double dval)
  *
  * "_idx" may be referenced more than once.
  */
+#ifdef WITH_TAINT_TRACKING
+/* -- Begin Taint Tracking version ------------------------------- */
+/* Taint tags are interleaved between registers. All indexes must
+ * be multiplied by 2 (i.e., left bit shift by 1) */
+#ifdef CHECK_REGISTER_INDICES
+# define GET_REGISTER(_idx) \
+    ( (_idx) < curMethod->registersSize ? \
+        (fp[(_idx)<<1]) : (assert(!"bad reg"),1969) )
+# define SET_REGISTER(_idx, _val) \
+    ( (_idx) < curMethod->registersSize ? \
+        (fp[(_idx)<<1] = (u4)(_val)) : (assert(!"bad reg"),1969) )
+# define GET_REGISTER_AS_OBJECT(_idx)       ((Object *)GET_REGISTER(_idx))
+# define SET_REGISTER_AS_OBJECT(_idx, _val) SET_REGISTER(_idx, (s4)_val)
+# define GET_REGISTER_INT(_idx) ((s4) GET_REGISTER(_idx))
+# define SET_REGISTER_INT(_idx, _val) SET_REGISTER(_idx, (s4)_val)
+# define GET_REGISTER_WIDE(_idx) \
+    ( (_idx) < curMethod->registersSize-1 ? \
+        getLongFromArrayTaint(fp, ((_idx)<<1)) : (assert(!"bad reg"),1969) )
+# define SET_REGISTER_WIDE(_idx, _val) \
+    ( (_idx) < curMethod->registersSize-1 ? \
+        putLongToArrayTaint(fp, ((_idx)<<1), (_val)) : (assert(!"bad reg"),1969) )
+# define GET_REGISTER_FLOAT(_idx) \
+    ( (_idx) < curMethod->registersSize ? \
+        (*((float*) &fp[(_idx)<<1])) : (assert(!"bad reg"),1969.0f) )
+# define SET_REGISTER_FLOAT(_idx, _val) \
+    ( (_idx) < curMethod->registersSize ? \
+        (*((float*) &fp[(_idx)<<1]) = (_val)) : (assert(!"bad reg"),1969.0f) )
+# define GET_REGISTER_DOUBLE(_idx) \
+    ( (_idx) < curMethod->registersSize-1 ? \
+        getDoubleFromArrayTaint(fp, ((_idx)<<1)) : (assert(!"bad reg"),1969.0) )
+# define SET_REGISTER_DOUBLE(_idx, _val) \
+    ( (_idx) < curMethod->registersSize-1 ? \
+        putDoubleToArrayTaint(fp, ((_idx)<<1), (_val)) : (assert(!"bad reg"),1969.0) )
+#else
+# define GET_REGISTER(_idx)                 (fp[(_idx)<<1])
+# define SET_REGISTER(_idx, _val)           (fp[(_idx)<<1] = (_val))
+# define GET_REGISTER_AS_OBJECT(_idx)       ((Object*) fp[(_idx)<<1])
+# define SET_REGISTER_AS_OBJECT(_idx, _val) (fp[(_idx)<<1] = (u4)(_val))
+# define GET_REGISTER_INT(_idx)             ((s4)GET_REGISTER(_idx))
+# define SET_REGISTER_INT(_idx, _val)       SET_REGISTER(_idx, (s4)_val)
+# define GET_REGISTER_WIDE(_idx)            getLongFromArrayTaint(fp, ((_idx)<<1))
+# define SET_REGISTER_WIDE(_idx, _val)      putLongToArrayTaint(fp, ((_idx)<<1), (_val))
+# define GET_REGISTER_FLOAT(_idx)           (*((float*) &fp[(_idx)<<1]))
+# define SET_REGISTER_FLOAT(_idx, _val)     (*((float*) &fp[(_idx)<<1]) = (_val))
+# define GET_REGISTER_DOUBLE(_idx)          getDoubleFromArrayTaint(fp, ((_idx)<<1))
+# define SET_REGISTER_DOUBLE(_idx, _val)    putDoubleToArrayTaint(fp, ((_idx)<<1), (_val))
+#endif
+/* -- End Taint Tracking version ---------------------------------- */
+#else /* no taint tracking */
 #ifdef CHECK_REGISTER_INDICES
 # define GET_REGISTER(_idx) \
     ( (_idx) < curMethod->registersSize ? \
@@ -278,6 +408,48 @@ static inline void putDoubleToArray(u4* ptr, int idx, double dval)
 # define SET_REGISTER_FLOAT(_idx, _val)     (*((float*) &fp[(_idx)]) = (_val))
 # define GET_REGISTER_DOUBLE(_idx)          getDoubleFromArray(fp, (_idx))
 # define SET_REGISTER_DOUBLE(_idx, _val)    putDoubleToArray(fp, (_idx), (_val))
+#endif
+#endif /* end no taint tracking */
+
+#ifdef WITH_TAINT_TRACKING
+/* Core get and set macros */
+# define GET_REGISTER_TAINT(_idx)	     (fp[((_idx)<<1)+1])
+# define SET_REGISTER_TAINT(_idx, _val)	     (fp[((_idx)<<1)+1] = (u4)(_val))
+# define GET_REGISTER_TAINT_WIDE(_idx)       (fp[((_idx)<<1)+1])
+# define SET_REGISTER_TAINT_WIDE(_idx, _val) (fp[((_idx)<<1)+1] = \
+	                                      fp[((_idx)<<1)+3] = (u4)(_val))
+/* Alternate interfaces to help dereference register width */
+# define GET_REGISTER_TAINT_INT(_idx)	          GET_REGISTER_TAINT(_idx)
+# define SET_REGISTER_TAINT_INT(_idx, _val)       SET_REGISTER_TAINT(_idx, _val)
+# define GET_REGISTER_TAINT_FLOAT(_idx)	          GET_REGISTER_TAINT(_idx)
+# define SET_REGISTER_TAINT_FLOAT(_idx, _val)     SET_REGISTER_TAINT(_idx, _val)
+# define GET_REGISTER_TAINT_DOUBLE(_idx)          GET_REGISTER_TAINT_WIDE(_idx)
+# define SET_REGISTER_TAINT_DOUBLE(_idx, _val)    SET_REGISTER_TAINT_WIDE(_idx, _val)
+# define GET_REGISTER_TAINT_AS_OBJECT(_idx)       GET_REGISTER_TAINT(_idx)
+# define SET_REGISTER_TAINT_AS_OBJECT(_idx, _val) SET_REGISTER_TAINT(_idx, _val)
+
+/* Object Taint interface */
+# define GET_ARRAY_TAINT(_arr)		      ((_arr)->taint.tag)
+# define SET_ARRAY_TAINT(_arr, _val)	      ((_arr)->taint.tag = (u4)(_val))
+
+/* Return value taint (assumes rtaint variable is in scope */
+# define GET_RETURN_TAINT()		      (rtaint.tag)
+# define SET_RETURN_TAINT(_val)		      (rtaint.tag = (u4)(_val))
+#else
+# define GET_REGISTER_TAINT(_idx)		    ((void)0)
+# define SET_REGISTER_TAINT(_idx, _val)		    ((void)0)
+# define GET_REGISTER_TAINT_WIDE(_idx)		    ((void)0)
+# define SET_REGISTER_TAINT_WIDE(_idx, _val)	    ((void)0)
+# define GET_REGISTER_TAINT_INT(_idx)		    ((void)0)
+# define SET_REGISTER_TAINT_INT(_idx, _val)	    ((void)0)
+# define GET_REGISTER_TAINT_DOUBLE(_idx)	    ((void)0)
+# define SET_REGISTER_TAINT_DOUBLE(_idx, _val)	    ((void)0)
+# define GET_REGISTER_TAINT_AS_OBJECT(_idx)	    ((void)0)
+# define SET_REGISTER_TAINT_AS_OBJECT(_idx, _val)   ((void)0)
+# define GET_ARRAY_TAINT(_field)                    ((void)0)
+# define SET_ARRAY_TAINT(_field, _val)              ((void)0)
+# define GET_RETURN_TAINT()			    ((void)0)
+# define SET_RETURN_TAINT(_val)			    ((void)0)
 #endif
 
 /*

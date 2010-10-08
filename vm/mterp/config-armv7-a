@@ -28,7 +28,7 @@ asm-stub armv5te/stub.S
 
 # file header and basic definitions
 import c/header.c
-import armv5te/header.S
+import armv5te_taint/header.S
 
 # C pre-processor defines for stub C instructions
 import cstubs/stubdefs.c
@@ -40,128 +40,116 @@ import armv5te/platform.S
 import c/opcommon.c
 
 # arch-specific entry point to interpreter
-import armv5te/entry.S
+import armv5te_taint/entry.S
 
 # opcode list; argument to op-start is default directory
-op-start armv5te
-    # handlers that take advantage of >= ARMv6T2 instructions
-    op OP_ADD_DOUBLE_2ADDR armv6t2
-    op OP_ADD_FLOAT_2ADDR armv6t2
-    op OP_ADD_INT_2ADDR armv6t2
-    op OP_ADD_INT_LIT16 armv6t2
-    op OP_ADD_LONG_2ADDR armv6t2
-    op OP_AND_INT_2ADDR armv6t2
-    op OP_AND_INT_LIT16 armv6t2
-    op OP_AND_LONG_2ADDR armv6t2
-    op OP_ARRAY_LENGTH armv6t2
-    op OP_CONST_4 armv6t2
-    op OP_DIV_DOUBLE_2ADDR armv6t2
-    op OP_DIV_FLOAT_2ADDR armv6t2
-    op OP_DIV_INT_2ADDR armv6t2
-    op OP_DIV_INT_LIT16 armv6t2
-    op OP_DIV_LONG_2ADDR armv6t2
-    op OP_DOUBLE_TO_FLOAT armv6t2
-    op OP_DOUBLE_TO_INT armv6t2
-    op OP_DOUBLE_TO_LONG armv6t2
-    op OP_FLOAT_TO_DOUBLE armv6t2
-    op OP_FLOAT_TO_INT armv6t2
-    op OP_FLOAT_TO_LONG armv6t2
-    op OP_IF_EQ armv6t2
-    op OP_IF_GE armv6t2
-    op OP_IF_GT armv6t2
-    op OP_IF_LE armv6t2
-    op OP_IF_LT armv6t2
-    op OP_IF_NE armv6t2
-    op OP_IGET armv6t2
-    op OP_IGET_QUICK armv6t2
-    op OP_IGET_WIDE armv6t2
-    op OP_IGET_WIDE_QUICK armv6t2
-    op OP_INT_TO_BYTE armv6t2
-    op OP_INT_TO_CHAR armv6t2
-    op OP_INT_TO_DOUBLE armv6t2
-    op OP_INT_TO_FLOAT armv6t2
-    op OP_INT_TO_LONG armv6t2
-    op OP_INT_TO_SHORT armv6t2
-    op OP_IPUT armv6t2
-    op OP_IPUT_QUICK armv6t2
-    op OP_IPUT_WIDE armv6t2
-    op OP_IPUT_WIDE_QUICK armv6t2
-    op OP_LONG_TO_DOUBLE armv6t2
-    op OP_LONG_TO_FLOAT armv6t2
-    op OP_MOVE armv6t2
-    op OP_MOVE_WIDE armv6t2
-    op OP_MUL_DOUBLE_2ADDR armv6t2
-    op OP_MUL_FLOAT_2ADDR armv6t2
-    op OP_MUL_INT_2ADDR armv6t2
-    op OP_MUL_INT_LIT16 armv6t2
-    op OP_MUL_LONG_2ADDR armv6t2
-    op OP_NEG_DOUBLE armv6t2
-    op OP_NEG_FLOAT armv6t2
-    op OP_NEG_INT armv6t2
-    op OP_NEG_LONG armv6t2
-    op OP_NOT_INT armv6t2
-    op OP_NOT_LONG armv6t2
-    op OP_OR_INT_2ADDR armv6t2
-    op OP_OR_INT_LIT16 armv6t2
-    op OP_OR_LONG_2ADDR armv6t2
-    op OP_REM_DOUBLE_2ADDR armv6t2
-    op OP_REM_FLOAT_2ADDR armv6t2
-    op OP_REM_INT_2ADDR armv6t2
-    op OP_REM_INT_LIT16 armv6t2
-    op OP_REM_LONG_2ADDR armv6t2
-    op OP_RSUB_INT armv6t2
-    op OP_SHL_INT_2ADDR armv6t2
-    op OP_SHL_LONG_2ADDR armv6t2
-    op OP_SHR_INT_2ADDR armv6t2
-    op OP_SHR_LONG_2ADDR armv6t2
-    op OP_SUB_DOUBLE_2ADDR armv6t2
-    op OP_SUB_FLOAT_2ADDR armv6t2
-    op OP_SUB_INT_2ADDR armv6t2
-    op OP_SUB_LONG_2ADDR armv6t2
-    op OP_USHR_INT_2ADDR armv6t2
-    op OP_USHR_LONG_2ADDR armv6t2
-    op OP_XOR_INT_2ADDR armv6t2
-    op OP_XOR_INT_LIT16 armv6t2
-    op OP_XOR_LONG_2ADDR armv6t2
+op-start armv5te_taint
+	# bincmp.S (unmodified)
+	op OP_IF_EQ armv6t2_taint
+	op OP_IF_GE armv6t2_taint
+	op OP_IF_GT armv6t2_taint
+	op OP_IF_LE armv6t2_taint
+	op OP_IF_LT armv6t2_taint
+	op OP_IF_NE armv6t2_taint
+    
+	# binop2addr.S
+	op OP_ADD_FLOAT_2ADDR armv6t2_taint    
+	op OP_ADD_INT_2ADDR armv6t2_taint
+	op OP_AND_INT_2ADDR armv6t2_taint
+	op OP_DIV_FLOAT_2ADDR armv6t2_taint
+	op OP_DIV_INT_2ADDR armv6t2_taint
+	op OP_MUL_FLOAT_2ADDR armv6t2_taint
+	op OP_MUL_INT_2ADDR armv6t2_taint
+	op OP_OR_INT_2ADDR armv6t2_taint
+	op OP_REM_FLOAT_2ADDR armv6t2_taint
+	op OP_REM_INT_2ADDR armv6t2_taint
+	op OP_SHL_INT_2ADDR armv6t2_taint
+	op OP_SHR_INT_2ADDR armv6t2_taint
+	op OP_SUB_FLOAT_2ADDR armv6t2_taint
+	op OP_SUB_INT_2ADDR armv6t2_taint
+	op OP_USHR_INT_2ADDR armv6t2_taint
+	op OP_XOR_INT_2ADDR armv6t2_taint
 
-    # floating point handlers that use VFP
-    # these override the handlers specified earlier
-    op OP_ADD_DOUBLE arm-vfp
-    op OP_ADD_DOUBLE_2ADDR arm-vfp
-    op OP_ADD_FLOAT arm-vfp
-    op OP_ADD_FLOAT_2ADDR arm-vfp
-    op OP_CMPG_DOUBLE arm-vfp
-    op OP_CMPG_FLOAT arm-vfp
-    op OP_CMPL_DOUBLE arm-vfp
-    op OP_CMPL_FLOAT arm-vfp
-    op OP_DIV_DOUBLE arm-vfp
-    op OP_DIV_DOUBLE_2ADDR arm-vfp
-    op OP_DIV_FLOAT arm-vfp
-    op OP_DIV_FLOAT_2ADDR arm-vfp
-    op OP_DOUBLE_TO_FLOAT arm-vfp
-    op OP_DOUBLE_TO_INT arm-vfp
-    op OP_FLOAT_TO_DOUBLE arm-vfp
-    op OP_FLOAT_TO_INT arm-vfp
-    op OP_INT_TO_DOUBLE arm-vfp
-    op OP_INT_TO_FLOAT arm-vfp
-    op OP_MUL_DOUBLE arm-vfp
-    op OP_MUL_DOUBLE_2ADDR arm-vfp
-    op OP_MUL_FLOAT arm-vfp
-    op OP_MUL_FLOAT_2ADDR arm-vfp
-    op OP_SUB_DOUBLE arm-vfp
-    op OP_SUB_DOUBLE_2ADDR arm-vfp
-    op OP_SUB_FLOAT arm-vfp
-    op OP_SUB_FLOAT_2ADDR arm-vfp
+	# unop.S
+	op OP_FLOAT_TO_INT armv6t2_taint
+	op OP_INT_TO_BYTE armv6t2_taint
+	op OP_INT_TO_CHAR armv6t2_taint
+	op OP_INT_TO_FLOAT armv6t2_taint
+	op OP_INT_TO_SHORT armv6t2_taint
+	op OP_NEG_FLOAT armv6t2_taint
+	op OP_NEG_INT armv6t2_taint
+	op OP_NOT_INT armv6t2_taint
+
+
+	# arm-vfp_taint
+		
+	# fbinop.S
+	op OP_ADD_FLOAT arm-vfp_taint
+	op OP_DIV_FLOAT arm-vfp_taint
+	op OP_MUL_FLOAT arm-vfp_taint
+	op OP_SUB_FLOAT arm-vfp_taint
+	
+	# funops.S
+	op OP_FLOAT_TO_INT arm-vfp_taint
+	op OP_INT_TO_FLOAT arm-vfp_taint
+	
+	# fbinop2addr.S
+	op OP_ADD_FLOAT_2ADDR arm-vfp_taint
+	op OP_DIV_FLOAT_2ADDR arm-vfp_taint
+	op OP_MUL_FLOAT_2ADDR arm-vfp_taint
+	op OP_SUB_FLOAT_2ADDR arm-vfp_taint
+	
+	# fbinopWide.S
+	op OP_ADD_DOUBLE arm-vfp_taint
+	op OP_DIV_DOUBLE arm-vfp_taint
+	op OP_MUL_DOUBLE arm-vfp_taint
+	op OP_SUB_DOUBLE arm-vfp_taint	
+
+	# fbinopWide2addr.S
+	op OP_ADD_DOUBLE_2ADDR arm-vfp_taint
+	op OP_DIV_DOUBLE_2ADDR arm-vfp_taint
+	op OP_MUL_DOUBLE_2ADDR arm-vfp_taint
+	op OP_SUB_DOUBLE_2ADDR arm-vfp_taint
+	
+	# funopNarrower.S
+	op OP_DOUBLE_TO_INT arm-vfp_taint
+	op OP_DOUBLE_TO_FLOAT arm-vfp_taint
+	
+	# funopWider.S
+	op OP_INT_TO_DOUBLE arm-vfp_taint
+	op OP_FLOAT_TO_DOUBLE arm-vfp_taint	
+
+	# cmp
+	op OP_CMPG_DOUBLE arm-vfp_taint
+	op OP_CMPG_FLOAT arm-vfp_taint
+	op OP_CMPL_DOUBLE arm-vfp_taint
+	op OP_CMPL_FLOAT arm-vfp_taint
+
+	# still using c versions for invoking native code
+	op OP_INVOKE_DIRECT_RANGE c
+	op OP_INVOKE_DIRECT c
+	op OP_INVOKE_INTERFACE_RANGE c
+	op OP_INVOKE_INTERFACE c
+	op OP_INVOKE_STATIC_RANGE c
+	op OP_INVOKE_STATIC c
+	op OP_INVOKE_SUPER_QUICK_RANGE c
+	op OP_INVOKE_SUPER_QUICK c
+	op OP_INVOKE_SUPER_RANGE c
+	op OP_INVOKE_SUPER c
+	op OP_INVOKE_VIRTUAL_QUICK_RANGE c
+	op OP_INVOKE_VIRTUAL_QUICK c
+	op OP_INVOKE_VIRTUAL_RANGE c
+	op OP_INVOKE_VIRTUAL c
 op-end
 
 # "helper" code for C; include if you use any of the C stubs (this generates
 # object code, so it's normally excluded)
-##import c/gotoTargets.c
+import c/gotoTargets.c
 
 # end of defs; include this when cstubs/stubdefs.c is included
 import cstubs/enddefs.c
 
 # common subroutines for asm
-import armv5te/footer.S
+import armv5te_taint/footer.S
 import armv5te/debug.c
 

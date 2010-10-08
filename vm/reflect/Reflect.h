@@ -76,6 +76,20 @@ int dvmConvertPrimitiveValue(PrimitiveType srcType,
  */
 int dvmConvertArgument(DataObject* arg, ClassObject* type, s4* ins);
 
+#ifdef WITH_TAINT_TRACKING
+/* Returns the taint tag for a boxed primitive.
+ * If the object is not a boxed primitive, TAINT_CLEAR
+ * is returned
+ */
+u4 dvmGetPrimitiveTaint(DataObject* arg, ClassObject* type);
+
+/* Set the taint tag for a boxed primitive.
+ * If the object is not a boxed primitive, does nothing
+ */
+void dvmSetPrimitiveTaint(DataObject* arg, ClassObject* type, u4 tag);
+#endif
+
+
 /*
  * Create a wrapper object for a primitive data type.  If "returnType" is
  * not primitive, this just returns "value" cast to an object.

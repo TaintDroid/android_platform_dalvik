@@ -122,6 +122,14 @@ static void Dalvik_java_lang_System_arraycopy(const u4* args, JValue* pResult)
         (*copyFunc)((u1*)dstArray->contents + dstPos * width,
                 (const u1*)srcArray->contents + srcPos * width,
                 length * width);
+#ifdef WITH_TAINT_TRACKING
+	if (dstPos == 0 && dstArray->length == length) {
+	    /* entire array replaced */
+	    dstArray->taint.tag = srcArray->taint.tag;
+	} else {
+	    dstArray->taint.tag |= srcArray->taint.tag;
+	}
+#endif
     } else {
         /*
          * Neither class is primitive.  See if elements in "src" are instances
@@ -143,6 +151,14 @@ static void Dalvik_java_lang_System_arraycopy(const u4* args, JValue* pResult)
             (*copyFunc)((u1*)dstArray->contents + dstPos * width,
                     (const u1*)srcArray->contents + srcPos * width,
                     length * width);
+#ifdef WITH_TAINT_TRACKING
+	    if (dstPos == 0 && dstArray->length == length) {
+		/* entire array replaced */
+		dstArray->taint.tag = srcArray->taint.tag;
+	    } else {
+		dstArray->taint.tag |= srcArray->taint.tag;
+	    }
+#endif
         } else {
             /*
              * The arrays are not fundamentally compatible.  However, we may
@@ -189,6 +205,14 @@ static void Dalvik_java_lang_System_arraycopy(const u4* args, JValue* pResult)
             (*copyFunc)((u1*)dstArray->contents + dstPos * width,
                     (const u1*)srcArray->contents + srcPos * width,
                     copyCount * width);
+#ifdef WITH_TAINT_TRACKING
+	    if (dstPos == 0 && dstArray->length == length) {
+		/* entire array replaced */
+		dstArray->taint.tag = srcArray->taint.tag;
+	    } else {
+		dstArray->taint.tag |= srcArray->taint.tag;
+	    }
+#endif
 
             if (copyCount != length) {
                 dvmThrowException("Ljava/lang/ArrayStoreException;", NULL);

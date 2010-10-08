@@ -586,7 +586,16 @@ static jboolean java_io_File_mkdirImpl(JNIEnv* env, jobject recv,
 
 // BEGIN android-changed
 // don't want default permissions to allow global access.
+#ifdef WITH_TAINT_TRACKING
+    // In case the SDcard is ext2, make sure it is 777
+    if (strncmp(pathCopy, "/sdcard/", 8) == 0) {
+	result = mkdir(pathCopy, S_IRWXU|S_IRWXG|S_IRWXO);
+    } else {
+	result = mkdir(pathCopy, S_IRWXU);
+    }
+#else
     result = mkdir(pathCopy, S_IRWXU);
+#endif
 // END android-changed
 
     if(-1 != result)
@@ -622,7 +631,16 @@ static jint java_io_File_newFileImpl(JNIEnv* env, jobject recv,
     /* Now create the file and close it */
 // BEGIN android-changed
 // don't want default permissions to allow global access.
+#ifdef WITH_TAINT_TRACKING
+    int fd;
+    if (strncmp(pathCopy, "/sdcard/", 8) == 0) {
+	fd = open(pathCopy, O_EXCL | O_CREAT, 0666);
+    } else {
+	fd = open(pathCopy, O_EXCL | O_CREAT, 0600);
+    }
+#else
     int fd = open(pathCopy, O_EXCL | O_CREAT, 0600);
+#endif
 // END android-changed
     if(fd == -1)
     {

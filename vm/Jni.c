@@ -410,6 +410,10 @@ bool dvmJniStartup(void)
         return false;
     }
 
+#ifdef WITH_TAINT_TRACKING
+    dvmTaintPropJniStartup();
+#endif
+
     return true;
 }
 
@@ -422,6 +426,10 @@ void dvmJniShutdown(void)
     dvmClearIndirectRefTable(&gDvm.jniGlobalRefTable);
 #else
     dvmClearReferenceTable(&gDvm.jniGlobalRefTable);
+#endif
+
+#ifdef WITH_TAINT_TRACKING
+    dvmTaintPropJniShutdown();
 #endif
 }
 
@@ -1546,6 +1554,10 @@ void dvmCallJNIMethod_general(const u4* args, JValue* pResult,
         (void*)method->insns, pResult);
     CHECK_STACK_SUM(self);
 
+#ifdef WITH_TAINT_TRACKING
+    dvmTaintPropJniMethod(args, pResult, method);
+#endif
+
     dvmChangeStatus(self, oldStatus);
 
     convertReferenceResult(env, pResult, method, self);
@@ -1605,6 +1617,10 @@ void dvmCallJNIMethod_virtualNoRef(const u4* args, JValue* pResult,
         (void*)method->insns, pResult);
     CHECK_STACK_SUM(self);
 
+#ifdef WITH_TAINT_TRACKING
+    dvmTaintPropJniMethod(args, pResult, method);
+#endif
+
     dvmChangeStatus(self, oldStatus);
 
     convertReferenceResult(self->jniEnv, pResult, method, self);
@@ -1638,6 +1654,10 @@ void dvmCallJNIMethod_staticNoRef(const u4* args, JValue* pResult,
         method->jniArgInfo, method->insSize, args, method->shorty,
         (void*)method->insns, pResult);
     CHECK_STACK_SUM(self);
+
+#ifdef WITH_TAINT_TRACKING
+    dvmTaintPropJniMethod(args, pResult, method);
+#endif
 
     dvmChangeStatus(self, oldStatus);
 

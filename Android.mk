@@ -28,8 +28,12 @@ subdirs := $(addprefix $(LOCAL_PATH)/,$(addsuffix /Android.mk, \
 		tools \
 	))
 
-include $(subdirs)
+# Taint propagation with file propagation
+ifeq ($(WITH_TAINT_TRACKING),true)
+    subdirs += $(LOCAL_PATH)/libattr/Android.mk
+endif
 
+include $(subdirs)
 
 .PHONY: dex dex-debug
 ifeq ($(DONT_INSTALL_DEX_FILES),true)

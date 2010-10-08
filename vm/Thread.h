@@ -73,9 +73,15 @@ void dvmSlayDaemons(void);
 #define kInternalRefDefault     32      /* equally arbitrary */
 #define kInternalRefMax         4096    /* mainly a sanity check */
 
+#ifdef WITH_TAINT_TRACKING
+# define kMinStackSize       (1024 + STACK_OVERFLOW_RESERVE)
+# define kDefaultStackSize   (24*1024)    /* six 4K pages */
+# define kMaxStackSize       (512*1024 + STACK_OVERFLOW_RESERVE)
+#else
 #define kMinStackSize       (512 + STACK_OVERFLOW_RESERVE)
 #define kDefaultStackSize   (12*1024)   /* three 4K pages */
 #define kMaxStackSize       (256*1024 + STACK_OVERFLOW_RESERVE)
+#endif
 
 /*
  * System thread state. See native/SystemThread.h.

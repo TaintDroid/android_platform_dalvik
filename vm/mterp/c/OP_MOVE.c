@@ -5,5 +5,8 @@ HANDLE_OPCODE($opcode /*vA, vB*/)
         (INST_INST(inst) == OP_MOVE) ? "" : "-object", vdst, vsrc1,
         kSpacing, vdst, GET_REGISTER(vsrc1));
     SET_REGISTER(vdst, GET_REGISTER(vsrc1));
+/* ifdef WITH_TAINT_TRACKING */
+    SET_REGISTER_TAINT(vdst, GET_REGISTER_TAINT(vsrc1));
+/* endif */
     FINISH(1);
 OP_END

@@ -35,6 +35,12 @@
 #define RETURN_FLOAT(_val)      do { pResult->f = (_val); return; } while(0)
 #define RETURN_DOUBLE(_val)     do { pResult->d = (_val); return; } while(0)
 #define RETURN_PTR(_val)        do { pResult->l = (_val); return; } while(0)
+#ifdef WITH_TAINT_TRACKING
+/* use "->i" instead of "->c" and "->b" because interpreter expects 32-bit 
+ * value, as described above */
+#define RETURN_CHAR(_val)       do { pResult->i = (_val); return; } while(0)
+#define RETURN_BYTE(_val)       do { pResult->i = (_val); return; } while(0)
+#endif
 
 
 /*
@@ -113,5 +119,8 @@ extern const DalvikNativeMethod dvm_org_apache_harmony_dalvik_ddmc_DdmServer[];
 extern const DalvikNativeMethod dvm_org_apache_harmony_dalvik_ddmc_DdmVmInternal[];
 extern const DalvikNativeMethod dvm_org_apache_harmony_dalvik_NativeTestTarget[];
 extern const DalvikNativeMethod dvm_sun_misc_Unsafe[];
+#ifdef WITH_TAINT_TRACKING
+extern const DalvikNativeMethod dvm_dalvik_system_Taint[];
+#endif
 
 #endif /*_DALVIK_NATIVE_INTERNALNATIVEPRIV*/

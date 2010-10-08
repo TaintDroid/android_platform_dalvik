@@ -187,6 +187,9 @@ static void dvmUsage(const char* progName)
 #if defined(WITH_JIT)
         " with_jit"
 #endif
+#ifdef WITH_TAINT_TRACKING
+	" taint_tracking"
+#endif
     );
 #ifdef DVM_SHOW_EXCEPTION
     dvmFprintf(stderr, " show_exception=%d", DVM_SHOW_EXCEPTION);
@@ -841,9 +844,17 @@ static int dvmProcessOptions(int argc, const char* const argv[],
             if (strcmp(argv[i] + 9, "none") == 0)
                 gDvm.dexOptMode = OPTIMIZE_MODE_NONE;
             else if (strcmp(argv[i] + 9, "verified") == 0)
+#if defined(WITH_TAINT_TRACKING) && !defined(WITH_TAINT_ODEX)
+                gDvm.dexOptMode = OPTIMIZE_MODE_NONE;
+#else
                 gDvm.dexOptMode = OPTIMIZE_MODE_VERIFIED;
+#endif
             else if (strcmp(argv[i] + 9, "all") == 0)
+#if defined(WITH_TAINT_TRACKING) && !defined(WITH_TAINT_ODEX)
+                gDvm.dexOptMode = OPTIMIZE_MODE_NONE;
+#else
                 gDvm.dexOptMode = OPTIMIZE_MODE_ALL;
+#endif
             else {
                 dvmFprintf(stderr, "Unrecognized dexopt option '%s'\n",argv[i]);
                 return -1;
@@ -998,7 +1009,11 @@ static void setCommandLineDefaults()
 
     /* default verification and optimization modes */
     gDvm.classVerifyMode = VERIFY_MODE_ALL;
+#if defined(WITH_TAINT_TRACKING) && !defined(WITH_TAINT_ODEX)
+    gDvm.dexOptMode = OPTIMIZE_MODE_NONE;
+#else
     gDvm.dexOptMode = OPTIMIZE_MODE_VERIFIED;
+#endif
 
     /*
      * Default execution mode.
@@ -1019,6 +1034,9 @@ static void setCommandLineDefaults()
     gDvmJit.threshold = 200;
 #else
     gDvm.executionMode = kExecutionModeInterpFast;
+#endif
+#if defined(WITH_TAINT_TRACKING) && !defined(WITH_TAINT_FAST)
+    gDvm.executionMode = kExecutionModeInterpPortable;
 #endif
 }
 

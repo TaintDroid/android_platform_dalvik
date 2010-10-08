@@ -154,6 +154,10 @@ $(foreach dir, \
 # Define the rules.
 LOCAL_SRC_FILES := $(core_src_files)
 LOCAL_MODULE := libjavacore
+# turn on taint tracking
+ifeq ($(WITH_TAINT_TRACKING),true)
+    LOCAL_CFLAGS += -DWITH_TAINT_TRACKING
+endif
 include $(BUILD_STATIC_LIBRARY)
 
 # Deal with keystores required for security. Note: The path to this file

@@ -169,6 +169,9 @@ static void Dalvik_java_lang_reflect_Field_getField(const u4* args,
     ClassObject* fieldType = (ClassObject*) args[3];
     int slot = args[4];
     bool noAccessCheck = (args[5] != 0);
+#ifdef WITH_TAINT_TRACKING
+    u4* rtaint = (u4*) &args[6]; /* return taint tag slot */
+#endif
     JValue value;
     const JValue* fieldPtr;
     DataObject* result;
@@ -191,6 +194,31 @@ static void Dalvik_java_lang_reflect_Field_getField(const u4* args,
 
     result = dvmWrapPrimitive(value, fieldType);
     dvmReleaseTrackedAlloc((Object*) result, NULL);
+
+#ifdef WITH_TAINT_TRACKING
+    /* If we got this far, we know the fields is okay to access and there
+     * will not be a problem getting the field from the slot */
+    {
+	Field* field = dvmSlotToField(declaringClass, slot);
+	assert(field != NULL);
+	if (dvmIsStaticField(field)) {
+	    StaticField* sfield = (StaticField*)field;
+	    *rtaint = dvmGetStaticFieldTaint(sfield);
+	} else {
+	    /* Note, getFieldDataAddr() already checked that 
+	     * obj is of type declaringClass, so no need to check here
+	     */
+	    InstField* ifield = (InstField*)field;
+	    if (fieldType->primitiveType == PRIM_LONG ||
+		fieldType->primitiveType == PRIM_DOUBLE) {
+		*rtaint = dvmGetFieldTaintWide(obj, ifield->byteOffset);
+	    } else {
+		*rtaint = dvmGetFieldTaint(obj, ifield->byteOffset);
+	    }
+	}
+    }
+#endif
+
     RETURN_PTR(result);
 }
 
@@ -211,6 +239,17 @@ static void Dalvik_java_lang_reflect_Field_setField(const u4* args,
     int slot = args[4];
     bool noAccessCheck = (args[5] != 0);
     Object* valueObj = (Object*) args[6];
+#ifdef WITH_TAINT_TRACKING
+    /* rtaint = args[7]
+     * thisPtr taint = args[8]
+     * obj taint = args[9]
+     * declaringClass taint = args[10]
+     * fieldType taint = args[11]
+     * slot taint = args[12]
+     * noAccessCheck taint = args[13]
+     */
+    u4 valueTaint = args[14];
+#endif
     JValue* fieldPtr;
     JValue value;
 
@@ -234,6 +273,30 @@ static void Dalvik_java_lang_reflect_Field_setField(const u4* args,
     } else {
         fieldPtr->i = value.i;
     }
+
+#ifdef WITH_TAINT_TRACKING
+    /* If we got this far, we know the fields is okay to access and there
+     * will not be a problem getting the field from the slot */
+    {
+	Field* field = dvmSlotToField(declaringClass, slot);
+	assert(field != NULL);
+	if (dvmIsStaticField(field)) {
+	    StaticField* sfield = (StaticField*)field;
+	    dvmSetStaticFieldTaint(sfield, valueTaint);
+	} else {
+	    /* Note, getFieldDataAddr() already checked that 
+	     * obj is of type declaringClass, so no need to check here
+	     */
+	    InstField* ifield = (InstField*)field;
+	    if (fieldType->primitiveType == PRIM_LONG ||
+		fieldType->primitiveType == PRIM_DOUBLE) {
+		dvmSetFieldTaintWide(obj, ifield->byteOffset, valueTaint);
+	    } else {
+		dvmSetFieldTaint(obj, ifield->byteOffset, valueTaint);
+	    }
+	}
+    }
+#endif
 
     RETURN_VOID();
 }
@@ -270,6 +333,9 @@ static void Dalvik_java_lang_reflect_Field_getPrimitiveField(const u4* args,
     int slot = args[4];
     bool noAccessCheck = (args[5] != 0);
     int typeNum = args[6];
+#ifdef WITH_TAINT_TRACKING
+    u4* rtaint = (u4*) &args[7]; /* return taint tag slot */
+#endif
     PrimitiveType targetType = convPrimType(typeNum);
     const JValue* fieldPtr;
     JValue value;
@@ -302,6 +368,30 @@ static void Dalvik_java_lang_reflect_Field_getPrimitiveField(const u4* args,
             "invalid primitive conversion");
         RETURN_VOID();
     }
+
+#ifdef WITH_TAINT_TRACKING
+    /* If we got this far, we know the fields is okay to access and there
+     * will not be a problem getting the field from the slot */
+    {
+	Field* field = dvmSlotToField(declaringClass, slot);
+	assert(field != NULL);
+	if (dvmIsStaticField(field)) {
+	    StaticField* sfield = (StaticField*)field;
+	    *rtaint = dvmGetStaticFieldTaint(sfield);
+	} else {
+	    /* Note, getFieldDataAddr() already checked that 
+	     * obj is of type declaringClass, so no need to check here
+	     */
+	    InstField* ifield = (InstField*)field;
+	    if (fieldType->primitiveType == PRIM_LONG ||
+		fieldType->primitiveType == PRIM_DOUBLE) {
+		*rtaint = dvmGetFieldTaintWide(obj, ifield->byteOffset);
+	    } else {
+		*rtaint = dvmGetFieldTaint(obj, ifield->byteOffset);
+	    }
+	}
+    }
+#endif
 }
 
 /*
@@ -322,6 +412,18 @@ static void Dalvik_java_lang_reflect_Field_setPrimitiveField(const u4* args,
     bool noAccessCheck = (args[5] != 0);
     int typeNum = args[6];
     const s4* valuePtr = (s4*) &args[7];
+#ifdef WITH_TAINT_TRACKING
+    /* rtaint = args[8]
+     * thisPtr taint = args[9]
+     * obj taint = args[10]
+     * declaringClass taint = args[11]
+     * fieldType taint = args[12]
+     * slot taint = args[13]
+     * noAccessCheck taint = args[14]
+     * typeNum taint = args[15]
+     */
+    u4 valueTaint = args[16];
+#endif
     PrimitiveType srcType = convPrimType(typeNum);
     JValue* fieldPtr;
     JValue value;
@@ -354,6 +456,30 @@ static void Dalvik_java_lang_reflect_Field_setPrimitiveField(const u4* args,
     } else {
         fieldPtr->i = value.i;
     }
+
+#ifdef WITH_TAINT_TRACKING
+    /* If we got this far, we know the fields is okay to access and there
+     * will not be a problem getting the field from the slot */
+    {
+	Field* field = dvmSlotToField(declaringClass, slot);
+	assert(field != NULL);
+	if (dvmIsStaticField(field)) {
+	    StaticField* sfield = (StaticField*)field;
+	    dvmSetStaticFieldTaint(sfield, valueTaint);
+	} else {
+	    /* Note, getFieldDataAddr() already checked that 
+	     * obj is of type declaringClass, so no need to check here
+	     */
+	    InstField* ifield = (InstField*)field;
+	    if (fieldType->primitiveType == PRIM_LONG ||
+		fieldType->primitiveType == PRIM_DOUBLE) {
+		dvmSetFieldTaintWide(obj, ifield->byteOffset, valueTaint);
+	    } else {
+		dvmSetFieldTaint(obj, ifield->byteOffset, valueTaint);
+	    }
+	}
+    }
+#endif
 
     RETURN_VOID();
 }

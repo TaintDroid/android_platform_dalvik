@@ -30,6 +30,9 @@ HANDLE_OPCODE(OP_NEW_INSTANCE /*vAA, class@BBBB*/)
         if (newObj == NULL)
             GOTO_exceptionThrown();
         SET_REGISTER(vdst, (u4) newObj);
+/* ifdef WITH_TAINT_TRACKING */
+        SET_REGISTER_TAINT(vdst, TAINT_CLEAR);
+/* endif */
     }
     FINISH(2);
 OP_END

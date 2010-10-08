@@ -447,6 +447,17 @@ bool dvmLoadNativeCode(const char* pathName, Object* classLoader)
 
     LOGD("Trying to load lib %s %p\n", pathName, classLoader);
 
+#ifdef WITH_TAINT_TRACKING
+    if (strncmp(pathName, "/system", 7) != 0) {
+	LOGW("Denying lib %s (not \"/system\" prefix)\n", pathName);
+	return false;
+    }
+    if (strstr(pathName, "/../") != NULL) {
+	LOGW("Denying lib %s (contains \"/../\")\n", pathName);
+	return false;
+    }
+#endif
+
     /*
      * See if we've already loaded it.  If we have, and the class loader
      * matches, return successfully without doing anything.

@@ -24,6 +24,9 @@ HANDLE_OPCODE(OP_INSTANCE_OF /*vA, vB, class@CCCC*/)
                     GOTO_exceptionThrown();
             }
             SET_REGISTER(vdst, dvmInstanceof(obj->clazz, clazz));
+/* ifdef WITH_TAINT_TRACKING */
+	    SET_REGISTER_TAINT(vdst, TAINT_CLEAR);
+/* endif */
         }
     }
     FINISH(2);

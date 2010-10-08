@@ -15,6 +15,9 @@ HANDLE_OPCODE(OP_CONST_STRING_JUMBO /*vAA, string@BBBBBBBB*/)
                 GOTO_exceptionThrown();
         }
         SET_REGISTER(vdst, (u4) strObj);
+/* ifdef WITH_TAINT_TRACKING */
+	SET_REGISTER_TAINT(vdst, TAINT_CLEAR);
+/* endif */
     }
     FINISH(3);
 OP_END

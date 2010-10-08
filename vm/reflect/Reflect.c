@@ -1016,6 +1016,69 @@ int dvmConvertArgument(DataObject* arg, ClassObject* type, s4* destPtr)
     return retVal;
 }
 
+#ifdef WITH_TAINT_TRACKING
+/* Returns the width corresponding to a type
+ * returns -1 if type isn't a primitive type
+ */
+int getTypeWidth(PrimitiveType type) 
+{
+    int width = -1;
+
+    switch (type) {
+	case PRIM_BOOLEAN:
+	case PRIM_CHAR:
+	case PRIM_FLOAT:
+	case PRIM_BYTE:
+	case PRIM_SHORT:
+	case PRIM_INT:
+	    width = 1;
+	    break;
+	case PRIM_DOUBLE:
+	case PRIM_LONG:
+	    width = 2;
+	    break;
+	default:
+	    break;
+    }
+
+    return width;
+}
+
+/* Returns the taint tag for a boxed primitive.
+ * If the object is not a boxed primitive, TAINT_CLEAR
+ * is returned
+ */
+u4 dvmGetPrimitiveTaint(DataObject* arg, ClassObject* type)
+{
+    u4 tag = TAINT_CLEAR;
+    int width = getTypeWidth(type->primitiveType);
+
+    if (width > 0) { /* non-primitives have width -1 */
+	/* the tag is store right after the variable */
+	/* see dvmConvertArgument(): for primitives, the value is first */
+	tag = *(u4*)(arg->instanceData+width);
+
+    } /* else, don't worry about it */
+
+    return tag;
+}
+
+/* Set the taint tag for a boxed primitive.
+ * If the object is not a boxed primitive, does nothing
+ */
+void dvmSetPrimitiveTaint(DataObject* arg, ClassObject* type, u4 tag)
+{
+    int width = getTypeWidth(type->primitiveType);
+
+    if (width > 0) { /* non-primitives have width -1 */
+	/* the tag is store right after the variable */
+	/* see dvmConvertArgument(): for primitives, the value is first */
+	*(u4*)(arg->instanceData+width) = tag;
+
+    } /* else, don't worry about it */
+}
+#endif
+
 /*
  * Create a wrapper object for a primitive data type.  If "returnType" is
  * not primitive, this just casts "value" to an object and returns it.

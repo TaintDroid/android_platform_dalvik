@@ -163,6 +163,31 @@ static const char kSpacing[] = "            ";
 # define DUMP_REGS(_meth, _frame, _inOnly) ((void)0)
 #endif
 
+/*
+ * If enabled, log taint propagation
+ */
+#ifdef WITH_TAINT_TRACKING
+# define TLOGD(...) TLOG(LOG_DEBUG, __VA_ARGS__)
+# define TLOGV(...) TLOG(LOG_VERBOSE, __VA_ARGS__)
+# define TLOGW(...) TLOG(LOG_WARN, __VA_ARGS__)
+# define TLOGE(...) TLOG(LOG_ERROR, __VA_ARGS__)
+# define TLOG(_level, ...) do {                                             \
+        char debugStrBuf[128];                                              \
+        snprintf(debugStrBuf, sizeof(debugStrBuf), __VA_ARGS__);            \
+        if (curMethod != NULL)                                              \
+            LOG(_level, LOG_TAG"t", "%-2d|%04x|%s.%s:%s\n",                    \
+                self->threadId, (int)(pc - curMethod->insns), curMethod->clazz->descriptor, curMethod->name, debugStrBuf); \
+        else                                                                \
+            LOG(_level, LOG_TAG"t", "%-2d|####%s\n",                        \
+                self->threadId, debugStrBuf);                               \
+    } while(false)
+#else
+# define TLOGD(...) ((void)0)
+# define TLOGV(...) ((void)0)
+# define TLOGW(...) ((void)0)
+# define TLOGE(...) ((void)0)
+#endif
+
 /* get a long from an array of u4 */
 static inline s8 getLongFromArray(const u4* ptr, int idx)
 {
@@ -182,6 +207,20 @@ static inline s8 getLongFromArray(const u4* ptr, int idx)
 #endif
 }
 
+#ifdef WITH_TAINT_TRACKING
+/* get a long from an array of u4 */
+static inline s8 getLongFromArrayTaint(const u4* ptr, int idx)
+{
+    /* Need to use the "union" version for taint tracking */
+    union { s8 ll; u4 parts[2]; } conv;
+
+    ptr += idx;
+    conv.parts[0] = ptr[0];
+    conv.parts[1] = ptr[2];
+    return conv.ll;
+}
+#endif
+
 /* store a long into an array of u4 */
 static inline void putLongToArray(u4* ptr, int idx, s8 val)
 {
@@ -198,6 +237,20 @@ static inline void putLongToArray(u4* ptr, int idx, s8 val)
     *((s8*) &ptr[idx]) = val;
 #endif
 }
+
+#ifdef WITH_TAINT_TRACKING
+/* store a long into an array of u4 */
+static inline void putLongToArrayTaint(u4* ptr, int idx, s8 val)
+{
+    /* Need to use the "union" version for taint tracking */
+    union { s8 ll; u4 parts[2]; } conv;
+
+    ptr += idx;
+    conv.ll = val;
+    ptr[0] = conv.parts[0];
+    ptr[2] = conv.parts[1];
+}
+#endif
 
 /* get a double from an array of u4 */
 static inline double getDoubleFromArray(const u4* ptr, int idx)
@@ -218,6 +271,20 @@ static inline double getDoubleFromArray(const u4* ptr, int idx)
 #endif
 }
 
+#ifdef WITH_TAINT_TRACKING
+/* get a double from an array of u4 */
+static inline double getDoubleFromArrayTaint(const u4* ptr, int idx)
+{
+    /* Need to use the "union" version for taint tracking */
+    union { double d; u4 parts[2]; } conv;
+
+    ptr += idx;
+    conv.parts[0] = ptr[0];
+    conv.parts[1] = ptr[2];
+    return conv.d;
+}
+#endif
+
 /* store a double into an array of u4 */
 static inline void putDoubleToArray(u4* ptr, int idx, double dval)
 {
@@ -235,6 +302,20 @@ static inline void putDoubleToArray(u4* ptr, int idx, double dval)
 #endif
 }
 
+#ifdef WITH_TAINT_TRACKING
+/* store a double into an array of u4 */
+static inline void putDoubleToArrayTaint(u4* ptr, int idx, double dval)
+{
+    /* Need to use the "union" version for taint tracking */
+    union { double d; u4 parts[2]; } conv;
+
+    ptr += idx;
+    conv.d = dval;
+    ptr[0] = conv.parts[0];
+    ptr[2] = conv.parts[1];
+}
+#endif
+
 /*
  * If enabled, validate the register number on every access.  Otherwise,
  * just do an array access.
@@ -243,6 +324,55 @@ static inline void putDoubleToArray(u4* ptr, int idx, double dval)
  *
  * "_idx" may be referenced more than once.
  */
+#ifdef WITH_TAINT_TRACKING
+/* -- Begin Taint Tracking version ------------------------------- */
+/* Taint tags are interleaved between registers. All indexes must
+ * be multiplied by 2 (i.e., left bit shift by 1) */
+#ifdef CHECK_REGISTER_INDICES
+# define GET_REGISTER(_idx) \
+    ( (_idx) < curMethod->registersSize ? \
+        (fp[(_idx)<<1]) : (assert(!"bad reg"),1969) )
+# define SET_REGISTER(_idx, _val) \
+    ( (_idx) < curMethod->registersSize ? \
+        (fp[(_idx)<<1] = (u4)(_val)) : (assert(!"bad reg"),1969) )
+# define GET_REGISTER_AS_OBJECT(_idx)       ((Object *)GET_REGISTER(_idx))
+# define SET_REGISTER_AS_OBJECT(_idx, _val) SET_REGISTER(_idx, (s4)_val)
+# define GET_REGISTER_INT(_idx) ((s4) GET_REGISTER(_idx))
+# define SET_REGISTER_INT(_idx, _val) SET_REGISTER(_idx, (s4)_val)
+# define GET_REGISTER_WIDE(_idx) \
+    ( (_idx) < curMethod->registersSize-1 ? \
+        getLongFromArrayTaint(fp, ((_idx)<<1)) : (assert(!"bad reg"),1969) )
+# define SET_REGISTER_WIDE(_idx, _val) \
+    ( (_idx) < curMethod->registersSize-1 ? \
+        putLongToArrayTaint(fp, ((_idx)<<1), (_val)) : (assert(!"bad reg"),1969) )
+# define GET_REGISTER_FLOAT(_idx) \
+    ( (_idx) < curMethod->registersSize ? \
+        (*((float*) &fp[(_idx)<<1])) : (assert(!"bad reg"),1969.0f) )
+# define SET_REGISTER_FLOAT(_idx, _val) \
+    ( (_idx) < curMethod->registersSize ? \
+        (*((float*) &fp[(_idx)<<1]) = (_val)) : (assert(!"bad reg"),1969.0f) )
+# define GET_REGISTER_DOUBLE(_idx) \
+    ( (_idx) < curMethod->registersSize-1 ? \
+        getDoubleFromArrayTaint(fp, ((_idx)<<1)) : (assert(!"bad reg"),1969.0) )
+# define SET_REGISTER_DOUBLE(_idx, _val) \
+    ( (_idx) < curMethod->registersSize-1 ? \
+        putDoubleToArrayTaint(fp, ((_idx)<<1), (_val)) : (assert(!"bad reg"),1969.0) )
+#else
+# define GET_REGISTER(_idx)                 (fp[(_idx)<<1])
+# define SET_REGISTER(_idx, _val)           (fp[(_idx)<<1] = (_val))
+# define GET_REGISTER_AS_OBJECT(_idx)       ((Object*) fp[(_idx)<<1])
+# define SET_REGISTER_AS_OBJECT(_idx, _val) (fp[(_idx)<<1] = (u4)(_val))
+# define GET_REGISTER_INT(_idx)             ((s4)GET_REGISTER(_idx))
+# define SET_REGISTER_INT(_idx, _val)       SET_REGISTER(_idx, (s4)_val)
+# define GET_REGISTER_WIDE(_idx)            getLongFromArrayTaint(fp, ((_idx)<<1))
+# define SET_REGISTER_WIDE(_idx, _val)      putLongToArrayTaint(fp, ((_idx)<<1), (_val))
+# define GET_REGISTER_FLOAT(_idx)           (*((float*) &fp[(_idx)<<1]))
+# define SET_REGISTER_FLOAT(_idx, _val)     (*((float*) &fp[(_idx)<<1]) = (_val))
+# define GET_REGISTER_DOUBLE(_idx)          getDoubleFromArrayTaint(fp, ((_idx)<<1))
+# define SET_REGISTER_DOUBLE(_idx, _val)    putDoubleToArrayTaint(fp, ((_idx)<<1), (_val))
+#endif
+/* -- End Taint Tracking version ---------------------------------- */
+#else /* no taint tracking */
 #ifdef CHECK_REGISTER_INDICES
 # define GET_REGISTER(_idx) \
     ( (_idx) < curMethod->registersSize ? \
@@ -285,6 +415,48 @@ static inline void putDoubleToArray(u4* ptr, int idx, double dval)
 # define SET_REGISTER_FLOAT(_idx, _val)     (*((float*) &fp[(_idx)]) = (_val))
 # define GET_REGISTER_DOUBLE(_idx)          getDoubleFromArray(fp, (_idx))
 # define SET_REGISTER_DOUBLE(_idx, _val)    putDoubleToArray(fp, (_idx), (_val))
+#endif
+#endif /* end no taint tracking */
+
+#ifdef WITH_TAINT_TRACKING
+/* Core get and set macros */
+# define GET_REGISTER_TAINT(_idx)	     (fp[((_idx)<<1)+1])
+# define SET_REGISTER_TAINT(_idx, _val)	     (fp[((_idx)<<1)+1] = (u4)(_val))
+# define GET_REGISTER_TAINT_WIDE(_idx)       (fp[((_idx)<<1)+1])
+# define SET_REGISTER_TAINT_WIDE(_idx, _val) (fp[((_idx)<<1)+1] = \
+	                                      fp[((_idx)<<1)+3] = (u4)(_val))
+/* Alternate interfaces to help dereference register width */
+# define GET_REGISTER_TAINT_INT(_idx)	          GET_REGISTER_TAINT(_idx)
+# define SET_REGISTER_TAINT_INT(_idx, _val)       SET_REGISTER_TAINT(_idx, _val)
+# define GET_REGISTER_TAINT_FLOAT(_idx)	          GET_REGISTER_TAINT(_idx)
+# define SET_REGISTER_TAINT_FLOAT(_idx, _val)     SET_REGISTER_TAINT(_idx, _val)
+# define GET_REGISTER_TAINT_DOUBLE(_idx)          GET_REGISTER_TAINT_WIDE(_idx)
+# define SET_REGISTER_TAINT_DOUBLE(_idx, _val)    SET_REGISTER_TAINT_WIDE(_idx, _val)
+# define GET_REGISTER_TAINT_AS_OBJECT(_idx)       GET_REGISTER_TAINT(_idx)
+# define SET_REGISTER_TAINT_AS_OBJECT(_idx, _val) SET_REGISTER_TAINT(_idx, _val)
+
+/* Object Taint interface */
+# define GET_ARRAY_TAINT(_arr)		      ((_arr)->taint.tag)
+# define SET_ARRAY_TAINT(_arr, _val)	      ((_arr)->taint.tag = (u4)(_val))
+
+/* Return value taint (assumes rtaint variable is in scope */
+# define GET_RETURN_TAINT()		      (rtaint.tag)
+# define SET_RETURN_TAINT(_val)		      (rtaint.tag = (u4)(_val))
+#else
+# define GET_REGISTER_TAINT(_idx)		    ((void)0)
+# define SET_REGISTER_TAINT(_idx, _val)		    ((void)0)
+# define GET_REGISTER_TAINT_WIDE(_idx)		    ((void)0)
+# define SET_REGISTER_TAINT_WIDE(_idx, _val)	    ((void)0)
+# define GET_REGISTER_TAINT_INT(_idx)		    ((void)0)
+# define SET_REGISTER_TAINT_INT(_idx, _val)	    ((void)0)
+# define GET_REGISTER_TAINT_DOUBLE(_idx)	    ((void)0)
+# define SET_REGISTER_TAINT_DOUBLE(_idx, _val)	    ((void)0)
+# define GET_REGISTER_TAINT_AS_OBJECT(_idx)	    ((void)0)
+# define SET_REGISTER_TAINT_AS_OBJECT(_idx, _val)   ((void)0)
+# define GET_ARRAY_TAINT(_field)                    ((void)0)
+# define SET_ARRAY_TAINT(_field, _val)              ((void)0)
+# define GET_RETURN_TAINT()			    ((void)0)
+# define SET_RETURN_TAINT(_val)			    ((void)0)
 #endif
 
 /*
@@ -448,6 +620,10 @@ static inline bool checkForNullExportPC(Object* obj, u4* fp, const u2* pc)
 #define self                    glue->self
 #define debugTrackedRefStart    glue->debugTrackedRefStart
 
+#ifdef WITH_TAINT_TRACKING
+#define rtaint			glue->rtaint
+#endif
+
 /* ugh */
 #define STUB_HACK(x) x
 
@@ -571,6 +747,10 @@ GOTO_TARGET_DECL(exceptionThrown);
         ILOGV("|%s v%d,v%d", (_opname), vdst, vsrc1);                       \
         SET_REGISTER##_totype(vdst,                                         \
             GET_REGISTER##_fromtype(vsrc1));                                \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT##_totype(vdst,                                   \
+	    GET_REGISTER_TAINT##_fromtype(vsrc1));                          \
+/* endif */                                                                 \
         FINISH(1);
 
 #define HANDLE_FLOAT_TO_INT(_opcode, _opname, _fromvtype, _fromrtype,       \
@@ -596,6 +776,10 @@ GOTO_TARGET_DECL(exceptionThrown);
         else                                                                \
             result = (_tovtype) val;                                        \
         SET_REGISTER##_tortype(vdst, result);                               \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT##_tortype(vdst,                                  \
+	    GET_REGISTER_TAINT##_fromrtype(vsrc1));                         \
+/* endif */                                                                 \
     }                                                                       \
     FINISH(1);
 
@@ -605,6 +789,9 @@ GOTO_TARGET_DECL(exceptionThrown);
         vsrc1 = INST_B(inst);                                               \
         ILOGV("|int-to-%s v%d,v%d", (_opname), vdst, vsrc1);                \
         SET_REGISTER(vdst, (_type) GET_REGISTER(vsrc1));                    \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT(vdst, GET_REGISTER_TAINT(vsrc1));                \
+/* endif */                                                                 \
         FINISH(1);
 
 /* NOTE: the comparison result is always a signed 4-byte integer */
@@ -631,6 +818,9 @@ GOTO_TARGET_DECL(exceptionThrown);
             result = (_nanVal);                                             \
         ILOGV("+ result=%d\n", result);                                     \
         SET_REGISTER(vdst, result);                                         \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT(vdst, TAINT_CLEAR);				    \
+/* endif */                                                                 \
     }                                                                       \
     FINISH(2);
 
@@ -672,6 +862,9 @@ GOTO_TARGET_DECL(exceptionThrown);
         vsrc1 = INST_B(inst);                                               \
         ILOGV("|%s v%d,v%d", (_opname), vdst, vsrc1);                       \
         SET_REGISTER##_type(vdst, _pfx GET_REGISTER##_type(vsrc1) _sfx);    \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT##_type(vdst, GET_REGISTER_TAINT##_type(vsrc1));  \
+/* endif */                                                                 \
         FINISH(1);
 
 #define HANDLE_OP_X_INT(_opcode, _opname, _op, _chkdiv)                     \
@@ -707,6 +900,10 @@ GOTO_TARGET_DECL(exceptionThrown);
             SET_REGISTER(vdst,                                              \
                 (s4) GET_REGISTER(vsrc1) _op (s4) GET_REGISTER(vsrc2));     \
         }                                                                   \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT(vdst,                                            \
+	    (GET_REGISTER_TAINT(vsrc1)|GET_REGISTER_TAINT(vsrc2)) );        \
+/* endif */                                                                 \
     }                                                                       \
     FINISH(2);
 
@@ -721,6 +918,10 @@ GOTO_TARGET_DECL(exceptionThrown);
         ILOGV("|%s-int v%d,v%d", (_opname), vdst, vsrc1);                   \
         SET_REGISTER(vdst,                                                  \
             _cast GET_REGISTER(vsrc1) _op (GET_REGISTER(vsrc2) & 0x1f));    \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT(vdst,                                            \
+	    (GET_REGISTER_TAINT(vsrc1)|GET_REGISTER_TAINT(vsrc2)) );        \
+/* endif */                                                                 \
     }                                                                       \
     FINISH(2);
 
@@ -754,6 +955,9 @@ GOTO_TARGET_DECL(exceptionThrown);
             /* non-div/rem case */                                          \
             SET_REGISTER(vdst, GET_REGISTER(vsrc1) _op (s2) vsrc2);         \
         }                                                                   \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT(vdst, GET_REGISTER_TAINT(vsrc1));                \
+/* endif */                                                                 \
         FINISH(2);
 
 #define HANDLE_OP_X_INT_LIT8(_opcode, _opname, _op, _chkdiv)                \
@@ -788,6 +992,9 @@ GOTO_TARGET_DECL(exceptionThrown);
             SET_REGISTER(vdst,                                              \
                 (s4) GET_REGISTER(vsrc1) _op (s1) vsrc2);                   \
         }                                                                   \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT(vdst, GET_REGISTER_TAINT(vsrc1));                \
+/* endif */                                                                 \
     }                                                                       \
     FINISH(2);
 
@@ -803,6 +1010,9 @@ GOTO_TARGET_DECL(exceptionThrown);
             (_opname), vdst, vsrc1, vsrc2);                                 \
         SET_REGISTER(vdst,                                                  \
             _cast GET_REGISTER(vsrc1) _op (vsrc2 & 0x1f));                  \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT(vdst, GET_REGISTER_TAINT(vsrc1));                \
+/* endif */                                                                 \
     }                                                                       \
     FINISH(2);
 
@@ -834,6 +1044,10 @@ GOTO_TARGET_DECL(exceptionThrown);
             SET_REGISTER(vdst,                                              \
                 (s4) GET_REGISTER(vdst) _op (s4) GET_REGISTER(vsrc1));      \
         }                                                                   \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT(vdst,                                            \
+	    (GET_REGISTER_TAINT(vdst)|GET_REGISTER_TAINT(vsrc1)) );         \
+/* endif */                                                                 \
         FINISH(1);
 
 #define HANDLE_OP_SHX_INT_2ADDR(_opcode, _opname, _cast, _op)               \
@@ -843,6 +1057,10 @@ GOTO_TARGET_DECL(exceptionThrown);
         ILOGV("|%s-int-2addr v%d,v%d", (_opname), vdst, vsrc1);             \
         SET_REGISTER(vdst,                                                  \
             _cast GET_REGISTER(vdst) _op (GET_REGISTER(vsrc1) & 0x1f));     \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT(vdst,                                            \
+	    (GET_REGISTER_TAINT(vdst)|GET_REGISTER_TAINT(vsrc1)) );         \
+/* endif */                                                                 \
         FINISH(1);
 
 #define HANDLE_OP_X_LONG(_opcode, _opname, _op, _chkdiv)                    \
@@ -879,6 +1097,10 @@ GOTO_TARGET_DECL(exceptionThrown);
             SET_REGISTER_WIDE(vdst,                                         \
                 (s8) GET_REGISTER_WIDE(vsrc1) _op (s8) GET_REGISTER_WIDE(vsrc2)); \
         }                                                                   \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT_WIDE(vdst,                                       \
+	   (GET_REGISTER_TAINT_WIDE(vsrc1)|GET_REGISTER_TAINT_WIDE(vsrc2)));\
+/* endif */                                                                 \
     }                                                                       \
     FINISH(2);
 
@@ -893,6 +1115,10 @@ GOTO_TARGET_DECL(exceptionThrown);
         ILOGV("|%s-long v%d,v%d,v%d", (_opname), vdst, vsrc1, vsrc2);       \
         SET_REGISTER_WIDE(vdst,                                             \
             _cast GET_REGISTER_WIDE(vsrc1) _op (GET_REGISTER(vsrc2) & 0x3f)); \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT_WIDE(vdst,                                       \
+	   (GET_REGISTER_TAINT_WIDE(vsrc1)|GET_REGISTER_TAINT_WIDE(vsrc2)));\
+/* endif */                                                                 \
     }                                                                       \
     FINISH(2);
 
@@ -926,6 +1152,10 @@ GOTO_TARGET_DECL(exceptionThrown);
             SET_REGISTER_WIDE(vdst,                                         \
                 (s8) GET_REGISTER_WIDE(vdst) _op (s8)GET_REGISTER_WIDE(vsrc1));\
         }                                                                   \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT_WIDE(vdst,                                       \
+	    (GET_REGISTER_TAINT_WIDE(vdst)|GET_REGISTER_TAINT_WIDE(vsrc1)));\
+/* endif */                                                                 \
         FINISH(1);
 
 #define HANDLE_OP_SHX_LONG_2ADDR(_opcode, _opname, _cast, _op)              \
@@ -935,6 +1165,10 @@ GOTO_TARGET_DECL(exceptionThrown);
         ILOGV("|%s-long-2addr v%d,v%d", (_opname), vdst, vsrc1);            \
         SET_REGISTER_WIDE(vdst,                                             \
             _cast GET_REGISTER_WIDE(vdst) _op (GET_REGISTER(vsrc1) & 0x3f)); \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT_WIDE(vdst,                                       \
+	    (GET_REGISTER_TAINT_WIDE(vdst)|GET_REGISTER_TAINT_WIDE(vsrc1)));\
+/* endif */                                                                 \
         FINISH(1);
 
 #define HANDLE_OP_X_FLOAT(_opcode, _opname, _op)                            \
@@ -948,6 +1182,10 @@ GOTO_TARGET_DECL(exceptionThrown);
         ILOGV("|%s-float v%d,v%d,v%d", (_opname), vdst, vsrc1, vsrc2);      \
         SET_REGISTER_FLOAT(vdst,                                            \
             GET_REGISTER_FLOAT(vsrc1) _op GET_REGISTER_FLOAT(vsrc2));       \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT_FLOAT(vdst,                                      \
+	    (GET_REGISTER_TAINT_FLOAT(vsrc1)|GET_REGISTER_TAINT_FLOAT(vsrc2)));\
+/* endif */                                                                 \
     }                                                                       \
     FINISH(2);
 
@@ -962,6 +1200,10 @@ GOTO_TARGET_DECL(exceptionThrown);
         ILOGV("|%s-double v%d,v%d,v%d", (_opname), vdst, vsrc1, vsrc2);     \
         SET_REGISTER_DOUBLE(vdst,                                           \
             GET_REGISTER_DOUBLE(vsrc1) _op GET_REGISTER_DOUBLE(vsrc2));     \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT_DOUBLE(vdst,                                     \
+	    (GET_REGISTER_TAINT_DOUBLE(vsrc1)|GET_REGISTER_TAINT_DOUBLE(vsrc2)));\
+/* endif */                                                                 \
     }                                                                       \
     FINISH(2);
 
@@ -972,6 +1214,10 @@ GOTO_TARGET_DECL(exceptionThrown);
         ILOGV("|%s-float-2addr v%d,v%d", (_opname), vdst, vsrc1);           \
         SET_REGISTER_FLOAT(vdst,                                            \
             GET_REGISTER_FLOAT(vdst) _op GET_REGISTER_FLOAT(vsrc1));        \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT_FLOAT(vdst,                                      \
+	    (GET_REGISTER_TAINT_FLOAT(vdst)|GET_REGISTER_TAINT_FLOAT(vsrc1)));\
+/* endif */                                                                 \
         FINISH(1);
 
 #define HANDLE_OP_X_DOUBLE_2ADDR(_opcode, _opname, _op)                     \
@@ -981,6 +1227,10 @@ GOTO_TARGET_DECL(exceptionThrown);
         ILOGV("|%s-double-2addr v%d,v%d", (_opname), vdst, vsrc1);          \
         SET_REGISTER_DOUBLE(vdst,                                           \
             GET_REGISTER_DOUBLE(vdst) _op GET_REGISTER_DOUBLE(vsrc1));      \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT_DOUBLE(vdst,                                     \
+	    (GET_REGISTER_TAINT_DOUBLE(vdst)|GET_REGISTER_TAINT_DOUBLE(vsrc1)));\
+/* endif */                                                                 \
         FINISH(1);
 
 #define HANDLE_OP_AGET(_opcode, _opname, _type, _regsize)                   \
@@ -1006,6 +1256,10 @@ GOTO_TARGET_DECL(exceptionThrown);
         }                                                                   \
         SET_REGISTER##_regsize(vdst,                                        \
             ((_type*) arrayObj->contents)[GET_REGISTER(vsrc2)]);            \
+/* ifdef WITH_TAINT_TRACKING */						    \
+	SET_REGISTER_TAINT##_regsize(vdst,                                  \
+	    (GET_ARRAY_TAINT(arrayObj)|GET_REGISTER_TAINT(vsrc2)));         \
+/* endif */								    \
         ILOGV("+ AGET[%d]=0x%x", GET_REGISTER(vsrc2), GET_REGISTER(vdst));  \
     }                                                                       \
     FINISH(2);
@@ -1032,6 +1286,11 @@ GOTO_TARGET_DECL(exceptionThrown);
         ILOGV("+ APUT[%d]=0x%08x", GET_REGISTER(vsrc2), GET_REGISTER(vdst));\
         ((_type*) arrayObj->contents)[GET_REGISTER(vsrc2)] =                \
             GET_REGISTER##_regsize(vdst);                                   \
+/* ifdef WITH_TAINT_TRACKING */						    \
+	SET_ARRAY_TAINT(arrayObj,                                           \
+		(GET_ARRAY_TAINT(arrayObj) |                                \
+		 GET_REGISTER_TAINT##_regsize(vdst)) );                     \
+/* endif */								    \
     }                                                                       \
     FINISH(2);
 
@@ -1076,6 +1335,11 @@ GOTO_TARGET_DECL(exceptionThrown);
         ILOGV("+ IGET '%s'=0x%08llx", ifield->field.name,                   \
             (u8) GET_REGISTER##_regsize(vdst));                             \
         UPDATE_FIELD_GET(&ifield->field);                                   \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+	SET_REGISTER_TAINT##_regsize(vdst,                                  \
+	    (GET_REGISTER_TAINT(vsrc1)|                                     \
+	     dvmGetFieldTaint##_ftype(obj,ifield->byteOffset)) );           \
+/* endif */                                                                 \
     }                                                                       \
     FINISH(2);
 
@@ -1094,6 +1358,13 @@ GOTO_TARGET_DECL(exceptionThrown);
         SET_REGISTER##_regsize(vdst, dvmGetField##_ftype(obj, ref));        \
         ILOGV("+ IGETQ %d=0x%08llx", ref,                                   \
             (u8) GET_REGISTER##_regsize(vdst));                             \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+	/*TLOGW("|IGETQ not supported by taint tracking!!!");*/             \
+	/* compile flag WITH_TAINT_ODEX controls this now */                \
+	SET_REGISTER_TAINT##_regsize(vdst,                                  \
+	    (GET_REGISTER_TAINT(vsrc1)|                                     \
+	     dvmGetFieldTaint##_ftype(obj,ref)) );                          \
+/* endif */                                                                 \
     }                                                                       \
     FINISH(2);
 
@@ -1121,6 +1392,10 @@ GOTO_TARGET_DECL(exceptionThrown);
         ILOGV("+ IPUT '%s'=0x%08llx", ifield->field.name,                   \
             (u8) GET_REGISTER##_regsize(vdst));                             \
         UPDATE_FIELD_PUT(&ifield->field);                                   \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+	dvmSetFieldTaint##_ftype(obj, ifield->byteOffset,                   \
+		GET_REGISTER_TAINT##_regsize(vdst));                        \
+/* endif */                                                                 \
     }                                                                       \
     FINISH(2);
 
@@ -1139,6 +1414,12 @@ GOTO_TARGET_DECL(exceptionThrown);
         dvmSetField##_ftype(obj, ref, GET_REGISTER##_regsize(vdst));        \
         ILOGV("+ IPUTQ %d=0x%08llx", ref,                                   \
             (u8) GET_REGISTER##_regsize(vdst));                             \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+	/*TLOGW("|IPUTQ not supported by taint tracking!!!");*/             \
+	/* compile flag WITH_TAINT_ODEX controls this now */                \
+	dvmSetFieldTaint##_ftype(obj, ref,                                  \
+		GET_REGISTER_TAINT##_regsize(vdst));                        \
+/* endif */                                                                 \
     }                                                                       \
     FINISH(2);
 
@@ -1160,6 +1441,9 @@ GOTO_TARGET_DECL(exceptionThrown);
         ILOGV("+ SGET '%s'=0x%08llx",                                       \
             sfield->field.name, (u8)GET_REGISTER##_regsize(vdst));          \
         UPDATE_FIELD_GET(&sfield->field);                                   \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+	SET_REGISTER_TAINT##_regsize(vdst, dvmGetStaticFieldTaint##_ftype(sfield));\
+/* endif */                                                                 \
     }                                                                       \
     FINISH(2);
 
@@ -1181,9 +1465,1126 @@ GOTO_TARGET_DECL(exceptionThrown);
         ILOGV("+ SPUT '%s'=0x%08llx",                                       \
             sfield->field.name, (u8)GET_REGISTER##_regsize(vdst));          \
         UPDATE_FIELD_PUT(&sfield->field);                                   \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+	dvmSetStaticFieldTaint##_ftype(sfield,                              \
+		GET_REGISTER_TAINT##_regsize(vdst));                        \
+/* endif */                                                                 \
     }                                                                       \
     FINISH(2);
 
+
+/* File: c/OP_INVOKE_VIRTUAL.c */
+HANDLE_OPCODE(OP_INVOKE_VIRTUAL /*vB, {vD, vE, vF, vG, vA}, meth@CCCC*/)
+    GOTO_invoke(invokeVirtual, false);
+OP_END
+
+/* File: c/OP_INVOKE_SUPER.c */
+HANDLE_OPCODE(OP_INVOKE_SUPER /*vB, {vD, vE, vF, vG, vA}, meth@CCCC*/)
+    GOTO_invoke(invokeSuper, false);
+OP_END
+
+/* File: c/OP_INVOKE_DIRECT.c */
+HANDLE_OPCODE(OP_INVOKE_DIRECT /*vB, {vD, vE, vF, vG, vA}, meth@CCCC*/)
+    GOTO_invoke(invokeDirect, false);
+OP_END
+
+/* File: c/OP_INVOKE_STATIC.c */
+HANDLE_OPCODE(OP_INVOKE_STATIC /*vB, {vD, vE, vF, vG, vA}, meth@CCCC*/)
+    GOTO_invoke(invokeStatic, false);
+OP_END
+
+/* File: c/OP_INVOKE_INTERFACE.c */
+HANDLE_OPCODE(OP_INVOKE_INTERFACE /*vB, {vD, vE, vF, vG, vA}, meth@CCCC*/)
+    GOTO_invoke(invokeInterface, false);
+OP_END
+
+/* File: c/OP_INVOKE_VIRTUAL_RANGE.c */
+HANDLE_OPCODE(OP_INVOKE_VIRTUAL_RANGE /*{vCCCC..v(CCCC+AA-1)}, meth@BBBB*/)
+    GOTO_invoke(invokeVirtual, true);
+OP_END
+
+/* File: c/OP_INVOKE_SUPER_RANGE.c */
+HANDLE_OPCODE(OP_INVOKE_SUPER_RANGE /*{vCCCC..v(CCCC+AA-1)}, meth@BBBB*/)
+    GOTO_invoke(invokeSuper, true);
+OP_END
+
+/* File: c/OP_INVOKE_DIRECT_RANGE.c */
+HANDLE_OPCODE(OP_INVOKE_DIRECT_RANGE /*{vCCCC..v(CCCC+AA-1)}, meth@BBBB*/)
+    GOTO_invoke(invokeDirect, true);
+OP_END
+
+/* File: c/OP_INVOKE_STATIC_RANGE.c */
+HANDLE_OPCODE(OP_INVOKE_STATIC_RANGE /*{vCCCC..v(CCCC+AA-1)}, meth@BBBB*/)
+    GOTO_invoke(invokeStatic, true);
+OP_END
+
+/* File: c/OP_INVOKE_INTERFACE_RANGE.c */
+HANDLE_OPCODE(OP_INVOKE_INTERFACE_RANGE /*{vCCCC..v(CCCC+AA-1)}, meth@BBBB*/)
+    GOTO_invoke(invokeInterface, true);
+OP_END
+
+/* File: c/OP_INVOKE_VIRTUAL_QUICK.c */
+HANDLE_OPCODE(OP_INVOKE_VIRTUAL_QUICK /*vB, {vD, vE, vF, vG, vA}, meth@CCCC*/)
+    GOTO_invoke(invokeVirtualQuick, false);
+OP_END
+
+/* File: c/OP_INVOKE_VIRTUAL_QUICK_RANGE.c */
+HANDLE_OPCODE(OP_INVOKE_VIRTUAL_QUICK_RANGE/*{vCCCC..v(CCCC+AA-1)}, meth@BBBB*/)
+    GOTO_invoke(invokeVirtualQuick, true);
+OP_END
+
+/* File: c/OP_INVOKE_SUPER_QUICK.c */
+HANDLE_OPCODE(OP_INVOKE_SUPER_QUICK /*vB, {vD, vE, vF, vG, vA}, meth@CCCC*/)
+    GOTO_invoke(invokeSuperQuick, false);
+OP_END
+
+/* File: c/OP_INVOKE_SUPER_QUICK_RANGE.c */
+HANDLE_OPCODE(OP_INVOKE_SUPER_QUICK_RANGE /*{vCCCC..v(CCCC+AA-1)}, meth@BBBB*/)
+    GOTO_invoke(invokeSuperQuick, true);
+OP_END
+
+/* File: c/gotoTargets.c */
+/*
+ * C footer.  This has some common code shared by the various targets.
+ */
+
+/*
+ * Everything from here on is a "goto target".  In the basic interpreter
+ * we jump into these targets and then jump directly to the handler for
+ * next instruction.  Here, these are subroutines that return to the caller.
+ */
+
+GOTO_TARGET(filledNewArray, bool methodCallRange)
+    {
+        ClassObject* arrayClass;
+        ArrayObject* newArray;
+        u4* contents;
+        char typeCh;
+        int i;
+        u4 arg5;
+
+        EXPORT_PC();
+
+        ref = FETCH(1);             /* class ref */
+        vdst = FETCH(2);            /* first 4 regs -or- range base */
+
+        if (methodCallRange) {
+            vsrc1 = INST_AA(inst);  /* #of elements */
+            arg5 = -1;              /* silence compiler warning */
+            ILOGV("|filled-new-array-range args=%d @0x%04x {regs=v%d-v%d}",
+                vsrc1, ref, vdst, vdst+vsrc1-1);
+        } else {
+            arg5 = INST_A(inst);
+            vsrc1 = INST_B(inst);   /* #of elements */
+            ILOGV("|filled-new-array args=%d @0x%04x {regs=0x%04x %x}",
+                vsrc1, ref, vdst, arg5);
+        }
+
+        /*
+         * Resolve the array class.
+         */
+        arrayClass = dvmDexGetResolvedClass(methodClassDex, ref);
+        if (arrayClass == NULL) {
+            arrayClass = dvmResolveClass(curMethod->clazz, ref, false);
+            if (arrayClass == NULL)
+                GOTO_exceptionThrown();
+        }
+        /*
+        if (!dvmIsArrayClass(arrayClass)) {
+            dvmThrowException("Ljava/lang/RuntimeError;",
+                "filled-new-array needs array class");
+            GOTO_exceptionThrown();
+        }
+        */
+        /* verifier guarantees this is an array class */
+        assert(dvmIsArrayClass(arrayClass));
+        assert(dvmIsClassInitialized(arrayClass));
+
+        /*
+         * Create an array of the specified type.
+         */
+        LOGVV("+++ filled-new-array type is '%s'\n", arrayClass->descriptor);
+        typeCh = arrayClass->descriptor[1];
+        if (typeCh == 'D' || typeCh == 'J') {
+            /* category 2 primitives not allowed */
+            dvmThrowException("Ljava/lang/RuntimeError;",
+                "bad filled array req");
+            GOTO_exceptionThrown();
+        } else if (typeCh != 'L' && typeCh != '[' && typeCh != 'I') {
+            /* TODO: requires multiple "fill in" loops with different widths */
+            LOGE("non-int primitives not implemented\n");
+            dvmThrowException("Ljava/lang/InternalError;",
+                "filled-new-array not implemented for anything but 'int'");
+            GOTO_exceptionThrown();
+        }
+
+        newArray = dvmAllocArrayByClass(arrayClass, vsrc1, ALLOC_DONT_TRACK);
+        if (newArray == NULL)
+            GOTO_exceptionThrown();
+
+        /*
+         * Fill in the elements.  It's legal for vsrc1 to be zero.
+         */
+        contents = (u4*) newArray->contents;
+        if (methodCallRange) {
+            for (i = 0; i < vsrc1; i++)
+                contents[i] = GET_REGISTER(vdst+i);
+        } else {
+            assert(vsrc1 <= 5);
+            if (vsrc1 == 5) {
+                contents[4] = GET_REGISTER(arg5);
+                vsrc1--;
+            }
+            for (i = 0; i < vsrc1; i++) {
+                contents[i] = GET_REGISTER(vdst & 0x0f);
+                vdst >>= 4;
+            }
+        }
+
+        retval.l = newArray;
+/* ifdef WITH_TAINT_TRACKING */
+        SET_RETURN_TAINT(TAINT_CLEAR);
+/* endif */
+    }
+    FINISH(3);
+GOTO_TARGET_END
+
+
+GOTO_TARGET(invokeVirtual, bool methodCallRange)
+    {
+        Method* baseMethod;
+        Object* thisPtr;
+
+        EXPORT_PC();
+
+        vsrc1 = INST_AA(inst);      /* AA (count) or BA (count + arg 5) */
+        ref = FETCH(1);             /* method ref */
+        vdst = FETCH(2);            /* 4 regs -or- first reg */
+
+        /*
+         * The object against which we are executing a method is always
+         * in the first argument.
+         */
+        if (methodCallRange) {
+            assert(vsrc1 > 0);
+            ILOGV("|invoke-virtual-range args=%d @0x%04x {regs=v%d-v%d}",
+                vsrc1, ref, vdst, vdst+vsrc1-1);
+            thisPtr = (Object*) GET_REGISTER(vdst);
+        } else {
+            assert((vsrc1>>4) > 0);
+            ILOGV("|invoke-virtual args=%d @0x%04x {regs=0x%04x %x}",
+                vsrc1 >> 4, ref, vdst, vsrc1 & 0x0f);
+            thisPtr = (Object*) GET_REGISTER(vdst & 0x0f);
+        }
+
+        if (!checkForNull(thisPtr))
+            GOTO_exceptionThrown();
+
+        /*
+         * Resolve the method.  This is the correct method for the static
+         * type of the object.  We also verify access permissions here.
+         */
+        baseMethod = dvmDexGetResolvedMethod(methodClassDex, ref);
+        if (baseMethod == NULL) {
+            baseMethod = dvmResolveMethod(curMethod->clazz, ref,METHOD_VIRTUAL);
+            if (baseMethod == NULL) {
+                ILOGV("+ unknown method or access denied\n");
+                GOTO_exceptionThrown();
+            }
+        }
+
+        /*
+         * Combine the object we found with the vtable offset in the
+         * method.
+         */
+        assert(baseMethod->methodIndex < thisPtr->clazz->vtableCount);
+        methodToCall = thisPtr->clazz->vtable[baseMethod->methodIndex];
+
+#if 0
+        if (dvmIsAbstractMethod(methodToCall)) {
+            /*
+             * This can happen if you create two classes, Base and Sub, where
+             * Sub is a sub-class of Base.  Declare a protected abstract
+             * method foo() in Base, and invoke foo() from a method in Base.
+             * Base is an "abstract base class" and is never instantiated
+             * directly.  Now, Override foo() in Sub, and use Sub.  This
+             * Works fine unless Sub stops providing an implementation of
+             * the method.
+             */
+            dvmThrowException("Ljava/lang/AbstractMethodError;",
+                "abstract method not implemented");
+            GOTO_exceptionThrown();
+        }
+#else
+        assert(!dvmIsAbstractMethod(methodToCall) ||
+            methodToCall->nativeFunc != NULL);
+#endif
+
+        LOGVV("+++ base=%s.%s virtual[%d]=%s.%s\n",
+            baseMethod->clazz->descriptor, baseMethod->name,
+            (u4) baseMethod->methodIndex,
+            methodToCall->clazz->descriptor, methodToCall->name);
+        assert(methodToCall != NULL);
+
+#if 0
+        if (vsrc1 != methodToCall->insSize) {
+            LOGW("WRONG METHOD: base=%s.%s virtual[%d]=%s.%s\n",
+                baseMethod->clazz->descriptor, baseMethod->name,
+                (u4) baseMethod->methodIndex,
+                methodToCall->clazz->descriptor, methodToCall->name);
+            //dvmDumpClass(baseMethod->clazz);
+            //dvmDumpClass(methodToCall->clazz);
+            dvmDumpAllClasses(0);
+        }
+#endif
+
+        GOTO_invokeMethod(methodCallRange, methodToCall, vsrc1, vdst);
+    }
+GOTO_TARGET_END
+
+GOTO_TARGET(invokeSuper, bool methodCallRange)
+    {
+        Method* baseMethod;
+        u2 thisReg;
+
+        EXPORT_PC();
+
+        vsrc1 = INST_AA(inst);      /* AA (count) or BA (count + arg 5) */
+        ref = FETCH(1);             /* method ref */
+        vdst = FETCH(2);            /* 4 regs -or- first reg */
+
+        if (methodCallRange) {
+            ILOGV("|invoke-super-range args=%d @0x%04x {regs=v%d-v%d}",
+                vsrc1, ref, vdst, vdst+vsrc1-1);
+            thisReg = vdst;
+        } else {
+            ILOGV("|invoke-super args=%d @0x%04x {regs=0x%04x %x}",
+                vsrc1 >> 4, ref, vdst, vsrc1 & 0x0f);
+            thisReg = vdst & 0x0f;
+        }
+        /* impossible in well-formed code, but we must check nevertheless */
+        if (!checkForNull((Object*) GET_REGISTER(thisReg)))
+            GOTO_exceptionThrown();
+
+        /*
+         * Resolve the method.  This is the correct method for the static
+         * type of the object.  We also verify access permissions here.
+         * The first arg to dvmResolveMethod() is just the referring class
+         * (used for class loaders and such), so we don't want to pass
+         * the superclass into the resolution call.
+         */
+        baseMethod = dvmDexGetResolvedMethod(methodClassDex, ref);
+        if (baseMethod == NULL) {
+            baseMethod = dvmResolveMethod(curMethod->clazz, ref,METHOD_VIRTUAL);
+            if (baseMethod == NULL) {
+                ILOGV("+ unknown method or access denied\n");
+                GOTO_exceptionThrown();
+            }
+        }
+
+        /*
+         * Combine the object we found with the vtable offset in the
+         * method's class.
+         *
+         * We're using the current method's class' superclass, not the
+         * superclass of "this".  This is because we might be executing
+         * in a method inherited from a superclass, and we want to run
+         * in that class' superclass.
+         */
+        if (baseMethod->methodIndex >= curMethod->clazz->super->vtableCount) {
+            /*
+             * Method does not exist in the superclass.  Could happen if
+             * superclass gets updated.
+             */
+            dvmThrowException("Ljava/lang/NoSuchMethodError;",
+                baseMethod->name);
+            GOTO_exceptionThrown();
+        }
+        methodToCall = curMethod->clazz->super->vtable[baseMethod->methodIndex];
+#if 0
+        if (dvmIsAbstractMethod(methodToCall)) {
+            dvmThrowException("Ljava/lang/AbstractMethodError;",
+                "abstract method not implemented");
+            GOTO_exceptionThrown();
+        }
+#else
+        assert(!dvmIsAbstractMethod(methodToCall) ||
+            methodToCall->nativeFunc != NULL);
+#endif
+        LOGVV("+++ base=%s.%s super-virtual=%s.%s\n",
+            baseMethod->clazz->descriptor, baseMethod->name,
+            methodToCall->clazz->descriptor, methodToCall->name);
+        assert(methodToCall != NULL);
+
+        GOTO_invokeMethod(methodCallRange, methodToCall, vsrc1, vdst);
+    }
+GOTO_TARGET_END
+
+GOTO_TARGET(invokeInterface, bool methodCallRange)
+    {
+        Object* thisPtr;
+        ClassObject* thisClass;
+
+        EXPORT_PC();
+
+        vsrc1 = INST_AA(inst);      /* AA (count) or BA (count + arg 5) */
+        ref = FETCH(1);             /* method ref */
+        vdst = FETCH(2);            /* 4 regs -or- first reg */
+
+        /*
+         * The object against which we are executing a method is always
+         * in the first argument.
+         */
+        if (methodCallRange) {
+            assert(vsrc1 > 0);
+            ILOGV("|invoke-interface-range args=%d @0x%04x {regs=v%d-v%d}",
+                vsrc1, ref, vdst, vdst+vsrc1-1);
+            thisPtr = (Object*) GET_REGISTER(vdst);
+        } else {
+            assert((vsrc1>>4) > 0);
+            ILOGV("|invoke-interface args=%d @0x%04x {regs=0x%04x %x}",
+                vsrc1 >> 4, ref, vdst, vsrc1 & 0x0f);
+            thisPtr = (Object*) GET_REGISTER(vdst & 0x0f);
+        }
+        if (!checkForNull(thisPtr))
+            GOTO_exceptionThrown();
+
+        thisClass = thisPtr->clazz;
+
+        /*
+         * Given a class and a method index, find the Method* with the
+         * actual code we want to execute.
+         */
+        methodToCall = dvmFindInterfaceMethodInCache(thisClass, ref, curMethod,
+                        methodClassDex);
+        if (methodToCall == NULL) {
+            assert(dvmCheckException(self));
+            GOTO_exceptionThrown();
+        }
+
+        GOTO_invokeMethod(methodCallRange, methodToCall, vsrc1, vdst);
+    }
+GOTO_TARGET_END
+
+GOTO_TARGET(invokeDirect, bool methodCallRange)
+    {
+        u2 thisReg;
+
+        vsrc1 = INST_AA(inst);      /* AA (count) or BA (count + arg 5) */
+        ref = FETCH(1);             /* method ref */
+        vdst = FETCH(2);            /* 4 regs -or- first reg */
+
+        EXPORT_PC();
+
+        if (methodCallRange) {
+            ILOGV("|invoke-direct-range args=%d @0x%04x {regs=v%d-v%d}",
+                vsrc1, ref, vdst, vdst+vsrc1-1);
+            thisReg = vdst;
+        } else {
+            ILOGV("|invoke-direct args=%d @0x%04x {regs=0x%04x %x}",
+                vsrc1 >> 4, ref, vdst, vsrc1 & 0x0f);
+            thisReg = vdst & 0x0f;
+        }
+        if (!checkForNull((Object*) GET_REGISTER(thisReg)))
+            GOTO_exceptionThrown();
+
+        methodToCall = dvmDexGetResolvedMethod(methodClassDex, ref);
+        if (methodToCall == NULL) {
+            methodToCall = dvmResolveMethod(curMethod->clazz, ref,
+                            METHOD_DIRECT);
+            if (methodToCall == NULL) {
+                ILOGV("+ unknown direct method\n");     // should be impossible
+                GOTO_exceptionThrown();
+            }
+        }
+        GOTO_invokeMethod(methodCallRange, methodToCall, vsrc1, vdst);
+    }
+GOTO_TARGET_END
+
+GOTO_TARGET(invokeStatic, bool methodCallRange)
+    vsrc1 = INST_AA(inst);      /* AA (count) or BA (count + arg 5) */
+    ref = FETCH(1);             /* method ref */
+    vdst = FETCH(2);            /* 4 regs -or- first reg */
+
+    EXPORT_PC();
+
+    if (methodCallRange)
+        ILOGV("|invoke-static-range args=%d @0x%04x {regs=v%d-v%d}",
+            vsrc1, ref, vdst, vdst+vsrc1-1);
+    else
+        ILOGV("|invoke-static args=%d @0x%04x {regs=0x%04x %x}",
+            vsrc1 >> 4, ref, vdst, vsrc1 & 0x0f);
+
+    methodToCall = dvmDexGetResolvedMethod(methodClassDex, ref);
+    if (methodToCall == NULL) {
+        methodToCall = dvmResolveMethod(curMethod->clazz, ref, METHOD_STATIC);
+        if (methodToCall == NULL) {
+            ILOGV("+ unknown method\n");
+            GOTO_exceptionThrown();
+        }
+    }
+    GOTO_invokeMethod(methodCallRange, methodToCall, vsrc1, vdst);
+GOTO_TARGET_END
+
+GOTO_TARGET(invokeVirtualQuick, bool methodCallRange)
+    {
+        Object* thisPtr;
+
+        EXPORT_PC();
+
+        vsrc1 = INST_AA(inst);      /* AA (count) or BA (count + arg 5) */
+        ref = FETCH(1);             /* vtable index */
+        vdst = FETCH(2);            /* 4 regs -or- first reg */
+
+        /*
+         * The object against which we are executing a method is always
+         * in the first argument.
+         */
+        if (methodCallRange) {
+            assert(vsrc1 > 0);
+            ILOGV("|invoke-virtual-quick-range args=%d @0x%04x {regs=v%d-v%d}",
+                vsrc1, ref, vdst, vdst+vsrc1-1);
+            thisPtr = (Object*) GET_REGISTER(vdst);
+        } else {
+            assert((vsrc1>>4) > 0);
+            ILOGV("|invoke-virtual-quick args=%d @0x%04x {regs=0x%04x %x}",
+                vsrc1 >> 4, ref, vdst, vsrc1 & 0x0f);
+            thisPtr = (Object*) GET_REGISTER(vdst & 0x0f);
+        }
+
+        if (!checkForNull(thisPtr))
+            GOTO_exceptionThrown();
+
+        /*
+         * Combine the object we found with the vtable offset in the
+         * method.
+         */
+        assert(ref < thisPtr->clazz->vtableCount);
+        methodToCall = thisPtr->clazz->vtable[ref];
+
+#if 0
+        if (dvmIsAbstractMethod(methodToCall)) {
+            dvmThrowException("Ljava/lang/AbstractMethodError;",
+                "abstract method not implemented");
+            GOTO_exceptionThrown();
+        }
+#else
+        assert(!dvmIsAbstractMethod(methodToCall) ||
+            methodToCall->nativeFunc != NULL);
+#endif
+
+        LOGVV("+++ virtual[%d]=%s.%s\n",
+            ref, methodToCall->clazz->descriptor, methodToCall->name);
+        assert(methodToCall != NULL);
+
+        GOTO_invokeMethod(methodCallRange, methodToCall, vsrc1, vdst);
+    }
+GOTO_TARGET_END
+
+GOTO_TARGET(invokeSuperQuick, bool methodCallRange)
+    {
+        u2 thisReg;
+
+        EXPORT_PC();
+
+        vsrc1 = INST_AA(inst);      /* AA (count) or BA (count + arg 5) */
+        ref = FETCH(1);             /* vtable index */
+        vdst = FETCH(2);            /* 4 regs -or- first reg */
+
+        if (methodCallRange) {
+            ILOGV("|invoke-super-quick-range args=%d @0x%04x {regs=v%d-v%d}",
+                vsrc1, ref, vdst, vdst+vsrc1-1);
+            thisReg = vdst;
+        } else {
+            ILOGV("|invoke-super-quick args=%d @0x%04x {regs=0x%04x %x}",
+                vsrc1 >> 4, ref, vdst, vsrc1 & 0x0f);
+            thisReg = vdst & 0x0f;
+        }
+        /* impossible in well-formed code, but we must check nevertheless */
+        if (!checkForNull((Object*) GET_REGISTER(thisReg)))
+            GOTO_exceptionThrown();
+
+#if 0   /* impossible in optimized + verified code */
+        if (ref >= curMethod->clazz->super->vtableCount) {
+            dvmThrowException("Ljava/lang/NoSuchMethodError;", NULL);
+            GOTO_exceptionThrown();
+        }
+#else
+        assert(ref < curMethod->clazz->super->vtableCount);
+#endif
+
+        /*
+         * Combine the object we found with the vtable offset in the
+         * method's class.
+         *
+         * We're using the current method's class' superclass, not the
+         * superclass of "this".  This is because we might be executing
+         * in a method inherited from a superclass, and we want to run
+         * in the method's class' superclass.
+         */
+        methodToCall = curMethod->clazz->super->vtable[ref];
+
+#if 0
+        if (dvmIsAbstractMethod(methodToCall)) {
+            dvmThrowException("Ljava/lang/AbstractMethodError;",
+                "abstract method not implemented");
+            GOTO_exceptionThrown();
+        }
+#else
+        assert(!dvmIsAbstractMethod(methodToCall) ||
+            methodToCall->nativeFunc != NULL);
+#endif
+        LOGVV("+++ super-virtual[%d]=%s.%s\n",
+            ref, methodToCall->clazz->descriptor, methodToCall->name);
+        assert(methodToCall != NULL);
+
+        GOTO_invokeMethod(methodCallRange, methodToCall, vsrc1, vdst);
+    }
+GOTO_TARGET_END
+
+
+
+    /*
+     * General handling for return-void, return, and return-wide.  Put the
+     * return value in "retval" before jumping here.
+     */
+GOTO_TARGET(returnFromMethod)
+    {
+        StackSaveArea* saveArea;
+
+        /*
+         * We must do this BEFORE we pop the previous stack frame off, so
+         * that the GC can see the return value (if any) in the local vars.
+         *
+         * Since this is now an interpreter switch point, we must do it before
+         * we do anything at all.
+         */
+        PERIODIC_CHECKS(kInterpEntryReturn, 0);
+
+        ILOGV("> retval=0x%llx (leaving %s.%s %s)",
+            retval.j, curMethod->clazz->descriptor, curMethod->name,
+            curMethod->shorty);
+        //DUMP_REGS(curMethod, fp);
+
+        saveArea = SAVEAREA_FROM_FP(fp);
+
+#ifdef EASY_GDB
+        debugSaveArea = saveArea;
+#endif
+#if (INTERP_TYPE == INTERP_DBG) && defined(WITH_PROFILER)
+        TRACE_METHOD_EXIT(self, curMethod);
+#endif
+
+        /* back up to previous frame and see if we hit a break */
+        fp = saveArea->prevFrame;
+        assert(fp != NULL);
+        if (dvmIsBreakFrame(fp)) {
+            /* bail without popping the method frame from stack */
+            LOGVV("+++ returned into break frame\n");
+            GOTO_bail();
+        }
+
+        /* update thread FP, and reset local variables */
+        self->curFrame = fp;
+        curMethod = SAVEAREA_FROM_FP(fp)->method;
+        //methodClass = curMethod->clazz;
+        methodClassDex = curMethod->clazz->pDvmDex;
+        pc = saveArea->savedPc;
+        ILOGD("> (return to %s.%s %s)", curMethod->clazz->descriptor,
+            curMethod->name, curMethod->shorty);
+
+        /* use FINISH on the caller's invoke instruction */
+        //u2 invokeInstr = INST_INST(FETCH(0));
+        if (true /*invokeInstr >= OP_INVOKE_VIRTUAL &&
+            invokeInstr <= OP_INVOKE_INTERFACE*/)
+        {
+            FINISH(3);
+        } else {
+            //LOGE("Unknown invoke instr %02x at %d\n",
+            //    invokeInstr, (int) (pc - curMethod->insns));
+            assert(false);
+        }
+    }
+GOTO_TARGET_END
+
+
+    /*
+     * Jump here when the code throws an exception.
+     *
+     * By the time we get here, the Throwable has been created and the stack
+     * trace has been saved off.
+     */
+GOTO_TARGET(exceptionThrown)
+    {
+        Object* exception;
+        int catchRelPc;
+
+        /*
+         * Since this is now an interpreter switch point, we must do it before
+         * we do anything at all.
+         */
+        PERIODIC_CHECKS(kInterpEntryThrow, 0);
+
+        /*
+         * We save off the exception and clear the exception status.  While
+         * processing the exception we might need to load some Throwable
+         * classes, and we don't want class loader exceptions to get
+         * confused with this one.
+         */
+        assert(dvmCheckException(self));
+        exception = dvmGetException(self);
+        dvmAddTrackedAlloc(exception, self);
+        dvmClearException(self);
+
+        LOGV("Handling exception %s at %s:%d\n",
+            exception->clazz->descriptor, curMethod->name,
+            dvmLineNumFromPC(curMethod, pc - curMethod->insns));
+
+#if (INTERP_TYPE == INTERP_DBG) && defined(WITH_DEBUGGER)
+        /*
+         * Tell the debugger about it.
+         *
+         * TODO: if the exception was thrown by interpreted code, control
+         * fell through native, and then back to us, we will report the
+         * exception at the point of the throw and again here.  We can avoid
+         * this by not reporting exceptions when we jump here directly from
+         * the native call code above, but then we won't report exceptions
+         * that were thrown *from* the JNI code (as opposed to *through* it).
+         *
+         * The correct solution is probably to ignore from-native exceptions
+         * here, and have the JNI exception code do the reporting to the
+         * debugger.
+         */
+        if (gDvm.debuggerActive) {
+            void* catchFrame;
+            catchRelPc = dvmFindCatchBlock(self, pc - curMethod->insns,
+                        exception, true, &catchFrame);
+            dvmDbgPostException(fp, pc - curMethod->insns, catchFrame,
+                catchRelPc, exception);
+        }
+#endif
+
+        /*
+         * We need to unroll to the catch block or the nearest "break"
+         * frame.
+         *
+         * A break frame could indicate that we have reached an intermediate
+         * native call, or have gone off the top of the stack and the thread
+         * needs to exit.  Either way, we return from here, leaving the
+         * exception raised.
+         *
+         * If we do find a catch block, we want to transfer execution to
+         * that point.
+         */
+        catchRelPc = dvmFindCatchBlock(self, pc - curMethod->insns,
+                    exception, false, (void*)&fp);
+
+        /*
+         * Restore the stack bounds after an overflow.  This isn't going to
+         * be correct in all circumstances, e.g. if JNI code devours the
+         * exception this won't happen until some other exception gets
+         * thrown.  If the code keeps pushing the stack bounds we'll end
+         * up aborting the VM.
+         *
+         * Note we want to do this *after* the call to dvmFindCatchBlock,
+         * because that may need extra stack space to resolve exception
+         * classes (e.g. through a class loader).
+         */
+        if (self->stackOverflowed)
+            dvmCleanupStackOverflow(self);
+
+        if (catchRelPc < 0) {
+            /* falling through to JNI code or off the bottom of the stack */
+#if DVM_SHOW_EXCEPTION >= 2
+            LOGD("Exception %s from %s:%d not caught locally\n",
+                exception->clazz->descriptor, dvmGetMethodSourceFile(curMethod),
+                dvmLineNumFromPC(curMethod, pc - curMethod->insns));
+#endif
+            dvmSetException(self, exception);
+            dvmReleaseTrackedAlloc(exception, self);
+            GOTO_bail();
+        }
+
+#if DVM_SHOW_EXCEPTION >= 3
+        {
+            const Method* catchMethod = SAVEAREA_FROM_FP(fp)->method;
+            LOGD("Exception %s thrown from %s:%d to %s:%d\n",
+                exception->clazz->descriptor, dvmGetMethodSourceFile(curMethod),
+                dvmLineNumFromPC(curMethod, pc - curMethod->insns),
+                dvmGetMethodSourceFile(catchMethod),
+                dvmLineNumFromPC(catchMethod, catchRelPc));
+        }
+#endif
+
+        /*
+         * Adjust local variables to match self->curFrame and the
+         * updated PC.
+         */
+        //fp = (u4*) self->curFrame;
+        curMethod = SAVEAREA_FROM_FP(fp)->method;
+        //methodClass = curMethod->clazz;
+        methodClassDex = curMethod->clazz->pDvmDex;
+        pc = curMethod->insns + catchRelPc;
+        ILOGV("> pc <-- %s.%s %s", curMethod->clazz->descriptor,
+            curMethod->name, curMethod->shorty);
+        DUMP_REGS(curMethod, fp, false);            // show all regs
+
+        /*
+         * Restore the exception if the handler wants it.
+         *
+         * The Dalvik spec mandates that, if an exception handler wants to
+         * do something with the exception, the first instruction executed
+         * must be "move-exception".  We can pass the exception along
+         * through the thread struct, and let the move-exception instruction
+         * clear it for us.
+         *
+         * If the handler doesn't call move-exception, we don't want to
+         * finish here with an exception still pending.
+         */
+        if (INST_INST(FETCH(0)) == OP_MOVE_EXCEPTION)
+            dvmSetException(self, exception);
+
+        dvmReleaseTrackedAlloc(exception, self);
+        FINISH(0);
+    }
+GOTO_TARGET_END
+
+
+    /*
+     * General handling for invoke-{virtual,super,direct,static,interface},
+     * including "quick" variants.
+     *
+     * Set "methodToCall" to the Method we're calling, and "methodCallRange"
+     * depending on whether this is a "/range" instruction.
+     *
+     * For a range call:
+     *  "vsrc1" holds the argument count (8 bits)
+     *  "vdst" holds the first argument in the range
+     * For a non-range call:
+     *  "vsrc1" holds the argument count (4 bits) and the 5th argument index
+     *  "vdst" holds four 4-bit register indices
+     *
+     * The caller must EXPORT_PC before jumping here, because any method
+     * call can throw a stack overflow exception.
+     */
+GOTO_TARGET(invokeMethod, bool methodCallRange, const Method* _methodToCall,
+    u2 count, u2 regs)
+    {
+        STUB_HACK(vsrc1 = count; vdst = regs; methodToCall = _methodToCall;);
+
+        //printf("range=%d call=%p count=%d regs=0x%04x\n",
+        //    methodCallRange, methodToCall, count, regs);
+        //printf(" --> %s.%s %s\n", methodToCall->clazz->descriptor,
+        //    methodToCall->name, methodToCall->shorty);
+
+        u4* outs;
+        int i;
+#ifdef WITH_TAINT_TRACKING
+	bool nativeTarget = dvmIsNativeMethod(methodToCall);
+#endif
+
+        /*
+         * Copy args.  This may corrupt vsrc1/vdst.
+         */
+        if (methodCallRange) {
+            // could use memcpy or a "Duff's device"; most functions have
+            // so few args it won't matter much
+            assert(vsrc1 <= curMethod->outsSize);
+            assert(vsrc1 == methodToCall->insSize);
+            outs = OUTS_FROM_FP(fp, vsrc1);
+#ifdef WITH_TAINT_TRACKING
+	    if (nativeTarget) {
+		for (i = 0; i < vsrc1; i++) {
+		    outs[i] = GET_REGISTER(vdst+i);
+		}
+		/* clear return taint (vsrc1 is the count) */
+		outs[vsrc1] = TAINT_CLEAR;
+		/* copy the taint tags (vsrc1 is the count) */
+		for (i = 0; i < vsrc1; i++) {
+		    outs[vsrc1+1+i] = GET_REGISTER_TAINT(vdst+i);
+		}
+	    } else {
+		int slot = 0;
+		for (i = 0; i < vsrc1; i++) {
+		    slot = i << 1;
+		    outs[slot] = GET_REGISTER(vdst+i);
+		    outs[slot+1] = GET_REGISTER_TAINT(vdst+i);
+		}
+		/* clear native hack (vsrc1 is the count)*/
+		outs[vsrc1<<1] = TAINT_CLEAR;
+	    }
+#else
+            for (i = 0; i < vsrc1; i++)
+                outs[i] = GET_REGISTER(vdst+i);
+#endif
+        } else {
+            u4 count = vsrc1 >> 4;
+
+            assert(count <= curMethod->outsSize);
+            assert(count == methodToCall->insSize);
+            assert(count <= 5);
+
+            outs = OUTS_FROM_FP(fp, count);
+#if 0
+            if (count == 5) {
+                outs[4] = GET_REGISTER(vsrc1 & 0x0f);
+                count--;
+            }
+            for (i = 0; i < (int) count; i++) {
+                outs[i] = GET_REGISTER(vdst & 0x0f);
+                vdst >>= 4;
+            }
+#else
+            assert((vdst >> 16) == 0);  // 16 bits -or- high 16 bits clear
+#ifdef WITH_TAINT_TRACKING
+	    if (nativeTarget) {
+		switch (count) {
+		case 5:
+		    outs[4] = GET_REGISTER(vsrc1 & 0x0f);
+		    outs[count+5] = GET_REGISTER_TAINT(vsrc1 & 0x0f);
+		case 4:
+		    outs[3] = GET_REGISTER(vdst >> 12);
+		    outs[count+4] = GET_REGISTER_TAINT(vdst >> 12);
+		case 3:
+		    outs[2] = GET_REGISTER((vdst & 0x0f00) >> 8);
+		    outs[count+3] = GET_REGISTER_TAINT((vdst & 0x0f00) >> 8);
+		case 2:
+		    outs[1] = GET_REGISTER((vdst & 0x00f0) >> 4);
+		    outs[count+2] = GET_REGISTER_TAINT((vdst & 0x00f0) >> 4);
+		case 1:
+		    outs[0] = GET_REGISTER(vdst & 0x0f);
+		    outs[count+1] = GET_REGISTER_TAINT(vdst & 0x0f);
+		default:
+		    ;
+		}
+		/* clear the native hack */
+		outs[count] = TAINT_CLEAR;
+	    } else { /* interpreted target */
+		switch (count) {
+		case 5:
+		    outs[8] = GET_REGISTER(vsrc1 & 0x0f);
+		    outs[9] = GET_REGISTER_TAINT(vsrc1 & 0x0f);
+		case 4:
+		    outs[6] = GET_REGISTER(vdst >> 12);
+		    outs[7] = GET_REGISTER_TAINT(vdst >> 12);
+		case 3:
+		    outs[4] = GET_REGISTER((vdst & 0x0f00) >> 8);
+		    outs[5] = GET_REGISTER_TAINT((vdst & 0x0f00) >> 8);
+		case 2:
+		    outs[2] = GET_REGISTER((vdst & 0x00f0) >> 4);
+		    outs[3] = GET_REGISTER_TAINT((vdst & 0x00f0) >> 4);
+		case 1:
+		    outs[0] = GET_REGISTER(vdst & 0x0f);
+		    outs[1] = GET_REGISTER_TAINT(vdst & 0x0f);
+		default:
+		    ;
+		}
+		/* clear the native hack */
+		outs[count<<1] = TAINT_CLEAR;
+	    }
+#else /* ndef WITH_TAINT_TRACKING */
+            // This version executes fewer instructions but is larger
+            // overall.  Seems to be a teensy bit faster.
+            switch (count) {
+            case 5:
+                outs[4] = GET_REGISTER(vsrc1 & 0x0f);
+            case 4:
+                outs[3] = GET_REGISTER(vdst >> 12);
+            case 3:
+                outs[2] = GET_REGISTER((vdst & 0x0f00) >> 8);
+            case 2:
+                outs[1] = GET_REGISTER((vdst & 0x00f0) >> 4);
+            case 1:
+                outs[0] = GET_REGISTER(vdst & 0x0f);
+            default:
+                ;
+            }
+#endif /* WITH_TAINT_TRACKING */
+#endif
+        }
+    }
+
+    /*
+     * (This was originally a "goto" target; I've kept it separate from the
+     * stuff above in case we want to refactor things again.)
+     *
+     * At this point, we have the arguments stored in the "outs" area of
+     * the current method's stack frame, and the method to call in
+     * "methodToCall".  Push a new stack frame.
+     */
+    {
+        StackSaveArea* newSaveArea;
+        u4* newFp;
+
+        ILOGV("> %s%s.%s %s",
+            dvmIsNativeMethod(methodToCall) ? "(NATIVE) " : "",
+            methodToCall->clazz->descriptor, methodToCall->name,
+            methodToCall->shorty);
+
+#ifdef WITH_TAINT_TRACKING
+        newFp = (u4*) SAVEAREA_FROM_FP(fp) - 
+	    ((methodToCall->registersSize << 1) + 1);
+#else
+        newFp = (u4*) SAVEAREA_FROM_FP(fp) - methodToCall->registersSize;
+#endif
+        newSaveArea = SAVEAREA_FROM_FP(newFp);
+
+        /* verify that we have enough space */
+        if (true) {
+            u1* bottom;
+#ifdef WITH_TAINT_TRACKING
+            bottom = (u1*) newSaveArea - 
+		(methodToCall->outsSize * sizeof(u4) + 4);
+#else
+            bottom = (u1*) newSaveArea - methodToCall->outsSize * sizeof(u4);
+#endif
+            if (bottom < self->interpStackEnd) {
+                /* stack overflow */
+                LOGV("Stack overflow on method call (start=%p end=%p newBot=%p size=%d '%s')\n",
+                    self->interpStackStart, self->interpStackEnd, bottom,
+                    self->interpStackSize, methodToCall->name);
+                dvmHandleStackOverflow(self);
+                assert(dvmCheckException(self));
+                GOTO_exceptionThrown();
+            }
+            //LOGD("+++ fp=%p newFp=%p newSave=%p bottom=%p\n",
+            //    fp, newFp, newSaveArea, bottom);
+        }
+
+#ifdef LOG_INSTR
+        if (methodToCall->registersSize > methodToCall->insSize) {
+            /*
+             * This makes valgrind quiet when we print registers that
+             * haven't been initialized.  Turn it off when the debug
+             * messages are disabled -- we want valgrind to report any
+             * used-before-initialized issues.
+             */
+#ifdef WITH_TAINT_TRACKING
+	    /* Don't need to worry about native target, because if 
+	     * native target, registerSize = insSize */
+            memset(newFp, 0xcc,
+                (methodToCall->registersSize - methodToCall->insSize) * 8);
+#else
+            memset(newFp, 0xcc,
+                (methodToCall->registersSize - methodToCall->insSize) * 4);
+#endif
+        }
+#endif
+
+#ifdef EASY_GDB
+        newSaveArea->prevSave = SAVEAREA_FROM_FP(fp);
+#endif
+        newSaveArea->prevFrame = fp;
+        newSaveArea->savedPc = pc;
+#if defined(WITH_JIT)
+        newSaveArea->returnAddr = 0;
+#endif
+        newSaveArea->method = methodToCall;
+
+        if (!dvmIsNativeMethod(methodToCall)) {
+            /*
+             * "Call" interpreted code.  Reposition the PC, update the
+             * frame pointer and other local state, and continue.
+             */
+            curMethod = methodToCall;
+            methodClassDex = curMethod->clazz->pDvmDex;
+            pc = methodToCall->insns;
+            fp = self->curFrame = newFp;
+#ifdef EASY_GDB
+            debugSaveArea = SAVEAREA_FROM_FP(newFp);
+#endif
+#if INTERP_TYPE == INTERP_DBG
+            debugIsMethodEntry = true;              // profiling, debugging
+#endif
+            ILOGD("> pc <-- %s.%s %s", curMethod->clazz->descriptor,
+                curMethod->name, curMethod->shorty);
+            DUMP_REGS(curMethod, fp, true);         // show input args
+            FINISH(0);                              // jump to method start
+        } else {
+            /* set this up for JNI locals, even if not a JNI native */
+#ifdef USE_INDIRECT_REF
+            newSaveArea->xtra.localRefCookie = self->jniLocalRefTable.segmentState.all;
+#else
+            newSaveArea->xtra.localRefCookie = self->jniLocalRefTable.nextEntry;
+#endif
+
+            self->curFrame = newFp;
+
+            DUMP_REGS(methodToCall, newFp, true);   // show input args
+
+#if (INTERP_TYPE == INTERP_DBG) && defined(WITH_DEBUGGER)
+            if (gDvm.debuggerActive) {
+                dvmDbgPostLocationEvent(methodToCall, -1,
+                    dvmGetThisPtr(curMethod, fp), DBG_METHOD_ENTRY);
+            }
+#endif
+#if (INTERP_TYPE == INTERP_DBG) && defined(WITH_PROFILER)
+            TRACE_METHOD_ENTER(self, methodToCall);
+#endif
+
+            ILOGD("> native <-- %s.%s %s", methodToCall->clazz->descriptor,
+                methodToCall->name, methodToCall->shorty);
+
+            /*
+             * Jump through native call bridge.  Because we leave no
+             * space for locals on native calls, "newFp" points directly
+             * to the method arguments.
+             */
+            (*methodToCall->nativeFunc)(newFp, &retval, methodToCall, self);
+#ifdef WITH_TAINT_TRACKING
+	    /* Get the return taint if available */
+	    {
+		/* use same logic as above to calculate count */
+		u4 count = (methodCallRange) ? vsrc1 : vsrc1 >> 4;
+		u4* outs = OUTS_FROM_FP(fp, count);
+		SET_RETURN_TAINT(outs[count]);
+	    }
+#endif
+
+#if (INTERP_TYPE == INTERP_DBG) && defined(WITH_DEBUGGER)
+            if (gDvm.debuggerActive) {
+                dvmDbgPostLocationEvent(methodToCall, -1,
+                    dvmGetThisPtr(curMethod, fp), DBG_METHOD_EXIT);
+            }
+#endif
+#if (INTERP_TYPE == INTERP_DBG) && defined(WITH_PROFILER)
+            TRACE_METHOD_EXIT(self, methodToCall);
+#endif
+
+            /* pop frame off */
+            dvmPopJniLocals(self, newSaveArea);
+            self->curFrame = fp;
+
+            /*
+             * If the native code threw an exception, or interpreted code
+             * invoked by the native call threw one and nobody has cleared
+             * it, jump to our local exception handling.
+             */
+            if (dvmCheckException(self)) {
+                LOGV("Exception thrown by/below native code\n");
+                GOTO_exceptionThrown();
+            }
+
+            ILOGD("> retval=0x%llx (leaving native)", retval.j);
+            ILOGD("> (return from native %s.%s to %s.%s %s)",
+                methodToCall->clazz->descriptor, methodToCall->name,
+                curMethod->clazz->descriptor, curMethod->name,
+                curMethod->shorty);
+
+            //u2 invokeInstr = INST_INST(FETCH(0));
+            if (true /*invokeInstr >= OP_INVOKE_VIRTUAL &&
+                invokeInstr <= OP_INVOKE_INTERFACE*/)
+            {
+                FINISH(3);
+            } else {
+                //LOGE("Unknown invoke instr %02x at %d\n",
+                //    invokeInstr, (int) (pc - curMethod->insns));
+                assert(false);
+            }
+        }
+    }
+    assert(false);      // should not get here
+GOTO_TARGET_END
 
 /* File: cstubs/enddefs.c */
 
@@ -1195,6 +2596,10 @@ GOTO_TARGET_DECL(exceptionThrown);
 #undef methodClassDex
 #undef self
 #undef debugTrackedRefStart
+
+#ifdef WITH_TAINT_TRACKING
+#undef rtaint
+#endif
 
 /* File: armv5te/debug.c */
 #include <inttypes.h>

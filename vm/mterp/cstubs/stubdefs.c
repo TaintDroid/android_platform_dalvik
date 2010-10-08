@@ -32,6 +32,10 @@
 #define self                    glue->self
 #define debugTrackedRefStart    glue->debugTrackedRefStart
 
+#ifdef WITH_TAINT_TRACKING
+#define rtaint			glue->rtaint
+#endif
+
 /* ugh */
 #define STUB_HACK(x) x
 

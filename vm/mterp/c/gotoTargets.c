@@ -96,6 +96,9 @@ GOTO_TARGET(filledNewArray, bool methodCallRange)
         }
 
         retval.l = newArray;
+/* ifdef WITH_TAINT_TRACKING */
+        SET_RETURN_TAINT(TAINT_CLEAR);
+/* endif */
     }
     FINISH(3);
 GOTO_TARGET_END
@@ -730,6 +733,9 @@ GOTO_TARGET(invokeMethod, bool methodCallRange, const Method* _methodToCall,
 
         u4* outs;
         int i;
+#ifdef WITH_TAINT_TRACKING
+	bool nativeTarget = dvmIsNativeMethod(methodToCall);
+#endif
 
         /*
          * Copy args.  This may corrupt vsrc1/vdst.
@@ -740,8 +746,31 @@ GOTO_TARGET(invokeMethod, bool methodCallRange, const Method* _methodToCall,
             assert(vsrc1 <= curMethod->outsSize);
             assert(vsrc1 == methodToCall->insSize);
             outs = OUTS_FROM_FP(fp, vsrc1);
+#ifdef WITH_TAINT_TRACKING
+	    if (nativeTarget) {
+		for (i = 0; i < vsrc1; i++) {
+		    outs[i] = GET_REGISTER(vdst+i);
+		}
+		/* clear return taint (vsrc1 is the count) */
+		outs[vsrc1] = TAINT_CLEAR;
+		/* copy the taint tags (vsrc1 is the count) */
+		for (i = 0; i < vsrc1; i++) {
+		    outs[vsrc1+1+i] = GET_REGISTER_TAINT(vdst+i);
+		}
+	    } else {
+		int slot = 0;
+		for (i = 0; i < vsrc1; i++) {
+		    slot = i << 1;
+		    outs[slot] = GET_REGISTER(vdst+i);
+		    outs[slot+1] = GET_REGISTER_TAINT(vdst+i);
+		}
+		/* clear native hack (vsrc1 is the count)*/
+		outs[vsrc1<<1] = TAINT_CLEAR;
+	    }
+#else
             for (i = 0; i < vsrc1; i++)
                 outs[i] = GET_REGISTER(vdst+i);
+#endif
         } else {
             u4 count = vsrc1 >> 4;
 
@@ -760,9 +789,56 @@ GOTO_TARGET(invokeMethod, bool methodCallRange, const Method* _methodToCall,
                 vdst >>= 4;
             }
 #else
+            assert((vdst >> 16) == 0);  // 16 bits -or- high 16 bits clear
+#ifdef WITH_TAINT_TRACKING
+	    if (nativeTarget) {
+		switch (count) {
+		case 5:
+		    outs[4] = GET_REGISTER(vsrc1 & 0x0f);
+		    outs[count+5] = GET_REGISTER_TAINT(vsrc1 & 0x0f);
+		case 4:
+		    outs[3] = GET_REGISTER(vdst >> 12);
+		    outs[count+4] = GET_REGISTER_TAINT(vdst >> 12);
+		case 3:
+		    outs[2] = GET_REGISTER((vdst & 0x0f00) >> 8);
+		    outs[count+3] = GET_REGISTER_TAINT((vdst & 0x0f00) >> 8);
+		case 2:
+		    outs[1] = GET_REGISTER((vdst & 0x00f0) >> 4);
+		    outs[count+2] = GET_REGISTER_TAINT((vdst & 0x00f0) >> 4);
+		case 1:
+		    outs[0] = GET_REGISTER(vdst & 0x0f);
+		    outs[count+1] = GET_REGISTER_TAINT(vdst & 0x0f);
+		default:
+		    ;
+		}
+		/* clear the native hack */
+		outs[count] = TAINT_CLEAR;
+	    } else { /* interpreted target */
+		switch (count) {
+		case 5:
+		    outs[8] = GET_REGISTER(vsrc1 & 0x0f);
+		    outs[9] = GET_REGISTER_TAINT(vsrc1 & 0x0f);
+		case 4:
+		    outs[6] = GET_REGISTER(vdst >> 12);
+		    outs[7] = GET_REGISTER_TAINT(vdst >> 12);
+		case 3:
+		    outs[4] = GET_REGISTER((vdst & 0x0f00) >> 8);
+		    outs[5] = GET_REGISTER_TAINT((vdst & 0x0f00) >> 8);
+		case 2:
+		    outs[2] = GET_REGISTER((vdst & 0x00f0) >> 4);
+		    outs[3] = GET_REGISTER_TAINT((vdst & 0x00f0) >> 4);
+		case 1:
+		    outs[0] = GET_REGISTER(vdst & 0x0f);
+		    outs[1] = GET_REGISTER_TAINT(vdst & 0x0f);
+		default:
+		    ;
+		}
+		/* clear the native hack */
+		outs[count<<1] = TAINT_CLEAR;
+	    }
+#else /* ndef WITH_TAINT_TRACKING */
             // This version executes fewer instructions but is larger
             // overall.  Seems to be a teensy bit faster.
-            assert((vdst >> 16) == 0);  // 16 bits -or- high 16 bits clear
             switch (count) {
             case 5:
                 outs[4] = GET_REGISTER(vsrc1 & 0x0f);
@@ -777,6 +853,7 @@ GOTO_TARGET(invokeMethod, bool methodCallRange, const Method* _methodToCall,
             default:
                 ;
             }
+#endif /* WITH_TAINT_TRACKING */
 #endif
         }
     }
@@ -798,13 +875,23 @@ GOTO_TARGET(invokeMethod, bool methodCallRange, const Method* _methodToCall,
             methodToCall->clazz->descriptor, methodToCall->name,
             methodToCall->shorty);
 
+#ifdef WITH_TAINT_TRACKING
+        newFp = (u4*) SAVEAREA_FROM_FP(fp) - 
+	    ((methodToCall->registersSize << 1) + 1);
+#else
         newFp = (u4*) SAVEAREA_FROM_FP(fp) - methodToCall->registersSize;
+#endif
         newSaveArea = SAVEAREA_FROM_FP(newFp);
 
         /* verify that we have enough space */
         if (true) {
             u1* bottom;
+#ifdef WITH_TAINT_TRACKING
+            bottom = (u1*) newSaveArea - 
+		(methodToCall->outsSize * sizeof(u4) + 4);
+#else
             bottom = (u1*) newSaveArea - methodToCall->outsSize * sizeof(u4);
+#endif
             if (bottom < self->interpStackEnd) {
                 /* stack overflow */
                 LOGV("Stack overflow on method call (start=%p end=%p newBot=%p size=%d '%s')\n",
@@ -826,8 +913,15 @@ GOTO_TARGET(invokeMethod, bool methodCallRange, const Method* _methodToCall,
              * messages are disabled -- we want valgrind to report any
              * used-before-initialized issues.
              */
+#ifdef WITH_TAINT_TRACKING
+	    /* Don't need to worry about native target, because if 
+	     * native target, registerSize = insSize */
+            memset(newFp, 0xcc,
+                (methodToCall->registersSize - methodToCall->insSize) * 8);
+#else
             memset(newFp, 0xcc,
                 (methodToCall->registersSize - methodToCall->insSize) * 4);
+#endif
         }
 #endif
 
@@ -891,6 +985,15 @@ GOTO_TARGET(invokeMethod, bool methodCallRange, const Method* _methodToCall,
              * to the method arguments.
              */
             (*methodToCall->nativeFunc)(newFp, &retval, methodToCall, self);
+#ifdef WITH_TAINT_TRACKING
+	    /* Get the return taint if available */
+	    {
+		/* use same logic as above to calculate count */
+		u4 count = (methodCallRange) ? vsrc1 : vsrc1 >> 4;
+		u4* outs = OUTS_FROM_FP(fp, count);
+		SET_RETURN_TAINT(outs[count]);
+	    }
+#endif
 
 #if (INTERP_TYPE == INTERP_DBG) && defined(WITH_DEBUGGER)
             if (gDvm.debuggerActive) {

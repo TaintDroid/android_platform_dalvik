@@ -63,6 +63,9 @@ ArrayObject* dvmAllocArray(ClassObject* arrayClass, size_t length,
     if (newArray != NULL) {
         DVM_OBJECT_INIT(&newArray->obj, arrayClass);
         newArray->length = length;
+#ifdef WITH_TAINT_TRACKING
+	newArray->taint.tag = TAINT_CLEAR;
+#endif
         LOGVV("AllocArray: %s [%d] (%d)\n",
             arrayClass->descriptor, (int) length, (int) size);
 #if WITH_HPROF && WITH_HPROF_STACK

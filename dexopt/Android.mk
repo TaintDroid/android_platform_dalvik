@@ -33,6 +33,14 @@ LOCAL_SHARED_LIBRARIES := \
 		libssl \
 		libdvm
 
+# Turn on Taint Tracking
+ifeq ($(WITH_TAINT_TRACKING),true)
+  LOCAL_CFLAGS += -DWITH_TAINT_TRACKING
+endif
+ifeq ($(WITH_TAINT_ODEX),true)
+  LOCAL_CFLAGS += -DWITH_TAINT_ODEX
+endif
+
 LOCAL_MODULE := dexopt
 
 include $(BUILD_EXECUTABLE)

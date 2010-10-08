@@ -54,6 +54,9 @@ static DalvikNativeClass gDvmNativeMethodSet[] = {
     { "Ldalvik/system/VMRuntime;",        dvm_dalvik_system_VMRuntime, 0 },
     { "Ldalvik/system/Zygote;",           dvm_dalvik_system_Zygote, 0 },
     { "Ldalvik/system/VMStack;",          dvm_dalvik_system_VMStack, 0 },
+#ifdef WITH_TAINT_TRACKING
+    { "Ldalvik/system/Taint;",            dvm_dalvik_system_Taint, 0 },
+#endif
     { "Lorg/apache/harmony/dalvik/ddmc/DdmServer;",
             dvm_org_apache_harmony_dalvik_ddmc_DdmServer, 0 },
     { "Lorg/apache/harmony/dalvik/ddmc/DdmVmInternal;", 

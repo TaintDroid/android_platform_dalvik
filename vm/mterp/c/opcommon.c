@@ -31,6 +31,10 @@ GOTO_TARGET_DECL(exceptionThrown);
         ILOGV("|%s v%d,v%d", (_opname), vdst, vsrc1);                       \
         SET_REGISTER##_totype(vdst,                                         \
             GET_REGISTER##_fromtype(vsrc1));                                \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT##_totype(vdst,                                   \
+	    GET_REGISTER_TAINT##_fromtype(vsrc1));                          \
+/* endif */                                                                 \
         FINISH(1);
 
 #define HANDLE_FLOAT_TO_INT(_opcode, _opname, _fromvtype, _fromrtype,       \
@@ -56,6 +60,10 @@ GOTO_TARGET_DECL(exceptionThrown);
         else                                                                \
             result = (_tovtype) val;                                        \
         SET_REGISTER##_tortype(vdst, result);                               \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT##_tortype(vdst,                                  \
+	    GET_REGISTER_TAINT##_fromrtype(vsrc1));                         \
+/* endif */                                                                 \
     }                                                                       \
     FINISH(1);
 
@@ -65,6 +73,9 @@ GOTO_TARGET_DECL(exceptionThrown);
         vsrc1 = INST_B(inst);                                               \
         ILOGV("|int-to-%s v%d,v%d", (_opname), vdst, vsrc1);                \
         SET_REGISTER(vdst, (_type) GET_REGISTER(vsrc1));                    \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT(vdst, GET_REGISTER_TAINT(vsrc1));                \
+/* endif */                                                                 \
         FINISH(1);
 
 /* NOTE: the comparison result is always a signed 4-byte integer */
@@ -91,6 +102,9 @@ GOTO_TARGET_DECL(exceptionThrown);
             result = (_nanVal);                                             \
         ILOGV("+ result=%d\n", result);                                     \
         SET_REGISTER(vdst, result);                                         \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT(vdst, TAINT_CLEAR);				    \
+/* endif */                                                                 \
     }                                                                       \
     FINISH(2);
 
@@ -132,6 +146,9 @@ GOTO_TARGET_DECL(exceptionThrown);
         vsrc1 = INST_B(inst);                                               \
         ILOGV("|%s v%d,v%d", (_opname), vdst, vsrc1);                       \
         SET_REGISTER##_type(vdst, _pfx GET_REGISTER##_type(vsrc1) _sfx);    \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT##_type(vdst, GET_REGISTER_TAINT##_type(vsrc1));  \
+/* endif */                                                                 \
         FINISH(1);
 
 #define HANDLE_OP_X_INT(_opcode, _opname, _op, _chkdiv)                     \
@@ -167,6 +184,10 @@ GOTO_TARGET_DECL(exceptionThrown);
             SET_REGISTER(vdst,                                              \
                 (s4) GET_REGISTER(vsrc1) _op (s4) GET_REGISTER(vsrc2));     \
         }                                                                   \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT(vdst,                                            \
+	    (GET_REGISTER_TAINT(vsrc1)|GET_REGISTER_TAINT(vsrc2)) );        \
+/* endif */                                                                 \
     }                                                                       \
     FINISH(2);
 
@@ -181,6 +202,10 @@ GOTO_TARGET_DECL(exceptionThrown);
         ILOGV("|%s-int v%d,v%d", (_opname), vdst, vsrc1);                   \
         SET_REGISTER(vdst,                                                  \
             _cast GET_REGISTER(vsrc1) _op (GET_REGISTER(vsrc2) & 0x1f));    \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT(vdst,                                            \
+	    (GET_REGISTER_TAINT(vsrc1)|GET_REGISTER_TAINT(vsrc2)) );        \
+/* endif */                                                                 \
     }                                                                       \
     FINISH(2);
 
@@ -214,6 +239,9 @@ GOTO_TARGET_DECL(exceptionThrown);
             /* non-div/rem case */                                          \
             SET_REGISTER(vdst, GET_REGISTER(vsrc1) _op (s2) vsrc2);         \
         }                                                                   \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT(vdst, GET_REGISTER_TAINT(vsrc1));                \
+/* endif */                                                                 \
         FINISH(2);
 
 #define HANDLE_OP_X_INT_LIT8(_opcode, _opname, _op, _chkdiv)                \
@@ -248,6 +276,9 @@ GOTO_TARGET_DECL(exceptionThrown);
             SET_REGISTER(vdst,                                              \
                 (s4) GET_REGISTER(vsrc1) _op (s1) vsrc2);                   \
         }                                                                   \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT(vdst, GET_REGISTER_TAINT(vsrc1));                \
+/* endif */                                                                 \
     }                                                                       \
     FINISH(2);
 
@@ -263,6 +294,9 @@ GOTO_TARGET_DECL(exceptionThrown);
             (_opname), vdst, vsrc1, vsrc2);                                 \
         SET_REGISTER(vdst,                                                  \
             _cast GET_REGISTER(vsrc1) _op (vsrc2 & 0x1f));                  \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT(vdst, GET_REGISTER_TAINT(vsrc1));                \
+/* endif */                                                                 \
     }                                                                       \
     FINISH(2);
 
@@ -294,6 +328,10 @@ GOTO_TARGET_DECL(exceptionThrown);
             SET_REGISTER(vdst,                                              \
                 (s4) GET_REGISTER(vdst) _op (s4) GET_REGISTER(vsrc1));      \
         }                                                                   \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT(vdst,                                            \
+	    (GET_REGISTER_TAINT(vdst)|GET_REGISTER_TAINT(vsrc1)) );         \
+/* endif */                                                                 \
         FINISH(1);
 
 #define HANDLE_OP_SHX_INT_2ADDR(_opcode, _opname, _cast, _op)               \
@@ -303,6 +341,10 @@ GOTO_TARGET_DECL(exceptionThrown);
         ILOGV("|%s-int-2addr v%d,v%d", (_opname), vdst, vsrc1);             \
         SET_REGISTER(vdst,                                                  \
             _cast GET_REGISTER(vdst) _op (GET_REGISTER(vsrc1) & 0x1f));     \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT(vdst,                                            \
+	    (GET_REGISTER_TAINT(vdst)|GET_REGISTER_TAINT(vsrc1)) );         \
+/* endif */                                                                 \
         FINISH(1);
 
 #define HANDLE_OP_X_LONG(_opcode, _opname, _op, _chkdiv)                    \
@@ -339,6 +381,10 @@ GOTO_TARGET_DECL(exceptionThrown);
             SET_REGISTER_WIDE(vdst,                                         \
                 (s8) GET_REGISTER_WIDE(vsrc1) _op (s8) GET_REGISTER_WIDE(vsrc2)); \
         }                                                                   \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT_WIDE(vdst,                                       \
+	   (GET_REGISTER_TAINT_WIDE(vsrc1)|GET_REGISTER_TAINT_WIDE(vsrc2)));\
+/* endif */                                                                 \
     }                                                                       \
     FINISH(2);
 
@@ -353,6 +399,10 @@ GOTO_TARGET_DECL(exceptionThrown);
         ILOGV("|%s-long v%d,v%d,v%d", (_opname), vdst, vsrc1, vsrc2);       \
         SET_REGISTER_WIDE(vdst,                                             \
             _cast GET_REGISTER_WIDE(vsrc1) _op (GET_REGISTER(vsrc2) & 0x3f)); \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT_WIDE(vdst,                                       \
+	   (GET_REGISTER_TAINT_WIDE(vsrc1)|GET_REGISTER_TAINT_WIDE(vsrc2)));\
+/* endif */                                                                 \
     }                                                                       \
     FINISH(2);
 
@@ -386,6 +436,10 @@ GOTO_TARGET_DECL(exceptionThrown);
             SET_REGISTER_WIDE(vdst,                                         \
                 (s8) GET_REGISTER_WIDE(vdst) _op (s8)GET_REGISTER_WIDE(vsrc1));\
         }                                                                   \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT_WIDE(vdst,                                       \
+	    (GET_REGISTER_TAINT_WIDE(vdst)|GET_REGISTER_TAINT_WIDE(vsrc1)));\
+/* endif */                                                                 \
         FINISH(1);
 
 #define HANDLE_OP_SHX_LONG_2ADDR(_opcode, _opname, _cast, _op)              \
@@ -395,6 +449,10 @@ GOTO_TARGET_DECL(exceptionThrown);
         ILOGV("|%s-long-2addr v%d,v%d", (_opname), vdst, vsrc1);            \
         SET_REGISTER_WIDE(vdst,                                             \
             _cast GET_REGISTER_WIDE(vdst) _op (GET_REGISTER(vsrc1) & 0x3f)); \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT_WIDE(vdst,                                       \
+	    (GET_REGISTER_TAINT_WIDE(vdst)|GET_REGISTER_TAINT_WIDE(vsrc1)));\
+/* endif */                                                                 \
         FINISH(1);
 
 #define HANDLE_OP_X_FLOAT(_opcode, _opname, _op)                            \
@@ -408,6 +466,10 @@ GOTO_TARGET_DECL(exceptionThrown);
         ILOGV("|%s-float v%d,v%d,v%d", (_opname), vdst, vsrc1, vsrc2);      \
         SET_REGISTER_FLOAT(vdst,                                            \
             GET_REGISTER_FLOAT(vsrc1) _op GET_REGISTER_FLOAT(vsrc2));       \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT_FLOAT(vdst,                                      \
+	    (GET_REGISTER_TAINT_FLOAT(vsrc1)|GET_REGISTER_TAINT_FLOAT(vsrc2)));\
+/* endif */                                                                 \
     }                                                                       \
     FINISH(2);
 
@@ -422,6 +484,10 @@ GOTO_TARGET_DECL(exceptionThrown);
         ILOGV("|%s-double v%d,v%d,v%d", (_opname), vdst, vsrc1, vsrc2);     \
         SET_REGISTER_DOUBLE(vdst,                                           \
             GET_REGISTER_DOUBLE(vsrc1) _op GET_REGISTER_DOUBLE(vsrc2));     \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT_DOUBLE(vdst,                                     \
+	    (GET_REGISTER_TAINT_DOUBLE(vsrc1)|GET_REGISTER_TAINT_DOUBLE(vsrc2)));\
+/* endif */                                                                 \
     }                                                                       \
     FINISH(2);
 
@@ -432,6 +498,10 @@ GOTO_TARGET_DECL(exceptionThrown);
         ILOGV("|%s-float-2addr v%d,v%d", (_opname), vdst, vsrc1);           \
         SET_REGISTER_FLOAT(vdst,                                            \
             GET_REGISTER_FLOAT(vdst) _op GET_REGISTER_FLOAT(vsrc1));        \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT_FLOAT(vdst,                                      \
+	    (GET_REGISTER_TAINT_FLOAT(vdst)|GET_REGISTER_TAINT_FLOAT(vsrc1)));\
+/* endif */                                                                 \
         FINISH(1);
 
 #define HANDLE_OP_X_DOUBLE_2ADDR(_opcode, _opname, _op)                     \
@@ -441,6 +511,10 @@ GOTO_TARGET_DECL(exceptionThrown);
         ILOGV("|%s-double-2addr v%d,v%d", (_opname), vdst, vsrc1);          \
         SET_REGISTER_DOUBLE(vdst,                                           \
             GET_REGISTER_DOUBLE(vdst) _op GET_REGISTER_DOUBLE(vsrc1));      \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+        SET_REGISTER_TAINT_DOUBLE(vdst,                                     \
+	    (GET_REGISTER_TAINT_DOUBLE(vdst)|GET_REGISTER_TAINT_DOUBLE(vsrc1)));\
+/* endif */                                                                 \
         FINISH(1);
 
 #define HANDLE_OP_AGET(_opcode, _opname, _type, _regsize)                   \
@@ -466,6 +540,10 @@ GOTO_TARGET_DECL(exceptionThrown);
         }                                                                   \
         SET_REGISTER##_regsize(vdst,                                        \
             ((_type*) arrayObj->contents)[GET_REGISTER(vsrc2)]);            \
+/* ifdef WITH_TAINT_TRACKING */						    \
+	SET_REGISTER_TAINT##_regsize(vdst,                                  \
+	    (GET_ARRAY_TAINT(arrayObj)|GET_REGISTER_TAINT(vsrc2)));         \
+/* endif */								    \
         ILOGV("+ AGET[%d]=0x%x", GET_REGISTER(vsrc2), GET_REGISTER(vdst));  \
     }                                                                       \
     FINISH(2);
@@ -492,6 +570,11 @@ GOTO_TARGET_DECL(exceptionThrown);
         ILOGV("+ APUT[%d]=0x%08x", GET_REGISTER(vsrc2), GET_REGISTER(vdst));\
         ((_type*) arrayObj->contents)[GET_REGISTER(vsrc2)] =                \
             GET_REGISTER##_regsize(vdst);                                   \
+/* ifdef WITH_TAINT_TRACKING */						    \
+	SET_ARRAY_TAINT(arrayObj,                                           \
+		(GET_ARRAY_TAINT(arrayObj) |                                \
+		 GET_REGISTER_TAINT##_regsize(vdst)) );                     \
+/* endif */								    \
     }                                                                       \
     FINISH(2);
 
@@ -536,6 +619,11 @@ GOTO_TARGET_DECL(exceptionThrown);
         ILOGV("+ IGET '%s'=0x%08llx", ifield->field.name,                   \
             (u8) GET_REGISTER##_regsize(vdst));                             \
         UPDATE_FIELD_GET(&ifield->field);                                   \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+	SET_REGISTER_TAINT##_regsize(vdst,                                  \
+	    (GET_REGISTER_TAINT(vsrc1)|                                     \
+	     dvmGetFieldTaint##_ftype(obj,ifield->byteOffset)) );           \
+/* endif */                                                                 \
     }                                                                       \
     FINISH(2);
 
@@ -554,6 +642,13 @@ GOTO_TARGET_DECL(exceptionThrown);
         SET_REGISTER##_regsize(vdst, dvmGetField##_ftype(obj, ref));        \
         ILOGV("+ IGETQ %d=0x%08llx", ref,                                   \
             (u8) GET_REGISTER##_regsize(vdst));                             \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+	/*TLOGW("|IGETQ not supported by taint tracking!!!");*/             \
+	/* compile flag WITH_TAINT_ODEX controls this now */                \
+	SET_REGISTER_TAINT##_regsize(vdst,                                  \
+	    (GET_REGISTER_TAINT(vsrc1)|                                     \
+	     dvmGetFieldTaint##_ftype(obj,ref)) );                          \
+/* endif */                                                                 \
     }                                                                       \
     FINISH(2);
 
@@ -581,6 +676,10 @@ GOTO_TARGET_DECL(exceptionThrown);
         ILOGV("+ IPUT '%s'=0x%08llx", ifield->field.name,                   \
             (u8) GET_REGISTER##_regsize(vdst));                             \
         UPDATE_FIELD_PUT(&ifield->field);                                   \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+	dvmSetFieldTaint##_ftype(obj, ifield->byteOffset,                   \
+		GET_REGISTER_TAINT##_regsize(vdst));                        \
+/* endif */                                                                 \
     }                                                                       \
     FINISH(2);
 
@@ -599,6 +698,12 @@ GOTO_TARGET_DECL(exceptionThrown);
         dvmSetField##_ftype(obj, ref, GET_REGISTER##_regsize(vdst));        \
         ILOGV("+ IPUTQ %d=0x%08llx", ref,                                   \
             (u8) GET_REGISTER##_regsize(vdst));                             \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+	/*TLOGW("|IPUTQ not supported by taint tracking!!!");*/             \
+	/* compile flag WITH_TAINT_ODEX controls this now */                \
+	dvmSetFieldTaint##_ftype(obj, ref,                                  \
+		GET_REGISTER_TAINT##_regsize(vdst));                        \
+/* endif */                                                                 \
     }                                                                       \
     FINISH(2);
 
@@ -620,6 +725,9 @@ GOTO_TARGET_DECL(exceptionThrown);
         ILOGV("+ SGET '%s'=0x%08llx",                                       \
             sfield->field.name, (u8)GET_REGISTER##_regsize(vdst));          \
         UPDATE_FIELD_GET(&sfield->field);                                   \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+	SET_REGISTER_TAINT##_regsize(vdst, dvmGetStaticFieldTaint##_ftype(sfield));\
+/* endif */                                                                 \
     }                                                                       \
     FINISH(2);
 
@@ -641,6 +749,10 @@ GOTO_TARGET_DECL(exceptionThrown);
         ILOGV("+ SPUT '%s'=0x%08llx",                                       \
             sfield->field.name, (u8)GET_REGISTER##_regsize(vdst));          \
         UPDATE_FIELD_PUT(&sfield->field);                                   \
+/* ifdef WITH_TAINT_TRACKING */                                             \
+	dvmSetStaticFieldTaint##_ftype(sfield,                              \
+		GET_REGISTER_TAINT##_regsize(vdst));                        \
+/* endif */                                                                 \
     }                                                                       \
     FINISH(2);
 

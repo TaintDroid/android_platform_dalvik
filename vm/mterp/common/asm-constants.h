@@ -91,6 +91,55 @@ MTERP_SIZEOF(sizeofGlobal_activeProfilers, gDvm.activeProfilers, 4)
 MTERP_OFFSET(offGlue_pc,                MterpGlue, pc, 0)
 MTERP_OFFSET(offGlue_fp,                MterpGlue, fp, 4)
 MTERP_OFFSET(offGlue_retval,            MterpGlue, retval, 8)
+/*-----------------------------------------------------------------*/
+#ifdef WITH_TAINT_TRACKING
+/* Adjustements required for InterpState.rtaint */
+MTERP_OFFSET(offGlue_rtaint,		MterpGlue, rtaint, 16)
+MTERP_OFFSET(offGlue_method,            MterpGlue, method, 20)
+MTERP_OFFSET(offGlue_methodClassDex,    MterpGlue, methodClassDex, 24)
+MTERP_OFFSET(offGlue_self,              MterpGlue, self, 28)
+MTERP_OFFSET(offGlue_bailPtr,           MterpGlue, bailPtr, 32)
+MTERP_OFFSET(offGlue_interpStackEnd,    MterpGlue, interpStackEnd, 36)
+MTERP_OFFSET(offGlue_pSelfSuspendCount, MterpGlue, pSelfSuspendCount, 40)
+#if defined(WITH_DEBUGGER) && defined(WITH_PROFILER)
+MTERP_OFFSET(offGlue_pDebuggerActive,   MterpGlue, pDebuggerActive, 44)
+MTERP_OFFSET(offGlue_pActiveProfilers,  MterpGlue, pActiveProfilers, 48)
+MTERP_OFFSET(offGlue_entryPoint,        MterpGlue, entryPoint, 52)
+#if defined(WITH_JIT)
+MTERP_OFFSET(offGlue_pJitProfTable,     MterpGlue, pJitProfTable, 60)
+MTERP_OFFSET(offGlue_jitState,          MterpGlue, jitState, 64)
+MTERP_OFFSET(offGlue_jitResume,         MterpGlue, jitResume, 68)
+MTERP_OFFSET(offGlue_jitResumePC,       MterpGlue, jitResumePC, 72)
+#endif
+#elif defined(WITH_DEBUGGER)
+MTERP_OFFSET(offGlue_pDebuggerActive,   MterpGlue, pDebuggerActive, 44)
+MTERP_OFFSET(offGlue_entryPoint,        MterpGlue, entryPoint, 48)
+#if defined(WITH_JIT)
+MTERP_OFFSET(offGlue_pJitProfTable,     MterpGlue, pJitProfTable, 56)
+MTERP_OFFSET(offGlue_jitState,          MterpGlue, jitState, 60)
+MTERP_OFFSET(offGlue_jitResume,         MterpGlue, jitResume, 64)
+MTERP_OFFSET(offGlue_jitResumePC,       MterpGlue, jitResumePC, 68)
+#endif
+#elif defined(WITH_PROFILER)
+MTERP_OFFSET(offGlue_pActiveProfilers,  MterpGlue, pActiveProfilers, 44)
+MTERP_OFFSET(offGlue_entryPoint,        MterpGlue, entryPoint, 48)
+#if defined(WITH_JIT)
+MTERP_OFFSET(offGlue_pJitProfTable,     MterpGlue, pJitProfTable, 56)
+MTERP_OFFSET(offGlue_jitState,          MterpGlue, jitState, 60)
+MTERP_OFFSET(offGlue_jitResume,         MterpGlue, jitResume, 64)
+MTERP_OFFSET(offGlue_jitResumePC,       MterpGlue, jitResumePC, 68)
+#endif
+#else
+MTERP_OFFSET(offGlue_entryPoint,        MterpGlue, entryPoint, 44)
+#if defined(WITH_JIT)
+MTERP_OFFSET(offGlue_pJitProfTable,     MterpGlue, pJitProfTable, 52)
+MTERP_OFFSET(offGlue_jitState,          MterpGlue, jitState, 56)
+MTERP_OFFSET(offGlue_jitResume,         MterpGlue, jitResume, 60)
+MTERP_OFFSET(offGlue_jitResumePC,       MterpGlue, jitResumePC, 64)
+#endif
+#endif
+/*-----------------------------------------------------------------*/
+#else /* ndef WITH_TAINT_TRACKING */
 MTERP_OFFSET(offGlue_method,            MterpGlue, method, 16)
 MTERP_OFFSET(offGlue_methodClassDex,    MterpGlue, methodClassDex, 20)
 MTERP_OFFSET(offGlue_self,              MterpGlue, self, 24)
@@ -134,6 +183,8 @@ MTERP_OFFSET(offGlue_jitResume,         MterpGlue, jitResume, 56)
 MTERP_OFFSET(offGlue_jitResumePC,       MterpGlue, jitResumePC, 60)
 #endif
 #endif
+#endif /* ndef WITH_TAINT_TRACKING */
+/*-----------------------------------------------------------------*/
 /* make sure all JValue union members are stored at the same offset */
 MTERP_OFFSET(offGlue_retval_z,          MterpGlue, retval.z, 8)
 MTERP_OFFSET(offGlue_retval_i,          MterpGlue, retval.i, 8)
@@ -177,10 +228,20 @@ MTERP_OFFSET(offInstField_byteOffset,   InstField, byteOffset, 16)
 #endif
 
 /* StaticField fields */
+#ifdef WITH_TAINT_TRACKING
+#ifdef PROFILE_FIELD_ACCESS
+MTERP_OFFSET(offStaticField_value,      StaticField, value, 24)
+MTERP_OFFSET(offStaticField_taint,		StaticField, taint, 32)
+#else
+MTERP_OFFSET(offStaticField_value,      StaticField, value, 16)
+MTERP_OFFSET(offStaticField_taint,		StaticField, taint, 24)
+#endif
+#else
 #ifdef PROFILE_FIELD_ACCESS
 MTERP_OFFSET(offStaticField_value,      StaticField, value, 24)
 #else
 MTERP_OFFSET(offStaticField_value,      StaticField, value, 16)
+#endif
 #endif
 
 /* Method fields */
@@ -213,11 +274,28 @@ MTERP_OFFSET(offObject_clazz,           Object, clazz, 0)
 
 /* ArrayObject fields */
 MTERP_OFFSET(offArrayObject_length,     ArrayObject, length, 8)
+#ifdef WITH_TAINT_TRACKING
+MTERP_OFFSET(offArrayObject_taint,	ArrayObject, taint, 12)
+#endif
+
+#ifdef WITH_TAINT_TRACKING
+/*-----------------------------------------------------------------*/
+/* The extra 4 bytes for the taint tag makes these the same */
+#ifdef MTERP_NO_UNALIGN_64
+MTERP_OFFSET(offArrayObject_contents,   ArrayObject, contents, 16)
+#else
+MTERP_OFFSET(offArrayObject_contents,   ArrayObject, contents, 16)
+#endif
+/*-----------------------------------------------------------------*/
+#else /* ndef WITH_TAINT_TRACKING */
+/*-----------------------------------------------------------------*/
 #ifdef MTERP_NO_UNALIGN_64
 MTERP_OFFSET(offArrayObject_contents,   ArrayObject, contents, 16)
 #else
 MTERP_OFFSET(offArrayObject_contents,   ArrayObject, contents, 12)
 #endif
+/*-----------------------------------------------------------------*/
+#endif /* WITH_TAINT_TRACKING */
 
 /* ClassObject fields */
 MTERP_OFFSET(offClassObject_descriptor, ClassObject, descriptor, 24)

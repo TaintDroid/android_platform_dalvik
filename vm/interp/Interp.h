@@ -23,7 +23,11 @@
  * Interpreter entry point.  Call here after setting up the interpreted
  * stack (most code will want to get here via dvmCallMethod().)
  */
+#ifdef WITH_TAINT_TRACKING
+void dvmInterpret(Thread* thread, const Method* method, JValue* pResult, u4* rtaint);
+#else
 void dvmInterpret(Thread* thread, const Method* method, JValue* pResult);
+#endif
 
 /*
  * Throw an exception for a problem detected by the verifier.

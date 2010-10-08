@@ -9,6 +9,9 @@ bail:
     ILOGD("|-- Leaving interpreter loop");      // note "curMethod" may be NULL
 
     interpState->retval = retval;
+#ifdef WITH_TAINT_TRACKING
+    interpState->rtaint = rtaint;
+#endif
     return false;
 
 bail_switch:
@@ -33,6 +36,9 @@ bail_switch:
     interpState->fp = fp;
     /* debugTrackedRefStart doesn't change */
     interpState->retval = retval;   /* need for _entryPoint=ret */
+#ifdef WITH_TAINT_TRACKING
+    interpState->rtaint = rtaint;
+#endif
     interpState->nextMode =
         (INTERP_TYPE == INTERP_STD) ? INTERP_DBG : INTERP_STD;
     LOGVV(" meth='%s.%s' pc=0x%x fp=%p\n",

@@ -26,6 +26,17 @@
 LOCAL_CFLAGS += -fstrict-aliasing -Wstrict-aliasing=2 -fno-align-jumps
 #LOCAL_CFLAGS += -DUSE_INDIRECT_REF
 
+# Turn on Taint Tracking
+ifeq ($(WITH_TAINT_TRACKING),true)
+  LOCAL_CFLAGS += -DWITH_TAINT_TRACKING
+endif
+ifeq ($(TAINT_JNI_LOG),true)
+  LOCAL_CFLAGS += -DTAINT_JNI_LOG
+endif
+ifeq ($(WITH_TAINT_FAST),true)
+  LOCAL_CFLAGS += -DWITH_TAINT_FAST
+endif
+
 #
 # Optional features.  These may impact the size or performance of the VM.
 #
@@ -194,6 +205,12 @@ LOCAL_SRC_FILES := \
 	test/TestHash.c \
 	test/TestIndirectRefTable.c
 
+ifeq ($(WITH_TAINT_TRACKING), true)
+    LOCAL_SRC_FILES += native/dalvik_system_Taint.c
+    LOCAL_SRC_FILES += tprop/TaintProp.c
+    LOCAL_SRC_FILES += tprop/TaintPolicy.c
+endif
+
 ifeq ($(WITH_JIT_TUNING),true)
   LOCAL_CFLAGS += -DWITH_JIT_TUNING
   # NOTE: Turn on assertion for JIT for now
@@ -247,6 +264,10 @@ LOCAL_C_INCLUDES += \
 	external/zlib \
 	$(KERNEL_HEADERS)
 
+# Taint tracking with file propagation
+ifeq ($(WITH_TAINT_TRACKING),true)
+    LOCAL_C_INCLUDES += dalvik/libattr
+endif
 
 ifeq ($(dvm_simulator),true)
   LOCAL_LDLIBS += -lpthread -ldl
@@ -329,3 +350,9 @@ LOCAL_SHARED_LIBRARIES += \
 
 LOCAL_STATIC_LIBRARIES += \
 	libdex
+
+# Taint tracking with file propagation
+ifeq ($(WITH_TAINT_TRACKING),true)
+    LOCAL_STATIC_LIBRARIES += libattr
+endif
+

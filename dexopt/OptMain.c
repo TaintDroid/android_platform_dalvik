@@ -124,7 +124,11 @@ static int extractAndProcessZip(int zipFd, int cacheFd,
      * Prep the VM and perform the optimization.
      */
     DexClassVerifyMode verifyMode = VERIFY_MODE_ALL;
+#if defined(WITH_TAINT_TRACKING) && !defined(WITH_TAINT_ODEX)
+    DexOptimizerMode dexOptMode = OPTIMIZE_MODE_NONE;
+#else
     DexOptimizerMode dexOptMode = OPTIMIZE_MODE_VERIFIED;
+#endif
     int dexoptFlags = 0;        /* bit flags, from enum DexoptFlags */
     if (dexoptFlagStr[0] != '\0') {
         const char* opc;
@@ -140,6 +144,10 @@ static int extractAndProcessZip(int zipFd, int cacheFd,
             }
         }
 
+#if defined(WITH_TAINT_TRACKING) && !defined(WITH_TAINT_ODEX)
+	/* No choices */
+	dexOptMode = OPTIMIZE_MODE_NONE;
+#else
         opc = strstr(dexoptFlagStr, "o=");      /* optimization */
         if (opc != NULL) {
             switch (*(opc+2)) {
@@ -149,6 +157,7 @@ static int extractAndProcessZip(int zipFd, int cacheFd,
             default:                                            break;
             }
         }
+#endif
 
         opc = strstr(dexoptFlagStr, "m=y");     /* register map */
         if (opc != NULL) {
@@ -400,6 +409,10 @@ static int fromDex(int argc, char* const argv[])
     } else {
         verifyMode = VERIFY_MODE_NONE;
     }
+#if defined(WITH_TAINT_TRACKING) && !defined(WITH_TAINT_ODEX)
+    /* no choices */
+    dexOptMode = OPTIMIZE_MODE_NONE;
+#else
     if ((flags & DEXOPT_OPT_ENABLED) != 0) {
         if ((flags & DEXOPT_OPT_ALL) != 0)
             dexOptMode = OPTIMIZE_MODE_ALL;
@@ -408,6 +421,7 @@ static int fromDex(int argc, char* const argv[])
     } else {
         dexOptMode = OPTIMIZE_MODE_NONE;
     }
+#endif
     if ((flags & DEXOPT_GEN_REGISTER_MAP) != 0) {
         dexoptFlags |= DEXOPT_GEN_REGISTER_MAPS;
     }

@@ -17,6 +17,9 @@
 
 package org.apache.harmony.luni.util;
 
+// ifdef WITH_TAINT_TRACKING
+import dalvik.system.Taint;
+// endif
 
 public final class NumberConverter {
 
@@ -60,6 +63,10 @@ public final class NumberConverter {
         long eMask = 0x7FF0000000000000L; // the mask to get the power bits
         long fMask = 0x000FFFFFFFFFFFFFL; // the mask to get the significand
         // bits
+	
+	// start WITH_TAINT_TRACKING
+	int tag = Taint.getTaintDouble(inputNumber);
+	// end WITH_TAINT_TRACKING
 
         long inputNumberBits = Double.doubleToLongBits(inputNumber);
         // the value of the sign... 0 is positive, ~0 is negative
@@ -75,11 +82,31 @@ public final class NumberConverter {
             return mantissaIsZero ? signString + "Infinity" : "NaN";
         if (e == 0) {
             if (mantissaIsZero)
-                return signString + "0.0";
+		// start WITH_TAINT_TRACKING
+	    {
+		if (tag != Taint.TAINT_CLEAR) {
+		    String ts = new String(signString + "0.0");
+		    Taint.addTaintString(ts, tag);
+		    return ts;
+		} else {
+		    return signString + "0.0";
+		}
+	    }
+		// end WITH_TAINT_TRACKING
             if (f == 1)
                 // special case to increase precision even though 2 *
                 // Double.MIN_VALUE is 1.0e-323
-                return signString + "4.9E-324";
+		// start WITH_TAINT_TRACKING
+	    {
+		if (tag != Taint.TAINT_CLEAR) {
+		    String ts = new String(signString + "4.9E-324");
+		    Taint.addTaintString(ts, tag);
+		    return ts;
+		} else {
+		    return signString + "4.9E-324";
+		}
+	    }
+		// end WITH_TAINT_TRACKING
             pow = 1 - p; // a denormalized number
             long ff = f;
             while ((ff & 0x0010000000000000L) == 0) {
@@ -101,9 +128,27 @@ public final class NumberConverter {
 
         if (inputNumber >= 1e7D || inputNumber <= -1e7D
                 || (inputNumber > -1e-3D && inputNumber < 1e-3D))
-            return signString + freeFormatExponential();
+	    // start WITH_TAINT_TRACKING
+	{
+	    if (tag != Taint.TAINT_CLEAR) {
+		String ts = new String(signString + freeFormatExponential());
+		Taint.addTaintString(ts, tag);
+		return ts;
+	    } else {
+		return signString + freeFormatExponential();
+	    }
+	}
+	    // end WITH_TAINT_TRACKING
         
-        return signString + freeFormat();
+	// start WITH_TAINT_TRACKING
+	if (tag != Taint.TAINT_CLEAR) {
+	    String ts = signString + freeFormat();
+	    Taint.addTaintString(ts, tag);
+	    return ts;
+	} else {
+	    return signString + freeFormat();
+	}
+	// end WITH_TAINT_TRACKING
     }
 
     public String convertF(float inputNumber) {
@@ -111,6 +156,10 @@ public final class NumberConverter {
         int signMask = 0x80000000; // the mask to get the sign of the number
         int eMask = 0x7F800000; // the mask to get the power bits
         int fMask = 0x007FFFFF; // the mask to get the significand bits
+
+	// start WITH_TAINT_TRACKING
+	int tag = Taint.getTaintDouble(inputNumber);
+	// end WITH_TAINT_TRACKING
 
         int inputNumberBits = Float.floatToIntBits(inputNumber);
         // the value of the sign... 0 is positive, ~0 is negative
@@ -126,7 +175,17 @@ public final class NumberConverter {
             return mantissaIsZero ? signString + "Infinity" : "NaN";
         if (e == 0) {
             if (mantissaIsZero)
-                return signString + "0.0";
+		// start WITH_TAINT_TRACKING
+	    {
+		if (tag != Taint.TAINT_CLEAR) {
+		    String ts = new String(signString + "0.0");
+		    Taint.addTaintString(ts, tag);
+		    return ts;
+		} else {
+		    return signString + "0.0";
+		}
+	    }
+		// end WITH_TAINT_TRACKING
             pow = 1 - p; // a denormalized number
             if (f < 8) { // want more precision with smallest values
                 f = f << 2;
@@ -151,9 +210,27 @@ public final class NumberConverter {
                     numBits);
         if (inputNumber >= 1e7f || inputNumber <= -1e7f
                 || (inputNumber > -1e-3f && inputNumber < 1e-3f))
-            return signString + freeFormatExponential();
+	    // start WITH_TAINT_TRACKING
+	{
+	    if (tag != Taint.TAINT_CLEAR) {
+		String ts = new String(signString + freeFormatExponential());
+		Taint.addTaintString(ts, tag);
+		return ts;
+	    } else {
+		return signString + freeFormatExponential();
+	    }
+	}
+	    // end WITH_TAINT_TRACKING
         
-        return signString + freeFormat();
+	// start WITH_TAINT_TRACKING
+	if (tag != Taint.TAINT_CLEAR) {
+	    String ts = new String(signString + freeFormat());
+	    Taint.addTaintString(ts, tag);
+	    return ts;
+	} else {
+	    return signString + freeFormat();
+	}
+	// end WITH_TAINT_TRACKING
     }
 
     private String freeFormatExponential() {

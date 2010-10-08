@@ -9,6 +9,9 @@ HANDLE_OPCODE(OP_CONST_WIDE /*vAA, #+BBBBBBBBBBBBBBBB*/)
         tmp |= (u8)FETCH(4) << 48;
         ILOGV("|const-wide v%d,#0x%08llx", vdst, tmp);
         SET_REGISTER_WIDE(vdst, tmp);
+/* ifdef WITH_TAINT_TRACKING */
+	SET_REGISTER_TAINT_WIDE(vdst, TAINT_CLEAR);
+/* endif */
     }
     FINISH(5);
 OP_END

@@ -26,6 +26,10 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 
+// begin WITH_TAINT_TRACKING
+import dalvik.system.Taint;
+// end WITH_TAINT_TRACKING
+
 /**
  * This is the portable implementation of the file system interface.
  *
@@ -128,6 +132,9 @@ class OSFileSystem implements IFileSystem {
         if (bytesRead < -1) {
             throw new IOException();
         }
+	// begin WITH_TAINT_TRACKING
+	Taint.log("OSFileSystem.readDirect("+fileDescriptor+") can't check taint!");
+	// end WITH_TAINT_TRACKING
         return bytesRead;
     }
 
@@ -141,6 +148,9 @@ class OSFileSystem implements IFileSystem {
         if (bytesWritten < 0) {
             throw new IOException();
         }
+	// begin WITH_TAINT_TRACKING
+	Taint.log("OSFileSystem.writeDirect("+fileDescriptor+") can't check taint!");
+	// end WITH_TAINT_TRACKING
         return bytesWritten;
     }
 
@@ -167,6 +177,15 @@ class OSFileSystem implements IFileSystem {
              */
             throw new IOException();
         }
+	// begin WITH_TAINT_TRACKING
+	int tag = Taint.getTaintFile(fileDescriptor);
+	if (tag != Taint.TAINT_CLEAR) {
+	    String dstr = new String(bytes);
+	    String tstr = "0x" + Integer.toHexString(tag);
+	    Taint.log("OSFileSystem.read("+fileDescriptor+"): reading with tag " + tstr + " data["+dstr+"]");
+	    Taint.addTaintByteArray(bytes, tag);
+	}
+	// end WITH_TAINT_TRACKING
         return bytesRead;
     }
 
@@ -179,6 +198,16 @@ class OSFileSystem implements IFileSystem {
         if (bytesWritten < 0) {
             throw new IOException();
         }
+	// begin WITH_TAINT_TRACKING
+	int tag = Taint.getTaintByteArray(bytes);
+	if (tag != Taint.TAINT_CLEAR) {
+	    String dstr = new String(bytes);
+	    Taint.logPathFromFd(fileDescriptor);
+	    String tstr = "0x" + Integer.toHexString(tag);
+	    Taint.log("OSFileSystem.write("+fileDescriptor+"): writing with tag " + tstr + " data["+dstr+"]");
+	    Taint.addTaintFile(fileDescriptor, tag);
+	}
+	// end WITH_TAINT_TRACKING
         return bytesWritten;
     }
 
@@ -192,6 +221,9 @@ class OSFileSystem implements IFileSystem {
         if (bytesRead < -1) {
             throw new IOException();
         }
+	// begin WITH_TAINT_TRACKING
+	Taint.log("OSFileSystem.readv("+fileDescriptor+") can't check taint!");
+	// end WITH_TAINT_TRACKING
         return bytesRead;
     }
 
@@ -205,6 +237,9 @@ class OSFileSystem implements IFileSystem {
         if (bytesWritten < 0) {
             throw new IOException();
         }
+	// begin WITH_TAINT_TRACKING
+	Taint.log("OSFileSystem.writev("+fileDescriptor+") can't check taint!");
+	// end WITH_TAINT_TRACKING
         return bytesWritten;
     }
 

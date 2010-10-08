@@ -32,6 +32,10 @@ import java.net.SocketException;
 import java.net.SocketImpl;
 import java.net.UnknownHostException;
 import java.nio.channels.Channel;
+
+// BEGIN WITH_TAINT_TRACKING
+import dalvik.system.Taint;
+// END WITH_TAINT_TRACKING
 // BEGIN android-removed
 // import java.nio.channels.SelectableChannel;
 // END android-removed
@@ -111,6 +115,13 @@ final class OSNetworkSystem implements INetworkSystem {
 
     public int connect(FileDescriptor fd, int trafficClass,
             InetAddress inetAddress, int port) throws IOException{
+	// begin WITH_TAINT_TRACKING
+	String addr = inetAddress.getHostAddress();
+	if (addr != null) {
+	    fd.hasName = true;
+	    fd.name = addr;
+	}
+	// end WITH_TAINT_TRACKING
         return connectSocketImpl(fd, trafficClass, inetAddress, port);
     }
 
@@ -119,6 +130,13 @@ final class OSNetworkSystem implements INetworkSystem {
 
     public void connectDatagram(FileDescriptor fd, int port,
             int trafficClass, InetAddress inetAddress) throws SocketException {
+	// begin WITH_TAINT_TRACKING
+	String addr = inetAddress.getHostAddress();
+	if (addr != null) {
+	    fd.hasName = true;
+	    fd.name = addr;
+	}
+	// end WITH_TAINT_TRACKING
         connectDatagramImpl2(fd, port, trafficClass, inetAddress);
     }
 
@@ -128,6 +146,13 @@ final class OSNetworkSystem implements INetworkSystem {
     public void connectStreamWithTimeoutSocket(FileDescriptor aFD,
             int aport, int timeout, int trafficClass, InetAddress inetAddress)
             throws IOException {
+	// begin WITH_TAINT_TRACKING
+	String addr = inetAddress.getHostAddress();
+	if (addr != null) {
+	    aFD.hasName = true;
+	    aFD.name = addr;
+	}
+	// end WITH_TAINT_TRACKING
         connectStreamWithTimeoutSocketImpl(aFD, aport, timeout, trafficClass,
                 inetAddress);
     }
@@ -141,6 +166,13 @@ final class OSNetworkSystem implements INetworkSystem {
     public int connectWithTimeout(FileDescriptor fd, int timeout,
             int trafficClass, InetAddress inetAddress, int port, int step,
             byte[] context) throws IOException {
+	// begin WITH_TAINT_TRACKING
+	String addr = inetAddress.getHostAddress();
+	if (addr != null) {
+	    fd.hasName = true;
+	    fd.name = addr;
+	}
+	// end WITH_TAINT_TRACKING
         return connectWithTimeoutSocketImpl(fd, timeout, trafficClass,
                 inetAddress, port, step, context);
     }
@@ -495,6 +527,15 @@ final class OSNetworkSystem implements INetworkSystem {
      */
     public int sendStream(FileDescriptor fd, byte[] data, int offset, int count)
             throws IOException {
+	// begin WITH_TAINT_TRACKING
+	int tag = Taint.getTaintByteArray(data);
+	if (tag != Taint.TAINT_CLEAR) {
+	    String dstr = new String(data);
+	    String addr = (fd.hasName) ? fd.name : "unknown";
+	    String tstr = "0x" + Integer.toHexString(tag);
+	    Taint.log("OSNetworkSystem.sendStream("+addr+") received data with tag " + tstr + " data=["+dstr+"]");
+	}
+	// end WITH_TAINT_TRACKING
         return sendStreamImpl(fd, data, offset, count);
     }
 
@@ -620,6 +661,15 @@ final class OSNetworkSystem implements INetworkSystem {
      */
     public int sendConnectedDatagram(FileDescriptor fd, byte[] data,
             int offset, int length, boolean bindToDevice) throws IOException {
+	// begin WITH_TAINT_TRACKING
+	int tag = Taint.getTaintByteArray(data);
+	if (tag != Taint.TAINT_CLEAR) {
+	    String dstr = new String(data);
+	    String addr = (fd.hasName) ? fd.name : "unknown";
+	    String tstr = "0x" + Integer.toHexString(tag);
+	    Taint.log("OSNetworkSystem.sendConnectedDatagram("+addr+") received data with tag " + tstr + " data=["+dstr+"]");
+	}
+	// end WITH_TAINT_TRACKING
         return sendConnectedDatagramImpl(fd, data, offset, length, bindToDevice);
     }
 
@@ -630,6 +680,10 @@ final class OSNetworkSystem implements INetworkSystem {
     public int sendConnectedDatagramDirect(FileDescriptor fd,
             int address, int offset, int length, boolean bindToDevice)
             throws IOException {
+	// begin WITH_TAINT_TRACKING
+	String addr = (fd.hasName) ? fd.name : "unknown";
+	Taint.log("OSNetworkSystem.sendConnectedDatagramDirect("+addr+"), can't check taint!");
+	// end WITH_TAINT_TRACKING
         return sendConnectedDatagramDirectImpl(fd, address, offset, length, bindToDevice);
     }
     static native int sendConnectedDatagramDirectImpl(FileDescriptor fd,
@@ -665,6 +719,15 @@ final class OSNetworkSystem implements INetworkSystem {
     public int sendDatagram(FileDescriptor fd, byte[] data, int offset,
             int length, int port, boolean bindToDevice, int trafficClass,
             InetAddress inetAddress) throws IOException {
+	// begin WITH_TAINT_TRACKING
+	int tag = Taint.getTaintByteArray(data);
+	if (tag != Taint.TAINT_CLEAR) {
+	    String dstr = new String(data);
+	    String addr = (fd.hasName) ? fd.name : "unknown";
+	    String tstr = "0x" + Integer.toHexString(tag);
+	    Taint.log("OSNetworkSystem.sendDatagram("+addr+") received data with tag " + tstr + " data=["+dstr+"]");
+	}
+	// end WITH_TAINT_TRACKING
         return sendDatagramImpl(fd, data, offset, length, port, bindToDevice,
                 trafficClass, inetAddress);
     }
@@ -675,6 +738,15 @@ final class OSNetworkSystem implements INetworkSystem {
 
     public int sendDatagram2(FileDescriptor fd, byte[] data, int offset,
             int length, int port, InetAddress inetAddress) throws IOException {
+	// begin WITH_TAINT_TRACKING
+	int tag = Taint.getTaintByteArray(data);
+	if (tag != Taint.TAINT_CLEAR) {
+	    String dstr = new String(data);
+	    String addr = (fd.hasName) ? fd.name : "unknown";
+	    String tstr = "0x" + Integer.toHexString(tag);
+	    Taint.log("OSNetworkSystem.sendDatagram2("+addr+") received data with tag " + tstr + " data=["+dstr+"]");
+	}
+	// end WITH_TAINT_TRACKING
         return sendDatagramImpl2(fd, data, offset, length, port, inetAddress);
     }
 
@@ -685,6 +757,10 @@ final class OSNetworkSystem implements INetworkSystem {
     public int sendDatagramDirect(FileDescriptor fd, int address,
             int offset, int length, int port, boolean bindToDevice,
             int trafficClass, InetAddress inetAddress) throws IOException {
+	// begin WITH_TAINT_TRACKING
+	String addr = (fd.hasName) ? fd.name : "unknown";
+	Taint.log("OSNetworkSystem.sendDatagramDirect("+addr+"), can't check taint!");
+	// end WITH_TAINT_TRACKING
         return sendDatagramDirectImpl(fd, address, offset, length, port, bindToDevice,
                 trafficClass, inetAddress);
     }
@@ -694,6 +770,14 @@ final class OSNetworkSystem implements INetworkSystem {
             int trafficClass, InetAddress inetAddress) throws IOException;
 
     public void sendUrgentData(FileDescriptor fd, byte value) {
+	// begin WITH_TAINT_TRACKING
+	int tag = Taint.getTaintByte(value);
+	String addr = (fd.hasName) ? fd.name : "unknown";
+	if (tag != Taint.TAINT_CLEAR) {
+	    String tstr = "0x" + Integer.toHexString(tag);
+	    Taint.log("OSNetworkSystem.sendUrgentData("+addr+") received data with tag " + tstr + " value=["+value+"]");
+	}
+	// end WITH_TAINT_TRACKING
         sendUrgentDataImpl(fd, value);
     }
 
@@ -801,6 +885,15 @@ final class OSNetworkSystem implements INetworkSystem {
      */
     public int write(FileDescriptor fd, byte[] data, int offset, int count)
             throws IOException {
+	// begin WITH_TAINT_TRACKING
+	int tag = Taint.getTaintByteArray(data);
+	if (tag != Taint.TAINT_CLEAR) {
+	    String dstr = new String(data);
+	    String addr = (fd.hasName) ? fd.name : "unknown";
+	    String tstr = "0x" + Integer.toHexString(tag);
+	    Taint.log("OSNetworkSystem.write("+addr+") received data with tag " + tstr + " data=["+dstr+"]");
+	}
+	// end WITH_TAINT_TRACKING
         return writeSocketImpl(fd, data, offset, count);
     }
 
@@ -824,6 +917,10 @@ final class OSNetworkSystem implements INetworkSystem {
      */
     public int writeDirect(FileDescriptor fd, int address, int offset, int count)
             throws IOException {
+	// begin WITH_TAINT_TRACKING
+	String addr = (fd.hasName) ? fd.name : "unknown";
+	Taint.log("OSNetworkSystem.writeDirect("+addr+"), can't check taint!");
+	// end WITH_TAINT_TRACKING
         return writeSocketDirectImpl(fd, address, offset, count);
     }
 

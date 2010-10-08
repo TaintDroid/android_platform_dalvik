@@ -16,6 +16,9 @@ bool INTERP_FUNC_NAME(Thread* self, InterpState* interpState)
 #endif
     DvmDex* methodClassDex;     // curMethod->clazz->pDvmDex
     JValue retval;
+#ifdef WITH_TAINT_TRACKING
+    Taint rtaint;
+#endif
 
     /* core state */
     const Method* curMethod;    // method we're interpreting
@@ -60,6 +63,9 @@ bool INTERP_FUNC_NAME(Thread* self, InterpState* interpState)
     pc = interpState->pc;
     fp = interpState->fp;
     retval = interpState->retval;   /* only need for kInterpEntryReturn? */
+#ifdef WITH_TAINT_TRACKING
+    rtaint = interpState->rtaint;
+#endif
 
     methodClassDex = curMethod->clazz->pDvmDex;
 

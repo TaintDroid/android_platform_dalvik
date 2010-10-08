@@ -10,6 +10,9 @@ HANDLE_OPCODE(OP_ARRAY_LENGTH /*vA, vB*/)
             GOTO_exceptionThrown();
         /* verifier guarantees this is an array reference */
         SET_REGISTER(vdst, arrayObj->length);
+/* ifdef WITH_TAINT_TRACKING */
+	SET_REGISTER_TAINT(vdst, TAINT_CLEAR);
+/* endif */
     }
     FINISH(1);
 OP_END

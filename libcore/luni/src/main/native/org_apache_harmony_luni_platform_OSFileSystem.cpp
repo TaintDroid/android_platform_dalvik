@@ -602,6 +602,13 @@ static jint harmony_io_openImpl(JNIEnv * env, jobject obj, jbyteArray path,
     pathCopy[length] = '\0';
     convertToPlatform (pathCopy);
 
+#ifdef WITH_TAINT_TRACKING
+    // Ensure /sdcard always acts like FAT, even if it is ext2
+    if (strncmp(pathCopy, "/sdcard/", 8) == 0) {
+	mode = 0777;
+    }
+#endif
+
     int cc;
     
     if(pathCopy == NULL) {

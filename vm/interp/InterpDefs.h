@@ -24,6 +24,10 @@
 #ifndef _DALVIK_INTERP_DEFS
 #define _DALVIK_INTERP_DEFS
 
+#ifdef WITH_TAINT_TRACKING
+#include "interp/Taint.h"
+#endif
+
 
 /*
  * Specify the starting point when switching between interpreters.
@@ -90,6 +94,10 @@ typedef struct InterpState {
     u4*         fp;                     // frame pointer
 
     JValue      retval;                 // return value -- "out" only
+#ifdef WITH_TAINT_TRACKING
+    Taint       rtaint;			// return taint value
+#endif /* WITH_TAINT_TRACKING */
+
     const Method* method;               // method being executed
 
 

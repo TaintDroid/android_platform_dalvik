@@ -23,6 +23,10 @@
 
 #include <stddef.h>
 
+#ifdef WITH_TAINT_TRACKING
+#include "interp/Taint.h"
+#endif
+
 /* fwd decl */
 struct DataObject;
 struct InitiatingLoaderList;
@@ -284,6 +288,10 @@ struct ArrayObject {
 
     /* number of elements; immutable after init */
     u4              length;
+
+#ifdef WITH_TAINT_TRACKING
+    Taint           taint;
+#endif
 
     /*
      * Array contents; actual size is (length * sizeof(type)).  This is
@@ -569,6 +577,9 @@ struct Field {
 struct StaticField {
     Field           field;          /* MUST be first item */
     JValue          value;          /* initially set from DEX for primitives */
+#ifdef WITH_TAINT_TRACKING
+    Taint           taint;
+#endif
 };
 
 /*
@@ -706,6 +717,36 @@ INLINE Object* dvmGetFieldObject(const Object* obj, int offset) {
     return ((JValue*)BYTE_OFFSET(obj, offset))->l;
 }
 
+#ifdef WITH_TAINT_TRACKING
+INLINE u4 dvmGetFieldTaint(const Object* obj, int offset) {
+    return (*(u4*)BYTE_OFFSET(obj, offset+sizeof(u4)));
+}
+INLINE u4 dvmGetFieldTaintWide(const Object* obj, int offset) {
+    return (*(u4*)BYTE_OFFSET(obj, offset+sizeof(u4)+sizeof(u4)));
+}
+#define dvmGetFieldTaintBoolean(_obj, _offset) dvmGetFieldTaint(_obj, _offset)
+#define dvmGetFieldTaintByte(_obj, _offset)    dvmGetFieldTaint(_obj, _offset)
+#define dvmGetFieldTaintShort(_obj, _offset)   dvmGetFieldTaint(_obj, _offset)
+#define dvmGetFieldTaintChar(_obj, _offset)    dvmGetFieldTaint(_obj, _offset)
+#define dvmGetFieldTaintInt(_obj, _offset)     dvmGetFieldTaint(_obj, _offset)
+#define dvmGetFieldTaintLong(_obj, _offset)    dvmGetFieldTaintWide(_obj, _offset)
+#define dvmGetFieldTaintFloat(_obj, _offset)   dvmGetFieldTaint(_obj, _offset)
+#define dvmGetFieldTaintDouble(_obj, _offset)  dvmGetFieldTaintWide(_obj, _offset)
+#define dvmGetFieldTaintObject(_obj, _offset)  dvmGetFieldTaint(_obj, _offset)
+#else
+#define dvmGetFieldTaint(_obj, _offset)        ((void)0)
+#define dvmGetFieldTaintWide(_obj, _offset)    ((void)0)
+#define dvmGetFieldTaintBoolean(_obj, _offset) ((void)0)
+#define dvmGetFieldTaintByte(_obj, _offset)    ((void)0)
+#define dvmGetFieldTaintShort(_obj, _offset)   ((void)0)
+#define dvmGetFieldTaintChar(_obj, _offset)    ((void)0)
+#define dvmGetFieldTaintInt(_obj, _offset)     ((void)0)
+#define dvmGetFieldTaintLong(_obj, _offset)    ((void)0)
+#define dvmGetFieldTaintFloat(_obj, _offset)   ((void)0)
+#define dvmGetFieldTaintDouble(_obj, _offset)  ((void)0)
+#define dvmGetFieldTaintObject(_obj, _offset)  ((void)0)
+#endif
+
 INLINE void dvmSetFieldBoolean(Object* obj, int offset, bool val) {
     ((JValue*)BYTE_OFFSET(obj, offset))->i = val;
 }
@@ -733,6 +774,36 @@ INLINE void dvmSetFieldDouble(Object* obj, int offset, double val) {
 INLINE void dvmSetFieldObject(Object* obj, int offset, Object* val) {
     ((JValue*)BYTE_OFFSET(obj, offset))->l = val;
 }
+
+#ifdef WITH_TAINT_TRACKING
+INLINE void dvmSetFieldTaint(Object* obj, int offset, u4 tag) {
+    (*(u4*)BYTE_OFFSET(obj, offset+sizeof(u4))) = tag;
+}
+INLINE void dvmSetFieldTaintWide(Object* obj, int offset, u4 tag) {
+    (*(u4*)BYTE_OFFSET(obj, offset+sizeof(u4)+sizeof(u4))) = tag;
+}
+#define dvmSetFieldTaintBoolean(_obj, _offset, _tag) dvmSetFieldTaint(_obj, _offset, _tag)
+#define dvmSetFieldTaintByte(_obj, _offset, _tag)    dvmSetFieldTaint(_obj, _offset, _tag)
+#define dvmSetFieldTaintShort(_obj, _offset, _tag)   dvmSetFieldTaint(_obj, _offset, _tag)
+#define dvmSetFieldTaintChar(_obj, _offset, _tag)    dvmSetFieldTaint(_obj, _offset, _tag)
+#define dvmSetFieldTaintInt(_obj, _offset, _tag)     dvmSetFieldTaint(_obj, _offset, _tag)
+#define dvmSetFieldTaintLong(_obj, _offset, _tag)    dvmSetFieldTaintWide(_obj, _offset, _tag)
+#define dvmSetFieldTaintFloat(_obj, _offset, _tag)   dvmSetFieldTaint(_obj, _offset, _tag)
+#define dvmSetFieldTaintDouble(_obj, _offset, _tag)  dvmSetFieldTaintWide(_obj, _offset, _tag)
+#define dvmSetFieldTaintObject(_obj, _offset, _tag)  dvmSetFieldTaint(_obj, _offset, _tag)
+#else
+#define dvmSetFieldTaint(_obj, _offset, _tag)        ((void)0)
+#define dvmSetFieldTaintWide(_obj, _offset, _tag)    ((void)0)
+#define dvmSetFieldTaintBoolean(_obj, _offset, _tag) ((void)0)
+#define dvmSetFieldTaintByte(_obj, _offset, _tag)    ((void)0)
+#define dvmSetFieldTaintShort(_obj, _offset, _tag)   ((void)0)
+#define dvmSetFieldTaintChar(_obj, _offset, _tag)    ((void)0)
+#define dvmSetFieldTaintInt(_obj, _offset, _tag)     ((void)0)
+#define dvmSetFieldTaintLong(_obj, _offset, _tag)    ((void)0)
+#define dvmSetFieldTaintFloat(_obj, _offset, _tag)   ((void)0)
+#define dvmSetFieldTaintDouble(_obj, _offset, _tag)  ((void)0)
+#define dvmSetFieldTaintObject(_obj, _offset, _tag)  ((void)0)
+#endif
 
 /*
  * Static field access functions.
@@ -769,6 +840,32 @@ INLINE Object* dvmGetStaticFieldObject(const StaticField* sfield) {
     return sfield->value.l;
 }
 
+#ifdef WITH_TAINT_TRACKING
+INLINE u4 dvmGetStaticFieldTaint(const StaticField* sfield) {
+    return sfield->taint.tag;
+}
+#define dvmGetStaticFieldTaintBoolean(_sfield) dvmGetStaticFieldTaint(_sfield)
+#define dvmGetStaticFieldTaintByte(_sfield)    dvmGetStaticFieldTaint(_sfield)
+#define dvmGetStaticFieldTaintShort(_sfield)   dvmGetStaticFieldTaint(_sfield)
+#define dvmGetStaticFieldTaintChar(_sfield)    dvmGetStaticFieldTaint(_sfield)
+#define dvmGetStaticFieldTaintInt(_sfield)     dvmGetStaticFieldTaint(_sfield)
+#define dvmGetStaticFieldTaintLong(_sfield)    dvmGetStaticFieldTaint(_sfield)
+#define dvmGetStaticFieldTaintFloat(_sfield)   dvmGetStaticFieldTaint(_sfield)
+#define dvmGetStaticFieldTaintDouble(_sfield)  dvmGetStaticFieldTaint(_sfield)
+#define dvmGetStaticFieldTaintObject(_sfield)  dvmGetStaticFieldTaint(_sfield)
+#else
+#define dvmGetStaticFieldTaint(_sfield)        ((void)0)
+#define dvmGetStaticFieldTaintBoolean(_sfield) ((void)0)
+#define dvmGetStaticFieldTaintByte(_sfield)    ((void)0)
+#define dvmGetStaticFieldTaintShort(_sfield)   ((void)0)
+#define dvmGetStaticFieldTaintChar(_sfield)    ((void)0)
+#define dvmGetStaticFieldTaintInt(_sfield)     ((void)0)
+#define dvmGetStaticFieldTaintLong(_sfield)    ((void)0)
+#define dvmGetStaticFieldTaintFloat(_sfield)   ((void)0)
+#define dvmGetStaticFieldTaintDouble(_sfield)  ((void)0)
+#define dvmGetStaticFieldTaintObject(_sfield)  ((void)0)
+#endif
+
 INLINE void dvmSetStaticFieldBoolean(StaticField* sfield, bool val) {
     sfield->value.i = val;
 }
@@ -796,6 +893,32 @@ INLINE void dvmSetStaticFieldDouble(StaticField* sfield, double val) {
 INLINE void dvmSetStaticFieldObject(StaticField* sfield, Object* val) {
     sfield->value.l = val;
 }
+
+#ifdef WITH_TAINT_TRACKING
+INLINE void dvmSetStaticFieldTaint(StaticField* sfield, u4 tag) {
+    sfield->taint.tag = tag;
+}
+#define dvmSetStaticFieldTaintBoolean(_sfield, _tag) dvmSetStaticFieldTaint(_sfield, _tag)
+#define dvmSetStaticFieldTaintByte(_sfield, _tag)    dvmSetStaticFieldTaint(_sfield, _tag)
+#define dvmSetStaticFieldTaintShort(_sfield, _tag)   dvmSetStaticFieldTaint(_sfield, _tag)
+#define dvmSetStaticFieldTaintChar(_sfield, _tag)    dvmSetStaticFieldTaint(_sfield, _tag)
+#define dvmSetStaticFieldTaintInt(_sfield, _tag)     dvmSetStaticFieldTaint(_sfield, _tag)
+#define dvmSetStaticFieldTaintLong(_sfield, _tag)    dvmSetStaticFieldTaint(_sfield, _tag)
+#define dvmSetStaticFieldTaintFloat(_sfield, _tag)   dvmSetStaticFieldTaint(_sfield, _tag)
+#define dvmSetStaticFieldTaintDouble(_sfield, _tag)  dvmSetStaticFieldTaint(_sfield, _tag)
+#define dvmSetStaticFieldTaintObject(_sfield, _tag)  dvmSetStaticFieldTaint(_sfield, _tag)
+#else
+#define dvmSetStaticFieldTaint(_sfield, _tag)        ((void)0)
+#define dvmSetStaticFieldTaintBoolean(_sfield, _tag) ((void)0)
+#define dvmSetStaticFieldTaintByte(_sfield, _tag)    ((void)0)
+#define dvmSetStaticFieldTaintShort(_sfield, _tag)   ((void)0)
+#define dvmSetStaticFieldTaintChar(_sfield, _tag)    ((void)0)
+#define dvmSetStaticFieldTaintInt(_sfield, _tag)     ((void)0)
+#define dvmSetStaticFieldTaintLong(_sfield, _tag)    ((void)0)
+#define dvmSetStaticFieldTaintFloat(_sfield, _tag)   ((void)0)
+#define dvmSetStaticFieldTaintDouble(_sfield, _tag)  ((void)0)
+#define dvmSetStaticFieldTaintObject(_sfield, _tag)  ((void)0)
+#endif
 
 /*
  * Helpers.
