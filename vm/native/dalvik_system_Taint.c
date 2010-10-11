@@ -528,6 +528,8 @@ static u4 getTaintXattr(int fd)
 	    LOGW("TaintLog: fgetxattr(%d) contents to large", fd);
 	} else if (errno == ENOTSUP) {
 	    /* XATTRs are not supported. No need to spam the logs */
+	} else if (errno == EPERM) {
+	    /* Strange interaction with /dev/log/main. Suppress the log */
 	} else {
 	    LOGW("TaintLog: fgetxattr(%d): unknown error code %d", fd, errno);
 	}
@@ -547,6 +549,8 @@ static void setTaintXattr(int fd, u4 tag)
 	    LOGW("TaintLog: fsetxattr(%d): not enough room to set xattr", fd);
 	} else if (errno == ENOTSUP) {
 	    /* XATTRs are not supported. No need to spam the logs */
+	} else if (errno == EPERM) {
+	    /* Strange interaction with /dev/log/main. Suppress the log */
 	} else {
 	    LOGW("TaintLog: fsetxattr(%d): unknown error code %d", fd, errno);
 	}
