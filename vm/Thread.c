@@ -4018,6 +4018,10 @@ static void gcScanInterpStackReferences(Thread *thread)
                 /* conservative scan */
                 for (i = method->registersSize - 1; i >= 0; i--) {
                     u4 rval = *framePtr++;
+#ifdef WITH_TAINT_TRACKING
+                    /* taint tags are interleaved, jump over the tag */
+                    framePtr++;
+#endif
                     if (rval != 0 && (rval & 0x3) == 0) {
                         dvmMarkIfObject((Object *)rval);
                     }
@@ -4034,6 +4038,10 @@ static void gcScanInterpStackReferences(Thread *thread)
                 u2 bits = 1 << 1;
                 for (i = method->registersSize - 1; i >= 0; i--) {
                     u4 rval = *framePtr++;
+#ifdef WITH_TAINT_TRACKING
+                    /* taint tags are interleaved, jump over the tag */
+                    framePtr++;
+#endif
 
                     bits >>= 1;
                     if (bits == 1) {

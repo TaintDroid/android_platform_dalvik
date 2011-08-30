@@ -28,7 +28,11 @@ bool dvmCompilerArchVariantInit(void)
 {
     /* First, declare dvmCompiler_TEMPLATE_XXX for each template */
 #define JIT_TEMPLATE(X) extern void dvmCompiler_TEMPLATE_##X();
+#ifdef WITH_TAINT_TRACKING
+#include "../../../template/armv5te-vfp_taint/TemplateOpList.h"
+#else
 #include "../../../template/armv5te-vfp/TemplateOpList.h"
+#endif /*WITH_TAINT_TRACKING*/
 #undef JIT_TEMPLATE
 
     int i = 0;
@@ -40,7 +44,11 @@ bool dvmCompilerArchVariantInit(void)
      */
 #define JIT_TEMPLATE(X) templateEntryOffsets[i++] = \
     (intptr_t) dvmCompiler_TEMPLATE_##X - (intptr_t) dvmCompilerTemplateStart;
+#ifdef WITH_TAINT_TRACKING
+#include "../../../template/armv5te-vfp_taint/TemplateOpList.h"
+#else
 #include "../../../template/armv5te-vfp/TemplateOpList.h"
+#endif /*WITH_TAINT_TRACKING*/
 #undef JIT_TEMPLATE
 
     /* Target-specific configuration */
@@ -56,11 +64,19 @@ bool dvmCompilerArchVariantInit(void)
 #endif
 
     /* Codegen-specific assumptions */
+#ifdef WITH_TAINT_TRACKING
+    assert(offsetof(ClassObject, vtable) < 144 &&
+           (offsetof(ClassObject, vtable) & 0x3) == 0);
+    assert(offsetof(ArrayObject, length) < 128 &&
+           (offsetof(ArrayObject, length) & 0x3) == 0);
+    assert(offsetof(ArrayObject, contents) < 256);
+#else
     assert(offsetof(ClassObject, vtable) < 128 &&
            (offsetof(ClassObject, vtable) & 0x3) == 0);
     assert(offsetof(ArrayObject, length) < 128 &&
            (offsetof(ArrayObject, length) & 0x3) == 0);
     assert(offsetof(ArrayObject, contents) < 256);
+#endif /*WITH_TAINT_TRACKING*/
 
     /* Up to 5 args are pushed on top of FP - sizeofStackSaveArea */
     assert(sizeof(StackSaveArea) < 236);

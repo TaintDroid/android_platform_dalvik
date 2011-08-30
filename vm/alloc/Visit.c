@@ -111,9 +111,15 @@ static void visitThreadStack(Visitor *visitor, Thread *thread, void *arg)
                  * scan.
                  */
                 for (i = 0; i < method->registersSize; ++i) {
+#ifdef WITH_TAINT_TRACKING
+                    if (dvmIsValidObject((Object *)framePtr[i<<1])) {
+                        (*visitor)(&framePtr[i<<1], arg);
+                    }
+#else
                     if (dvmIsValidObject((Object *)framePtr[i])) {
                         (*visitor)(&framePtr[i], arg);
                     }
+#endif
                 }
             } else {
                 /*
@@ -135,7 +141,11 @@ static void visitThreadStack(Visitor *visitor, Thread *thread, void *arg)
                         /*
                          * Register is marked as live, it's a valid root.
                          */
-                        (*visitor)(&framePtr[i], arg);
+#ifdef WITH_TAINT_TRACKING
+                    	(*visitor)(&framePtr[i<<1], arg);
+#else
+                    	(*visitor)(&framePtr[i], arg);
+#endif
                     }
                 }
                 dvmReleaseRegisterMapLine(pMap, regVector);

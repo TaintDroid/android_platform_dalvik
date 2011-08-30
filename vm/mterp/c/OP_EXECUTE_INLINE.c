@@ -19,6 +19,11 @@ HANDLE_OPCODE(OP_EXECUTE_INLINE /*vB, {vD, vE, vF, vG}, inline@CCCC*/)
         u4 arg0, arg1, arg2, arg3;
         arg0 = arg1 = arg2 = arg3 = 0;
 
+#ifdef WITH_TAINT_TRACKING
+	u4 arg0_taint, arg1_taint;
+	arg0_taint = arg1_taint = 0;
+#endif /*WITH_TAINT_TRACKING*/
+
         EXPORT_PC();
 
         vsrc1 = INST_B(inst);       /* #of args */
@@ -39,8 +44,14 @@ HANDLE_OPCODE(OP_EXECUTE_INLINE /*vB, {vD, vE, vF, vG}, inline@CCCC*/)
             /* fall through */
         case 2:
             arg1 = GET_REGISTER((vdst & 0x00f0) >> 4);
+#ifdef WITH_TAINT_TRACKING
+	    arg1_taint = GET_REGISTER_TAINT((vdst & 0x00f0) >> 4);
+#endif /*WITH_TAINT_TRACKING*/
             /* fall through */
         case 1:
+#ifdef WITH_TAINT_TRACKING
+            arg0_taint = GET_REGISTER_TAINT(vdst & 0x0f);
+#endif /*WITH_TAINT_TRACKING*/
             arg0 = GET_REGISTER(vdst & 0x0f);
             /* fall through */
         default:        // case 0
@@ -48,11 +59,21 @@ HANDLE_OPCODE(OP_EXECUTE_INLINE /*vB, {vD, vE, vF, vG}, inline@CCCC*/)
         }
 
 #if INTERP_TYPE == INTERP_DBG
+#ifdef WITH_TAINT_TRACKING
+        if (!dvmPerformInlineOp4Dbg(arg0, arg1, arg2, arg3, arg0_taint, arg1_taint, &rtaint, &retval, ref))
+            GOTO_exceptionThrown();
+#else
         if (!dvmPerformInlineOp4Dbg(arg0, arg1, arg2, arg3, &retval, ref))
+            GOTO_exceptionThrown();
+#endif /*WITH_TAINT_TRACKING*/
+#else
+#ifdef WITH_TAINT_TRACKING
+        if (!dvmPerformInlineOp4Std(arg0, arg1, arg2, arg3, arg0_taint, arg1_taint, &rtaint, &retval, ref))
             GOTO_exceptionThrown();
 #else
         if (!dvmPerformInlineOp4Std(arg0, arg1, arg2, arg3, &retval, ref))
             GOTO_exceptionThrown();
+#endif /*WITH_TAINT_TRACKING*/
 #endif
     }
     FINISH(3);

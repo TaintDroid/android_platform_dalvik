@@ -2261,6 +2261,9 @@ static void loadSFieldFromDex(ClassObject* clazz,
 #ifdef PROFILE_FIELD_ACCESS
     sfield->field.gets = sfield->field.puts = 0;
 #endif
+#ifdef WITH_TAINT_TRACKING
+    sfield->taint.tag = TAINT_CLEAR;
+#endif
 }
 
 /*
@@ -3557,7 +3560,11 @@ static bool computeFieldOffsets(ClassObject* clazz)
             break;
 
         pField->byteOffset = fieldOffset;
+#ifdef WITH_TAINT_TRACKING
+        fieldOffset += sizeof(u4) + sizeof(u4); /* interleaved tag */
+#else
         fieldOffset += sizeof(u4);
+#endif
         LOGVV("  --- offset1 '%s'=%d\n", pField->field.name,pField->byteOffset);
     }
 
@@ -3569,6 +3576,11 @@ static bool computeFieldOffsets(ClassObject* clazz)
     if (i != clazz->ifieldCount && (fieldOffset & 0x04) != 0) {
         LOGVV("  +++ not aligned\n");
 
+#ifdef WITH_TAINT_TRACKING
+        /* Technically, this never occurs, but it doesn't hurt to add */
+        LOGV("  +++ inserting pad field in '%s'\n", clazz->descriptor);
+        fieldOffset += sizeof(u4);
+#else
         InstField* pField = &clazz->ifields[i];
         char c = pField->field.signature[0];
 
@@ -3612,6 +3624,7 @@ static bool computeFieldOffsets(ClassObject* clazz)
                 fieldOffset += sizeof(u4);
             }
         }
+#endif /* ndef WITH_TAINT_TRACKING */
     }
 
     /*
@@ -3654,9 +3667,15 @@ static bool computeFieldOffsets(ClassObject* clazz)
 
         pField->byteOffset = fieldOffset;
         LOGVV("  --- offset4 '%s'=%d\n", pField->field.name,pField->byteOffset);
+#ifdef WITH_TAINT_TRACKING
+        fieldOffset += sizeof(u4) + sizeof(u4); /* room for tag */
+        if (c == 'J' || c == 'D')
+            fieldOffset += sizeof(u4) + sizeof(u4); /* keep 64-bit aligned */
+#else
         fieldOffset += sizeof(u4);
         if (c == 'J' || c == 'D')
             fieldOffset += sizeof(u4);
+#endif /* ndef WITH_TAINT_TRACKING */
     }
 
 #ifndef NDEBUG

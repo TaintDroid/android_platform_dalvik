@@ -39,10 +39,17 @@
 # define STRING_FIELDOFF_COUNT      gDvm.offJavaLangString_count
 # define STRING_FIELDOFF_HASHCODE   gDvm.offJavaLangString_hashCode
 #else
+#ifdef WITH_TAINT_TRACKING
+# define STRING_FIELDOFF_VALUE      8
+# define STRING_FIELDOFF_HASHCODE   16
+# define STRING_FIELDOFF_OFFSET     24
+# define STRING_FIELDOFF_COUNT      32
+#else
 # define STRING_FIELDOFF_VALUE      8
 # define STRING_FIELDOFF_HASHCODE   12
 # define STRING_FIELDOFF_OFFSET     16
 # define STRING_FIELDOFF_COUNT      20
+#endif /* WITH_TAINT_TRACKING */
 #endif
 
 /*

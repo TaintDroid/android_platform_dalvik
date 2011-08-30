@@ -428,6 +428,10 @@ bool dvmJniStartup(void)
         return false;
     }
 
+#ifdef WITH_TAINT_TRACKING
+    dvmTaintPropJniStartup();
+#endif
+
     return true;
 }
 
@@ -1175,12 +1179,12 @@ static bool findInArgList(Thread* self, Object* obj)
         if (i == 0 && !dvmIsStaticMethod(meth)) {
             /* first arg is "this" ref, not represented in "shorty" */
             if (fp[i] == (u4) obj)
-                return true;
+            	return true;
         } else {
             /* if this is a reference type, see if it matches */
             switch (*shorty) {
             case 'L':
-                if (fp[i] == (u4) obj)
+            	if (fp[i] == (u4) obj)
                     return true;
                 break;
             case 'D':
@@ -1192,7 +1196,7 @@ static bool findInArgList(Thread* self, Object* obj)
                     meth->shorty, meth->insSize);
                 break;
             default:
-                if (fp[i] == (u4) obj)
+            	if (fp[i] == (u4) obj)
                     LOGI("NOTE: ref %p match on arg type %c\n", obj, *shorty);
                 break;
             }
@@ -1731,6 +1735,10 @@ void dvmCallJNIMethod_general(const u4* args, JValue* pResult,
         (void*)method->insns, pResult);
     CHECK_STACK_SUM(self);
 
+#ifdef WITH_TAINT_TRACKING
+    dvmTaintPropJniMethod(args, pResult, method);
+#endif
+
     dvmChangeStatus(self, oldStatus);
 
     convertReferenceResult(env, pResult, method, self);
@@ -1792,6 +1800,10 @@ void dvmCallJNIMethod_virtualNoRef(const u4* args, JValue* pResult,
         (void*)method->insns, pResult);
     CHECK_STACK_SUM(self);
 
+#ifdef WITH_TAINT_TRACKING
+    dvmTaintPropJniMethod(args, pResult, method);
+#endif
+
     dvmChangeStatus(self, oldStatus);
 
     convertReferenceResult(self->jniEnv, pResult, method, self);
@@ -1827,6 +1839,10 @@ void dvmCallJNIMethod_staticNoRef(const u4* args, JValue* pResult,
         method->jniArgInfo, method->insSize, args, method->shorty,
         (void*)method->insns, pResult);
     CHECK_STACK_SUM(self);
+
+#ifdef WITH_TAINT_TRACKING
+    dvmTaintPropJniMethod(args, pResult, method);
+#endif
 
     dvmChangeStatus(self, oldStatus);
 

@@ -64,8 +64,15 @@ void* dvmSelfVerificationSaveState(const u2* pc, const void* fp,
 {
     Thread *self = dvmThreadSelf();
     ShadowSpace *shadowSpace = self->shadowSpace;
+
+#ifdef WITH_TAINT_TRACKING
+    // interleaved taint tags + native "spacer" hack
+    unsigned preBytes = interpState->method->outsSize*4*2 + 4 + sizeof(StackSaveArea);
+    unsigned postBytes = interpState->method->registersSize*4*2 + 4;
+#else
     unsigned preBytes = interpState->method->outsSize*4 + sizeof(StackSaveArea);
     unsigned postBytes = interpState->method->registersSize*4;
+#endif /*WITH_TAINT_TRACKING*/
 
     //LOGD("### selfVerificationSaveState(%d) pc: 0x%x fp: 0x%x",
     //    self->threadId, (int)pc, (int)fp);
@@ -209,7 +216,14 @@ static void selfVerificationPrintRegisters(int* addr, int* addrRef,
 {
     int i;
     for (i = 0; i < numWords; i++) {
+#ifdef WITH_TAINT_TRACKING
+    	int j = i<<1;
+        LOGD("(v%d) 0x%8x%s", i, addr[j], addr[j] != addrRef[j] ? " X" : "");
+        j++;
+        LOGD("(v%d) 0x%8x%s (taint tag)", i, addr[j], addr[j] != addrRef[j] ? " X" : "");
+#else
         LOGD("(v%d) 0x%8x%s", i, addr[i], addr[i] != addrRef[i] ? " X" : "");
+#endif /*WITH_TAINT_TRACKING*/
     }
 }
 

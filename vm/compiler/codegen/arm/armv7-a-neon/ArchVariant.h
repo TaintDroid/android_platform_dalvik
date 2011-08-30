@@ -20,7 +20,11 @@
 /* Create the TemplateOpcode enum */
 #define JIT_TEMPLATE(X) TEMPLATE_##X,
 typedef enum {
+#ifdef WITH_TAINT_TRACKING
+#include "../../../template/armv5te-vfp_taint/TemplateOpList.h"
+#else
 #include "../../../template/armv5te-vfp/TemplateOpList.h"
+#endif /*WITH_TAINT_TRACKING*/
 /*
  * For example,
  *     TEMPLATE_CMP_LONG,

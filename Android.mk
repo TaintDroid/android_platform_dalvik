@@ -27,6 +27,11 @@ subdirs := $(addprefix $(LOCAL_PATH)/,$(addsuffix /Android.mk, \
 		tools \
 	))
 
+# Taint propagation with file propagation
+ifeq ($(WITH_TAINT_TRACKING),true)
+    subdirs += $(LOCAL_PATH)/libattr/Android.mk
+endif
+
 include $(subdirs)
 
 

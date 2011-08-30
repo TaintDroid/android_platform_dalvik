@@ -25,6 +25,10 @@
 
 #include <stddef.h>
 
+#ifdef WITH_TAINT_TRACKING
+#include "interp/Taint.h"
+#endif
+
 /* fwd decl */
 struct DataObject;
 struct InitiatingLoaderList;
@@ -304,6 +308,10 @@ struct ArrayObject {
     /* number of elements; immutable after init */
     u4              length;
 
+#ifdef WITH_TAINT_TRACKING
+    Taint           taint;
+#endif
+
     /*
      * Array contents; actual size is (length * sizeof(type)).  This is
      * declared as u8 so that the compiler inserts any necessary padding
@@ -346,6 +354,9 @@ struct Field {
 struct StaticField {
     Field           field;          /* MUST be first item */
     JValue          value;          /* initially set from DEX for primitives */
+#ifdef WITH_TAINT_TRACKING
+    Taint           taint;
+#endif
 };
 
 /*
@@ -361,6 +372,9 @@ struct InstField {
      * bytes farther.
      */
     int             byteOffset;
+#ifdef WITH_TAINT_TRACKING
+    Taint           taint;
+#endif
 };
 
 /*
@@ -389,7 +403,12 @@ struct ClassObject {
 
     /* leave space for instance data; we could access fields directly if we
        freeze the definition of java/lang/Class */
+#ifdef WITH_TAINT_TRACKING
+    // x2 space for interleaved taint tags
+    u4              instanceData[CLASS_FIELD_SLOTS*2];
+#else
     u4              instanceData[CLASS_FIELD_SLOTS];
+#endif /*WITH_TAINT_TRACKING*/
 
     /* UTF-8 descriptor for the class; from constant pool, or on heap
        if generated ("[C") */

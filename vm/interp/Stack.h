@@ -138,6 +138,11 @@ struct StackSaveArea {
     /* pointer to method we're *currently* executing; handy for exceptions */
     const Method* method;
 
+#ifdef WITH_TAINT_TRACKING
+    // we need this to get return taint from native targets
+    u4			argCount;
+#endif /*WITH_TAINT_TRACKING*/
+
     union {
         /* for JNI native methods: bottom of local reference segment */
 #ifdef USE_INDIRECT_REF
@@ -163,11 +168,21 @@ struct StackSaveArea {
 #define FP_FROM_SAVEAREA(_save) ((void*) ((StackSaveArea*)(_save) +1))
 
 /* when calling a function, get a pointer to outs[0] */
+#ifdef WITH_TAINT_TRACKING
+#define OUTS_FROM_FP(_fp, _argCount) \
+    ((u4*) ((u1*)SAVEAREA_FROM_FP(_fp) - \
+	( ((sizeof(u4) * (_argCount))<<1) +4) ))
+#else /* ndef WITH_TAINT_TRACKING */
 #define OUTS_FROM_FP(_fp, _argCount) \
     ((u4*) ((u1*)SAVEAREA_FROM_FP(_fp) - sizeof(u4) * (_argCount)))
+#endif /* WITH_TAINT_TRACKING */
 
 /* reserve this many bytes for handling StackOverflowError */
+#ifdef WITH_TAINT_TRACKING
+#define STACK_OVERFLOW_RESERVE  1024
+#else
 #define STACK_OVERFLOW_RESERVE  768
+#endif
 
 /*
  * Determine if the frame pointer points to a "break frame".

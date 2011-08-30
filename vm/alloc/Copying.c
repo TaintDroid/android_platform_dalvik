@@ -1706,7 +1706,11 @@ static void scavengeThreadStack(Thread *thread)
                 /*
                  * There are no roots to scavenge.  Skip over the entire frame.
                  */
+#ifdef WITH_TAINT_TRACKING
+            	framePtr += (method->registersSize)<<1;
+#else
                 framePtr += method->registersSize;
+#endif /*WITH_TAINT_TRACKING*/
             } else {
                 /*
                  * Precise scan.  v0 is at the lowest address on the
@@ -1757,6 +1761,10 @@ static void scavengeThreadStack(Thread *thread)
 #endif
                     }
                     ++framePtr;
+#ifdef WITH_TAINT_TRACKING
+                    /* taint tags are interleaved, jump over the tag */
+                    framePtr++;
+#endif
                 }
                 dvmReleaseRegisterMapLine(pMap, regVector);
             }
@@ -1875,6 +1883,10 @@ static void pinThreadStack(const Thread *thread)
                     }
                     break;
                 }
+#ifdef WITH_TAINT_TRACKING
+                /* taint tags are interleaved, jump over the tag */
+                framePtr++;
+#endif
             }
         } else if (method != NULL && !dvmIsNativeMethod(method)) {
             const RegisterMap* pMap = dvmGetExpandedRegisterMap(method);
@@ -1891,7 +1903,11 @@ static void pinThreadStack(const Thread *thread)
                  * No register info for this frame, conservatively pin.
                  */
                 for (i = 0; i < method->registersSize; ++i) {
+#ifdef WITH_TAINT_TRACKING
+                	u4 regValue = framePtr[i<<1];
+#else
                     u4 regValue = framePtr[i];
+#endif
                     if (regValue != 0 && (regValue & 0x3) == 0 && dvmIsValidObject((Object *)regValue)) {
                         pinObject((Object *)regValue);
                     }

@@ -26,8 +26,13 @@ void dvmInlineNativeShutdown(void);
 /*
  * Basic 4-argument inline operation handler.
  */
+#ifdef WITH_TAINT_TRACKING
+typedef bool (*InlineOp4Func)(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
+    u4 arg0_taint, u4 arg1_taint, struct Taint* rtaint, JValue* pResult);
+#else
 typedef bool (*InlineOp4Func)(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
     JValue* pResult);
+#endif /*WITH_TAINT_TRACKING*/
 
 /*
  * Table of inline operations.
@@ -96,16 +101,30 @@ extern const InlineOperation gDvmInlineOpsTable[];
  * Returns "true" if everything went normally, "false" if an exception
  * was thrown.
  */
+#ifdef WITH_TAINT_TRACKING
+INLINE bool dvmPerformInlineOp4Std(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
+    u4 arg0_taint, u4 arg1_taint, struct Taint* rtaint, JValue* pResult, int opIndex)
+#else
 INLINE bool dvmPerformInlineOp4Std(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
     JValue* pResult, int opIndex)
+#endif /*WITH_TAINT_TRACKING*/
 {
+#ifdef WITH_TAINT_TRACKING
+    return (*gDvmInlineOpsTable[opIndex].func)(arg0, arg1, arg2, arg3, arg0_taint, arg1_taint, rtaint, pResult);
+#else
     return (*gDvmInlineOpsTable[opIndex].func)(arg0, arg1, arg2, arg3, pResult);
+#endif /*WITH_TAINT_TRACKING*/
 }
 
 /*
  * Like the "std" version, but will emit profiling info.
  */
+#ifdef WITH_TAINT_TRACKING
+bool dvmPerformInlineOp4Dbg(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
+    u4 arg0_taint, u4 arg1_taint, struct Taint* rtaint, JValue* pResult, int opIndex);
+#else
 bool dvmPerformInlineOp4Dbg(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
     JValue* pResult, int opIndex);
+#endif /*WITH_TAINT_TRACKING*/
 
 #endif /*_DALVIK_INLINENATIVE*/

@@ -72,6 +72,7 @@ ClassObject* dvmResolveClass(const ClassObject* referrer, u4 classIdx,
      * methods.
      */
     resClass = dvmDexGetResolvedClass(pDvmDex, classIdx);
+
     if (resClass != NULL)
         return resClass;
 

@@ -203,6 +203,12 @@ static bool genInlineSqrt(CompilationUnit *cUnit, MIR *mir)
     label->defMask = ENCODE_ALL;
     branch->generic.target = (LIR *)label;
     storeValueWide(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+    int taint = dvmCompilerAllocTemp(cUnit);
+    loadTaintDirect(cUnit, rlSrc, taint);
+    storeTaintDirectWide(cUnit, rlDest, taint);
+    dvmCompilerFreeTemp(cUnit, taint);
+#endif /*WITH_TAINT_TRACKING*/
     return true;
 }
 

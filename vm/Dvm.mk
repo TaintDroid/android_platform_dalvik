@@ -29,6 +29,17 @@ LOCAL_CFLAGS += -fstrict-aliasing -Wstrict-aliasing=2 -fno-align-jumps
 LOCAL_CFLAGS += -Wall -Wextra -Wno-unused-parameter
 LOCAL_CFLAGS += -DARCH_VARIANT=\"$(dvm_arch_variant)\"
 
+# Turn on Taint Tracking
+ifeq ($(WITH_TAINT_TRACKING),true)
+  LOCAL_CFLAGS += -DWITH_TAINT_TRACKING
+endif
+ifeq ($(TAINT_JNI_LOG),true)
+  LOCAL_CFLAGS += -DTAINT_JNI_LOG
+endif
+ifeq ($(WITH_TAINT_FAST),true)
+  LOCAL_CFLAGS += -DWITH_TAINT_FAST
+endif
+
 #
 # Optional features.  These may impact the size or performance of the VM.
 #
@@ -194,6 +205,12 @@ LOCAL_SRC_FILES := \
 	test/TestHash.c \
 	test/TestIndirectRefTable.c
 
+ifeq ($(WITH_TAINT_TRACKING), true)
+	LOCAL_SRC_FILES += native/dalvik_system_Taint.c
+	LOCAL_SRC_FILES += tprop/TaintProp.c
+	LOCAL_SRC_FILES += tprop/TaintPolicy.c
+endif
+
 WITH_COPYING_GC := $(strip $(WITH_COPYING_GC))
 
 ifeq ($(WITH_COPYING_GC),true)
@@ -250,6 +267,10 @@ LOCAL_C_INCLUDES += \
 	external/zlib \
 	$(KERNEL_HEADERS)
 
+# Taint tracking with file propagation
+ifeq ($(WITH_TAINT_TRACKING),true)
+    LOCAL_C_INCLUDES += dalvik/libattr
+endif
 
 ifeq ($(dvm_simulator),true)
   LOCAL_LDLIBS += -lpthread -ldl
@@ -264,7 +285,11 @@ MTERP_ARCH_KNOWN := false
 ifeq ($(dvm_arch),arm)
   #dvm_arch_variant := armv7-a
   #LOCAL_CFLAGS += -march=armv7-a -mfloat-abi=softfp -mfpu=vfp
-  LOCAL_CFLAGS += -Werror
+  
+  # begin WITH_TAINT_TRACKING
+  # don't treat warnings as errors
+  #LOCAL_CFLAGS += -Werror
+  # end WITH_TAINT_TRACKING
   MTERP_ARCH_KNOWN := true
   # Select architecture-specific sources (armv4t, armv5te etc.)
   LOCAL_SRC_FILES += \
@@ -284,6 +309,11 @@ ifeq ($(dvm_arch),arm)
 		compiler/codegen/arm/LocalOptimizations.c \
 		compiler/codegen/arm/GlobalOptimizations.c \
 		compiler/template/out/CompilerTemplateAsm-$(dvm_arch_variant).S
+  endif
+  
+  # Taint tracking with file propagation
+  ifeq ($(WITH_TAINT_TRACKING),true)
+  		LOCAL_STATIC_LIBRARIES += libattr
   endif
 endif
 

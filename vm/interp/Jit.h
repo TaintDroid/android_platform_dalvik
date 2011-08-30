@@ -26,7 +26,12 @@
 
 #if defined (WITH_SELF_VERIFICATION)
 
+#ifdef WITH_TAINT_TRACKING
+// 2x storage for registers
+#define REG_SPACE 512                /* default size of shadow space */
+#else
 #define REG_SPACE 256                /* default size of shadow space */
+#endif /*WITH_TAINT_TRACKING*/
 #define HEAP_SPACE JIT_MAX_TRACE_LEN /* default size of heap space */
 
 typedef struct ShadowHeap {

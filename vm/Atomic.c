@@ -184,6 +184,99 @@ int64_t dvmQuasiAtomicRead64(volatile const int64_t* addr)
 
 #endif /*__ARM_HAVE_LDREXD*/
 
+#ifdef WITH_TAINT_TRACKING
+
+#ifdef __ARM_HAVE_LDREXD
+#include <pthread.h>
+
+#define  SWAP_LOCK_COUNT  32U
+static pthread_mutex_t  _swap_locks[SWAP_LOCK_COUNT];
+
+#define  SWAP_LOCK(addr)   \
+   &_swap_locks[((unsigned)(void*)(addr) >> 3U) % SWAP_LOCK_COUNT]
+#endif /*__ARM_HAVE_LDREXD*/
+
+// write 32-bit value followed by taint tag (64-bit aligned)
+int32_t dvmQuasiAtomicSwap32SfieldTaint(int32_t value, volatile int32_t* addr, uint32_t taint) {
+    int32_t oldValue;
+    pthread_mutex_t*  lock = SWAP_LOCK(addr);
+
+    pthread_mutex_lock(lock);
+
+    u4* taintTag = (u4*)addr+2;
+    oldValue = *addr;
+    *addr    = value;
+    *taintTag = taint;
+
+    pthread_mutex_unlock(lock);
+    return oldValue;
+}
+
+// read 32-bit value followed by taint tag (64-bit aligned)
+int64_t dvmQuasiAtomicRead32SfieldTaint(volatile const int32_t* addr) {
+	int64_t result;
+    pthread_mutex_t*  lock = SWAP_LOCK(addr);
+
+    pthread_mutex_lock(lock);
+
+    u4* taintTag = (u4*)addr+2;
+    result = (*addr)<<8 || *taintTag;
+
+    pthread_mutex_unlock(lock);
+
+    return result;
+}
+
+// write 64-bit value followed by taint tag
+int64_t dvmQuasiAtomicSwap64FieldTaint(int64_t value, volatile int64_t* addr, uint32_t taint) {
+    int64_t oldValue;
+    pthread_mutex_t*  lock = SWAP_LOCK(addr);
+
+    pthread_mutex_lock(lock);
+
+    u4* taintTag = (u4*)addr+2;
+    oldValue = *addr;
+    *addr    = value;
+    *taintTag = taint;
+
+    pthread_mutex_unlock(lock);
+    return oldValue;
+}
+
+
+#if __arm__
+
+// read 64-bit value followed by taint tag
+int64x2_t dvmQuasiAtomicRead64FieldTaint(volatile const int64_t* addr) {
+    // return: r0/r1 = 64-bit value, r2 = taint, r3 = don't care
+    int64x2_t result;
+    pthread_mutex_t*  lock = SWAP_LOCK(addr);
+
+    pthread_mutex_lock(lock);
+    result = (int64x2_t)vld1q_u64(addr);
+    pthread_mutex_unlock(lock);
+
+    return result;
+}
+
+#else
+// FIXME: taint propagation won't work on x86...
+
+int64_t dvmQuasiAtomicRead64FieldTaint(volatile const int64_t* addr) {
+	int64_t result;
+    pthread_mutex_t*  lock = SWAP_LOCK(addr);
+
+    pthread_mutex_lock(lock);
+    result = *addr;
+    pthread_mutex_unlock(lock);
+
+    return result;
+}
+
+#endif /*__arm__*/
+
+#endif /*WITH_TAINT_TRACKING*/
+
 /*****************************************************************************/
 #elif __sh__
 #define NEED_QUASIATOMICS 1

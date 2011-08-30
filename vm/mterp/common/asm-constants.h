@@ -89,6 +89,32 @@ MTERP_SIZEOF(sizeofGlobal_activeProfilers, gDvm.activeProfilers, 4)
 MTERP_OFFSET(offGlue_pc,                MterpGlue, pc, 0)
 MTERP_OFFSET(offGlue_fp,                MterpGlue, fp, 4)
 MTERP_OFFSET(offGlue_retval,            MterpGlue, retval, 8)
+
+/*-----------------------------------------------------------------*/
+#ifdef WITH_TAINT_TRACKING
+/* Adjustments required for InterpState.rtaint */
+MTERP_OFFSET(offGlue_rtaint,			MterpGlue, rtaint, 16)
+MTERP_OFFSET(offGlue_method,            MterpGlue, method, 20)
+MTERP_OFFSET(offGlue_methodClassDex,    MterpGlue, methodClassDex, 24)
+MTERP_OFFSET(offGlue_self,              MterpGlue, self, 28)
+MTERP_OFFSET(offGlue_bailPtr,           MterpGlue, bailPtr, 32)
+MTERP_OFFSET(offGlue_interpStackEnd,    MterpGlue, interpStackEnd, 36)
+MTERP_OFFSET(offGlue_pSelfSuspendCount, MterpGlue, pSelfSuspendCount, 40)
+MTERP_OFFSET(offGlue_cardTable,         MterpGlue, cardTable, 44)
+MTERP_OFFSET(offGlue_pDebuggerActive,   MterpGlue, pDebuggerActive, 48)
+MTERP_OFFSET(offGlue_pActiveProfilers,  MterpGlue, pActiveProfilers, 52)
+MTERP_OFFSET(offGlue_entryPoint,        MterpGlue, entryPoint, 56)
+#if defined(WITH_JIT)
+MTERP_OFFSET(offGlue_pJitProfTable,     MterpGlue, pJitProfTable, 64)
+MTERP_OFFSET(offGlue_jitState,          MterpGlue, jitState, 68)
+MTERP_OFFSET(offGlue_jitResumeNPC,      MterpGlue, jitResumeNPC, 72)
+MTERP_OFFSET(offGlue_jitResumeDPC,      MterpGlue, jitResumeDPC, 76)
+MTERP_OFFSET(offGlue_jitThreshold,      MterpGlue, jitThreshold, 80)
+MTERP_OFFSET(offGlue_ppJitProfTable,    MterpGlue, ppJitProfTable, 84)
+MTERP_OFFSET(offGlue_icRechainCount,    MterpGlue, icRechainCount, 88)
+#endif
+/*-----------------------------------------------------------------*/
+#else /* ndef WITH_TAINT_TRACKING */
 MTERP_OFFSET(offGlue_method,            MterpGlue, method, 16)
 MTERP_OFFSET(offGlue_methodClassDex,    MterpGlue, methodClassDex, 20)
 MTERP_OFFSET(offGlue_self,              MterpGlue, self, 24)
@@ -108,6 +134,9 @@ MTERP_OFFSET(offGlue_jitThreshold,      MterpGlue, jitThreshold, 76)
 MTERP_OFFSET(offGlue_ppJitProfTable,    MterpGlue, ppJitProfTable, 80)
 MTERP_OFFSET(offGlue_icRechainCount,    MterpGlue, icRechainCount, 84)
 #endif
+#endif /* ndef WITH_TAINT_TRACKING */
+/*-----------------------------------------------------------------*/
+
 /* make sure all JValue union members are stored at the same offset */
 MTERP_OFFSET(offGlue_retval_z,          MterpGlue, retval.z, 8)
 MTERP_OFFSET(offGlue_retval_i,          MterpGlue, retval.i, 8)
@@ -120,6 +149,35 @@ MTERP_OFFSET(offDvmDex_pResClasses,     DvmDex, pResClasses, 12)
 MTERP_OFFSET(offDvmDex_pResMethods,     DvmDex, pResMethods, 16)
 MTERP_OFFSET(offDvmDex_pResFields,      DvmDex, pResFields, 20)
 MTERP_OFFSET(offDvmDex_pInterfaceCache, DvmDex, pInterfaceCache, 24)
+
+#ifdef WITH_TAINT_TRACKING
+// need to store arg count for native methods
+
+/* StackSaveArea fields */
+#ifdef EASY_GDB
+MTERP_OFFSET(offStackSaveArea_prevSave, StackSaveArea, prevSave, 0)
+MTERP_OFFSET(offStackSaveArea_prevFrame, StackSaveArea, prevFrame, 4)
+MTERP_OFFSET(offStackSaveArea_savedPc,  StackSaveArea, savedPc, 8)
+MTERP_OFFSET(offStackSaveArea_method,   StackSaveArea, method, 12)
+MTERP_OFFSET(offStackSaveArea_argCount, StackSaveArea, argCount, 16)
+MTERP_OFFSET(offStackSaveArea_currentPc, StackSaveArea, xtra.currentPc, 20)
+MTERP_OFFSET(offStackSaveArea_localRefCookie, \
+                                        StackSaveArea, xtra.localRefCookie, 20)
+MTERP_OFFSET(offStackSaveArea_returnAddr, StackSaveArea, returnAddr, 24)
+MTERP_SIZEOF(sizeofStackSaveArea,       StackSaveArea, 28)
+#else
+MTERP_OFFSET(offStackSaveArea_prevFrame, StackSaveArea, prevFrame, 0)
+MTERP_OFFSET(offStackSaveArea_savedPc,  StackSaveArea, savedPc, 4)
+MTERP_OFFSET(offStackSaveArea_method,   StackSaveArea, method, 8)
+MTERP_OFFSET(offStackSaveArea_argCount, StackSaveArea, argCount, 12)
+MTERP_OFFSET(offStackSaveArea_currentPc, StackSaveArea, xtra.currentPc, 16)
+MTERP_OFFSET(offStackSaveArea_localRefCookie, \
+                                        StackSaveArea, xtra.localRefCookie, 16)
+MTERP_OFFSET(offStackSaveArea_returnAddr, StackSaveArea, returnAddr, 20)
+MTERP_SIZEOF(sizeofStackSaveArea,       StackSaveArea, 24)
+#endif
+
+#else
 
 /* StackSaveArea fields */
 #ifdef EASY_GDB
@@ -143,6 +201,8 @@ MTERP_OFFSET(offStackSaveArea_returnAddr, StackSaveArea, returnAddr, 16)
 MTERP_SIZEOF(sizeofStackSaveArea,       StackSaveArea, 20)
 #endif
 
+#endif /*WITH_TAINT_TRACKING*/
+
   /* ShadowSpace fields */
 #if defined(WITH_JIT) && defined(WITH_SELF_VERIFICATION)
 MTERP_OFFSET(offShadowSpace_startPC,     ShadowSpace, startPC, 0)
@@ -165,10 +225,20 @@ MTERP_OFFSET(offInstField_byteOffset,   InstField, byteOffset, 16)
 MTERP_OFFSET(offField_clazz,            Field, clazz, 0)
 
 /* StaticField fields */
+#ifdef WITH_TAINT_TRACKING
+#ifdef PROFILE_FIELD_ACCESS
+MTERP_OFFSET(offStaticField_value,      StaticField, value, 24)
+MTERP_OFFSET(offStaticField_taint,		StaticField, taint, 32)
+#else
+MTERP_OFFSET(offStaticField_value,      StaticField, value, 16)
+MTERP_OFFSET(offStaticField_taint,		StaticField, taint, 24)
+#endif
+#else
 #ifdef PROFILE_FIELD_ACCESS
 MTERP_OFFSET(offStaticField_value,      StaticField, value, 24)
 #else
 MTERP_OFFSET(offStaticField_value,      StaticField, value, 16)
+#endif
 #endif
 
 /* Method fields */
@@ -229,17 +299,41 @@ MTERP_CONSTANT(LW_HASH_STATE_SHIFT, 1)
 
 /* ArrayObject fields */
 MTERP_OFFSET(offArrayObject_length,     ArrayObject, length, 8)
+#ifdef WITH_TAINT_TRACKING
+MTERP_OFFSET(offArrayObject_taint,	ArrayObject, taint, 12)
+#endif
+
+#ifdef WITH_TAINT_TRACKING
+/*-----------------------------------------------------------------*/
+/* The extra 4 bytes for the taint tag makes these the same */
+#ifdef MTERP_NO_UNALIGN_64
+MTERP_OFFSET(offArrayObject_contents,   ArrayObject, contents, 16)
+#else
+MTERP_OFFSET(offArrayObject_contents,   ArrayObject, contents, 16)
+#endif
+/*-----------------------------------------------------------------*/
+#else /* ndef WITH_TAINT_TRACKING */
+/*-----------------------------------------------------------------*/
 #ifdef MTERP_NO_UNALIGN_64
 MTERP_OFFSET(offArrayObject_contents,   ArrayObject, contents, 16)
 #else
 MTERP_OFFSET(offArrayObject_contents,   ArrayObject, contents, 12)
 #endif
+/*-----------------------------------------------------------------*/
+#endif /* WITH_TAINT_TRACKING */
 
 /* String fields */
+#ifdef WITH_TAINT_TRACKING
+MTERP_CONSTANT(STRING_FIELDOFF_VALUE,     8)
+MTERP_CONSTANT(STRING_FIELDOFF_HASHCODE, 16)
+MTERP_CONSTANT(STRING_FIELDOFF_OFFSET,   24)
+MTERP_CONSTANT(STRING_FIELDOFF_COUNT,    32)
+#else
 MTERP_CONSTANT(STRING_FIELDOFF_VALUE,     8)
 MTERP_CONSTANT(STRING_FIELDOFF_HASHCODE, 12)
 MTERP_CONSTANT(STRING_FIELDOFF_OFFSET,   16)
 MTERP_CONSTANT(STRING_FIELDOFF_COUNT,    20)
+#endif /* WITH_TAINT_TRACKING */
 
 #if defined(WITH_JIT)
 /*
@@ -256,6 +350,16 @@ MTERP_CONSTANT(JIT_CALLEE_SAVE_DOUBLE_COUNT,   8)
 #endif
 
 /* ClassObject fields */
+#ifdef WITH_TAINT_TRACKING
+// taint tags interleaved with instance data
+MTERP_OFFSET(offClassObject_descriptor, ClassObject, descriptor, 40)
+MTERP_OFFSET(offClassObject_accessFlags, ClassObject, accessFlags, 48)
+MTERP_OFFSET(offClassObject_pDvmDex,    ClassObject, pDvmDex, 56)
+MTERP_OFFSET(offClassObject_status,     ClassObject, status, 60)
+MTERP_OFFSET(offClassObject_super,      ClassObject, super, 88)
+MTERP_OFFSET(offClassObject_vtableCount, ClassObject, vtableCount, 128)
+MTERP_OFFSET(offClassObject_vtable,     ClassObject, vtable, 132)
+#else
 MTERP_OFFSET(offClassObject_descriptor, ClassObject, descriptor, 24)
 MTERP_OFFSET(offClassObject_accessFlags, ClassObject, accessFlags, 32)
 MTERP_OFFSET(offClassObject_pDvmDex,    ClassObject, pDvmDex, 40)
@@ -263,6 +367,7 @@ MTERP_OFFSET(offClassObject_status,     ClassObject, status, 44)
 MTERP_OFFSET(offClassObject_super,      ClassObject, super, 72)
 MTERP_OFFSET(offClassObject_vtableCount, ClassObject, vtableCount, 112)
 MTERP_OFFSET(offClassObject_vtable,     ClassObject, vtable, 116)
+#endif /*WITH_TAINT_TRACKING*/
 
 /* InterpEntry enumeration */
 MTERP_SIZEOF(sizeofClassStatus,         InterpEntry, MTERP_SMALL_ENUM)

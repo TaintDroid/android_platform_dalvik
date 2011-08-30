@@ -66,9 +66,16 @@ static bool dvmPushInterpFrame(Thread* self, const Method* method)
     assert(!dvmIsNativeMethod(method));
     assert(!dvmIsAbstractMethod(method));
 
+#ifdef WITH_TAINT_TRACKING
+    /* taint tags are interleaved, plus "native hack" spacer for args */
+    stackReq = method->registersSize * 8 + 4       // params + locals
+                + sizeof(StackSaveArea) * 2     // break frame + regular frame
+                + method->outsSize * 8 + 4;         // args to other methods
+# else
     stackReq = method->registersSize * 4        // params + locals
                 + sizeof(StackSaveArea) * 2     // break frame + regular frame
                 + method->outsSize * 4;         // args to other methods
+#endif
 
     if (self->curFrame != NULL)
         stackPtr = (u1*) SAVEAREA_FROM_FP(self->curFrame);
@@ -92,12 +99,21 @@ static bool dvmPushInterpFrame(Thread* self, const Method* method)
      */
     stackPtr -= sizeof(StackSaveArea);
     breakSaveBlock = (StackSaveArea*)stackPtr;
+#ifdef WITH_TAINT_TRACKING
+    /* interleaved taint tracking plus "native hack" spacer for args */
+    stackPtr -= method->registersSize * 8 + 4 + sizeof(StackSaveArea);
+#else
     stackPtr -= method->registersSize * 4 + sizeof(StackSaveArea);
+#endif
     saveBlock = (StackSaveArea*) stackPtr;
 
 #if !defined(NDEBUG) && !defined(PAD_SAVE_AREA)
     /* debug -- memset the new stack, unless we want valgrind's help */
+#ifdef WITH_TAINT_TRACKING
+    memset(stackPtr - (method->outsSize*8+4), 0xaf, stackReq);
+#else
     memset(stackPtr - (method->outsSize*4), 0xaf, stackReq);
+#endif
 #endif
 #ifdef EASY_GDB
     breakSaveBlock->prevSave = FP_FROM_SAVEAREA(self->curFrame);
@@ -140,8 +156,14 @@ bool dvmPushJNIFrame(Thread* self, const Method* method)
 
     assert(dvmIsNativeMethod(method));
 
+#ifdef WITH_TAINT_TRACKING
+    /* Interleaved taint tags plus "native hack" spacer */
+    stackReq = method->registersSize * 8 + 4    // params only
+                + sizeof(StackSaveArea) * 2;    // break frame + regular frame
+#else
     stackReq = method->registersSize * 4        // params only
                 + sizeof(StackSaveArea) * 2;    // break frame + regular frame
+#endif
 
     if (self->curFrame != NULL)
         stackPtr = (u1*) SAVEAREA_FROM_FP(self->curFrame);
@@ -166,7 +188,12 @@ bool dvmPushJNIFrame(Thread* self, const Method* method)
      */
     stackPtr -= sizeof(StackSaveArea);
     breakSaveBlock = (StackSaveArea*)stackPtr;
+#ifdef WITH_TAINT_TRACKING
+    /* interleaved taint tags plus "native hack" spacer */
+    stackPtr -= method->registersSize * 8 + 4 + sizeof(StackSaveArea);
+#else
     stackPtr -= method->registersSize * 4 + sizeof(StackSaveArea);
+#endif
     saveBlock = (StackSaveArea*) stackPtr;
 
 #if !defined(NDEBUG) && !defined(PAD_SAVE_AREA)
@@ -452,12 +479,28 @@ void dvmCallMethodV(Thread* self, const Method* method, Object* obj,
     ClassObject* clazz;
     u4* ins;
 
+#ifdef WITH_TAINT_TRACKING
+    int slot_cnt = 0;
+    bool nativeTarget = dvmIsNativeMethod(method);
+#endif
+
     clazz = callPrep(self, method, obj, false);
     if (clazz == NULL)
         return;
 
     /* "ins" for new frame start at frame pointer plus locals */
+#ifdef WITH_TAINT_TRACKING
+    if (nativeTarget) {
+    	/* native target, no taint tag interleaving */
+    	ins = ((u4*)self->curFrame) + (method->registersSize - method->insSize);
+    } else {
+    	/* interpreted target, taint tags are interleaved */
+    	ins = ((u4*)self->curFrame) +
+    			((method->registersSize - method->insSize) << 1);
+    }
+#else
     ins = ((u4*)self->curFrame) + (method->registersSize - method->insSize);
+#endif
 
     //LOGD("  FP is %p, INs live at >= %p\n", self->curFrame, ins);
 
@@ -467,6 +510,12 @@ void dvmCallMethodV(Thread* self, const Method* method, Object* obj,
         assert(obj != NULL && dvmIsValidObject(obj));
 #endif
         *ins++ = (u4) obj;
+#ifdef WITH_TAINT_TRACKING
+        if (!nativeTarget) {
+        	*ins++ = TAINT_CLEAR;
+        }
+        slot_cnt++;
+#endif
         verifyCount++;
     }
 
@@ -476,7 +525,19 @@ void dvmCallMethodV(Thread* self, const Method* method, Object* obj,
             case 'D': case 'J': {
                 u8 val = va_arg(args, u8);
                 memcpy(ins, &val, 8);       // EABI prevents direct store
+#ifdef WITH_TAINT_TRACKING
+                if (nativeTarget) {
+                	ins += 2;
+                } else { /* adjust for taint tag interleaving */
+                	ins[2] = ins[1];
+                	ins[1] = TAINT_CLEAR;
+                	ins[3] = TAINT_CLEAR;
+                	ins += 4;
+                }
+                slot_cnt += 2;
+#else
                 ins += 2;
+#endif
                 verifyCount += 2;
                 break;
             }
@@ -484,6 +545,12 @@ void dvmCallMethodV(Thread* self, const Method* method, Object* obj,
                 /* floats were normalized to doubles; convert back */
                 float f = (float) va_arg(args, double);
                 *ins++ = dvmFloatToU4(f);
+#ifdef WITH_TAINT_TRACKING
+                if (!nativeTarget) {
+                	*ins++ = TAINT_CLEAR;
+                }
+                slot_cnt++;
+#endif
                 verifyCount++;
                 break;
             }
@@ -494,17 +561,42 @@ void dvmCallMethodV(Thread* self, const Method* method, Object* obj,
                     *ins++ = (u4) dvmDecodeIndirectRef(env, argObj);
                 else
                     *ins++ = (u4) argObj;
+#ifdef WITH_TAINT_TRACKING
+                if (!nativeTarget) {
+                	*ins++ = TAINT_CLEAR;
+                }
+                slot_cnt++;
+#endif
                 verifyCount++;
                 break;
             }
             default: {
                 /* Z B C S I -- all passed as 32-bit integers */
                 *ins++ = va_arg(args, u4);
+#ifdef WITH_TAINT_TRACKING
+                if (!nativeTarget) {
+                	*ins++ = TAINT_CLEAR;
+                }
+                slot_cnt++;
+#endif
                 verifyCount++;
                 break;
             }
         }
     }
+
+#ifdef WITH_TAINT_TRACKING
+    /* native hack spacer */
+    *ins++ = TAINT_CLEAR; /* if nativeTarget, this is return taint */
+    {
+    	int i;
+    	if (nativeTarget) {
+    		for (i = 0; i < slot_cnt; i++) {
+    			*ins++ = TAINT_CLEAR;
+    		}
+    	}
+    }
+#endif
 
 #ifndef NDEBUG
     if (verifyCount != method->insSize) {
@@ -526,7 +618,12 @@ void dvmCallMethodV(Thread* self, const Method* method, Object* obj,
         (*method->nativeFunc)(self->curFrame, pResult, method, self);
         TRACE_METHOD_EXIT(self, method);
     } else {
+#ifdef WITH_TAINT_TRACKING
+    	u4 rtaint; /* not used */
+    	dvmInterpret(self, method, pResult, &rtaint);
+#else
         dvmInterpret(self, method, pResult);
+#endif
     }
 
 #ifndef NDEBUG
@@ -556,17 +653,39 @@ void dvmCallMethodA(Thread* self, const Method* method, Object* obj,
     ClassObject* clazz;
     u4* ins;
 
+#ifdef WITH_TAINT_TRACKING
+    int slot_cnt = 0;
+    bool nativeTarget = dvmIsNativeMethod(method);
+#endif
+
     clazz = callPrep(self, method, obj, false);
     if (clazz == NULL)
         return;
 
     /* "ins" for new frame start at frame pointer plus locals */
+#ifdef WITH_TAINT_TRACKING
+    if (nativeTarget) {
+    	/* native target, no taint tag interleaving */
+    	ins = ((u4*)self->curFrame) + (method->registersSize - method->insSize);
+    } else {
+    	/* interpreted target, taint tags are interleaved */
+    	ins = ((u4*)self->curFrame) +
+    			((method->registersSize - method->insSize) << 1);
+    }
+#else
     ins = ((u4*)self->curFrame) + (method->registersSize - method->insSize);
+#endif
 
     /* put "this" pointer into in0 if appropriate */
     if (!dvmIsStaticMethod(method)) {
         assert(obj != NULL);
         *ins++ = (u4) obj;              /* obj is a "real" ref */
+#ifdef WITH_TAINT_TRACKING
+        if (!nativeTarget) {
+        	*ins++ = TAINT_CLEAR;
+        }
+        slot_cnt++;
+#endif
         verifyCount++;
     }
 
@@ -576,7 +695,19 @@ void dvmCallMethodA(Thread* self, const Method* method, Object* obj,
         case 'D':                       /* 64-bit quantity; have to use */
         case 'J':                       /*  memcpy() in case of mis-alignment */
             memcpy(ins, &args->j, 8);
+#ifdef WITH_TAINT_TRACKING
+            if (nativeTarget) {
+            	ins += 2;
+            } else { /* adjust for taint tag interleaving */
+            	ins[2] = ins[1];
+            	ins[1] = TAINT_CLEAR;
+            	ins[3] = TAINT_CLEAR;
+            	ins += 4;
+            }
+            slot_cnt += 2;
+#else
             ins += 2;
+#endif
             verifyCount++;              /* this needs an extra push */
             break;
         case 'L':                       /* includes array refs */
@@ -584,22 +715,58 @@ void dvmCallMethodA(Thread* self, const Method* method, Object* obj,
                 *ins++ = (u4) dvmDecodeIndirectRef(env, args->l);
             else
                 *ins++ = (u4) args->l;
+#ifdef WITH_TAINT_TRACKING
+            if (!nativeTarget) {
+            	*ins++ = TAINT_CLEAR;
+            }
+            slot_cnt++;
+#endif
             break;
         case 'F':
         case 'I':
             *ins++ = args->i;           /* full 32 bits */
+#ifdef WITH_TAINT_TRACKING
+            if (!nativeTarget) {
+            	*ins++ = TAINT_CLEAR;
+            }
+            slot_cnt++;
+#endif
             break;
         case 'S':
             *ins++ = args->s;           /* 16 bits, sign-extended */
+#ifdef WITH_TAINT_TRACKING
+            if (!nativeTarget) {
+            	*ins++ = TAINT_CLEAR;
+            }
+            slot_cnt++;
+#endif
             break;
         case 'C':
             *ins++ = args->c;           /* 16 bits, unsigned */
+#ifdef WITH_TAINT_TRACKING
+            if (!nativeTarget) {
+            	*ins++ = TAINT_CLEAR;
+            }
+            slot_cnt++;
+#endif
             break;
         case 'B':
             *ins++ = args->b;           /* 8 bits, sign-extended */
+#ifdef WITH_TAINT_TRACKING
+            if (!nativeTarget) {
+            	*ins++ = TAINT_CLEAR;
+            }
+            slot_cnt++;
+#endif
             break;
         case 'Z':
             *ins++ = args->z;           /* 8 bits, zero or non-zero */
+#ifdef WITH_TAINT_TRACKING
+            if (!nativeTarget) {
+            	*ins++ = TAINT_CLEAR;
+            }
+            slot_cnt++;
+#endif
             break;
         default:
             LOGE("Invalid char %c in short signature of %s.%s\n",
@@ -611,6 +778,19 @@ void dvmCallMethodA(Thread* self, const Method* method, Object* obj,
         verifyCount++;
         args++;
     }
+
+#ifdef WITH_TAINT_TRACKING
+    /* native hack spacer */
+    *ins++ = TAINT_CLEAR; /* if nativeTarget, this is return taint */
+    {
+    	int i;
+    	if (nativeTarget) {
+    		for (i = 0; i < slot_cnt; i++) {
+    			*ins++ = TAINT_CLEAR;
+    		}
+    	}
+    }
+#endif
 
 #ifndef NDEBUG
     if (verifyCount != method->insSize) {
@@ -630,7 +810,12 @@ void dvmCallMethodA(Thread* self, const Method* method, Object* obj,
         (*method->nativeFunc)(self->curFrame, pResult, method, self);
         TRACE_METHOD_EXIT(self, method);
     } else {
+#ifdef WITH_TAINT_TRACKING
+    	u4 rtaint; /* not used */
+    	dvmInterpret(self, method, pResult, &rtaint);
+#else
         dvmInterpret(self, method, pResult);
+#endif
     }
 
 bail:
@@ -660,6 +845,17 @@ Object* dvmInvokeMethod(Object* obj, const Method* method,
     JValue retval;
     bool needPop = false;
 
+#ifdef WITH_TAINT_TRACKING
+    u4 rtaint = TAINT_CLEAR;
+    int slot_cnt = 0;
+    bool nativeTarget = dvmIsNativeMethod(method);
+    /* For simplicity, argument tags for native targets
+     * are unioned. This may cause false positives, but
+     * it is the easiest way to handle this for now.
+     */
+    u4 nativeTag = TAINT_CLEAR;
+#endif
+
     /* verify arg count */
     if (argList != NULL)
         argListLength = argList->length;
@@ -679,7 +875,18 @@ Object* dvmInvokeMethod(Object* obj, const Method* method,
     needPop = true;
 
     /* "ins" for new frame start at frame pointer plus locals */
+#ifdef WITH_TAINT_TRACKING
+    if (nativeTarget) {
+    	/* native target, no taint tag interleaving */
+    	ins = ((s4*)self->curFrame) + (method->registersSize - method->insSize);
+    } else {
+    	/* interpreted target, taint tags are interleaved */
+    	ins = ((s4*)self->curFrame) +
+    			((method->registersSize - method->insSize) << 1);
+    }
+#else
     ins = ((s4*)self->curFrame) + (method->registersSize - method->insSize);
+#endif
     verifyCount = 0;
 
     //LOGD("  FP is %p, INs live at >= %p\n", self->curFrame, ins);
@@ -688,6 +895,12 @@ Object* dvmInvokeMethod(Object* obj, const Method* method,
     if (!dvmIsStaticMethod(method)) {
         assert(obj != NULL);
         *ins++ = (s4) obj;
+#ifdef WITH_TAINT_TRACKING
+        if (!nativeTarget) {
+        	*ins++ = TAINT_CLEAR;
+        }
+        slot_cnt++;
+#endif
         verifyCount++;
     }
 
@@ -703,6 +916,9 @@ Object* dvmInvokeMethod(Object* obj, const Method* method,
     types = (ClassObject**) params->contents;
     for (i = 0; i < argListLength; i++) {
         int width;
+#ifdef WITH_TAINT_TRACKING
+        int tag = dvmGetPrimitiveTaint(*args, *types);
+#endif
 
         width = dvmConvertArgument(*args++, *types++, ins);
         if (width < 0) {
@@ -718,9 +934,47 @@ Object* dvmInvokeMethod(Object* obj, const Method* method,
             goto bail;
         }
 
+#ifdef WITH_TAINT_TRACKING
+        /* dvmConvertArgument() returns -1, 1, or 2 */
+        if (nativeTarget) {
+        	nativeTag |= tag; /* TODO: is there a better way to do this?*/
+        	ins += width;
+        } else {
+        	if (width == 2) {
+        		ins[2] = ins[1];
+        		ins[1] = tag;
+        		ins[3] = tag;
+        		ins += 4;
+        	} else if (width == 1) {
+        		ins[1] = tag;
+        		ins += 2;
+        	} else { /* error condition duplicated from above */
+        		dvmPopFrame(self);
+        		needPop = false;
+        		dvmThrowException("Ljava/lang/IllegalArgumentException;",
+        				"argument type mismatch");
+        		goto bail;
+        	}
+        }
+        slot_cnt += width;
+#else
         ins += width;
+#endif
         verifyCount += width;
     }
+
+#ifdef WITH_TAINT_TRACKING
+    /* native hack spacer */
+    *ins++ = TAINT_CLEAR; /* if nativeTarget, this is return taint */
+    {
+    	int i;
+    	if (nativeTarget) {
+    		for (i = 0; i < slot_cnt; i++) {
+    			*ins++ = nativeTag; /* TODO: better way? */
+    		}
+    	}
+    }
+#endif
 
     if (verifyCount != method->insSize) {
         LOGE("Got vfycount=%d insSize=%d for %s.%s\n", verifyCount,
@@ -738,8 +992,15 @@ Object* dvmInvokeMethod(Object* obj, const Method* method,
          */
         (*method->nativeFunc)(self->curFrame, &retval, method, self);
         TRACE_METHOD_EXIT(self, method);
+#ifdef WITH_TAINT_TRACKING
+        rtaint = ((u4*)self->curFrame)[slot_cnt];
+#endif
     } else {
+#ifdef WITH_TAINT_TRACKING
+        dvmInterpret(self, method, &retval, &rtaint);
+#else
         dvmInterpret(self, method, &retval);
+#endif
     }
 
     /*
@@ -769,6 +1030,9 @@ Object* dvmInvokeMethod(Object* obj, const Method* method,
          */
         if (returnType != NULL) {
             retObj = (Object*)dvmWrapPrimitive(retval, returnType);
+#ifdef WITH_TAINT_TRACKING
+            dvmSetPrimitiveTaint(retObj, returnType, rtaint);
+#endif
             dvmReleaseTrackedAlloc(retObj, NULL);
         }
     }

@@ -4,5 +4,8 @@ HANDLE_OPCODE(OP_MOVE_WIDE_16 /*vAAAA, vBBBB*/)
     ILOGV("|move-wide/16 v%d,v%d %s(v%d=0x%08llx)", vdst, vsrc1,
         kSpacing+8, vdst, GET_REGISTER_WIDE(vsrc1));
     SET_REGISTER_WIDE(vdst, GET_REGISTER_WIDE(vsrc1));
+/* ifdef WITH_TAINT_TRACKING */
+    SET_REGISTER_TAINT_WIDE(vdst, GET_REGISTER_TAINT_WIDE(vsrc1));
+/* endif */
     FINISH(3);
 OP_END

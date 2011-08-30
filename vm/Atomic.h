@@ -45,6 +45,22 @@ int64_t dvmQuasiAtomicSwap64(int64_t value, volatile int64_t* addr);
  */
 int64_t dvmQuasiAtomicRead64(volatile const int64_t* addr);
 
+#ifdef WITH_TAINT_TRACKING
+
+int64_t dvmQuasiAtomicSwap64FieldTaint(int64_t value, volatile int64_t* addr, uint32_t taint);
+
+int64_t dvmQuasiAtomicRead32SfieldTaint(volatile const int32_t* addr);
+int32_t dvmQuasiAtomicSwap32SfieldTaint(int32_t value, volatile int32_t* addr, uint32_t taint);
+
+#if __arm__
+#include <arm_neon.h>
+int64x2_t dvmQuasiAtomicRead64FieldTaint(volatile const int64_t* addr);
+#else
+int64_t dvmQuasiAtomicRead64FieldTaint(volatile const int64_t* addr);
+#endif /*__arm__*/
+
+#endif /*WITH_TAINT_TRACKING*/
+
 /*
  * If the value at "addr" is equal to "oldvalue", replace it with "newvalue"
  * and return 0.  Otherwise, don't swap, and return nonzero.

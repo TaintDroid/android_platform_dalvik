@@ -296,9 +296,11 @@ static void scanInstanceFields(const Object *obj, GcMarkContext *ctx)
 
     if (obj->clazz->refOffsets != CLASS_WALK_SUPER) {
         unsigned int refOffsets = obj->clazz->refOffsets;
+
         while (refOffsets != 0) {
             const int rshift = CLZ(refOffsets);
             refOffsets &= ~(CLASS_HIGH_BIT >> rshift);
+
             markObject(dvmGetFieldObject((Object*)obj,
                                           CLASS_OFFSET_FROM_CLZ(rshift)), ctx);
         }
@@ -309,6 +311,7 @@ static void scanInstanceFields(const Object *obj, GcMarkContext *ctx)
             InstField *field = clazz->ifields;
             for (i = 0; i < clazz->ifieldRefCount; ++i, ++field) {
                 void *addr = BYTE_OFFSET((Object *)obj, field->byteOffset);
+
                 markObject(((JValue *)addr)->l, ctx);
             }
         }

@@ -45,6 +45,15 @@ LOCAL_C_INCLUDES := $(local_c_includes)
 LOCAL_SHARED_LIBRARIES := $(local_shared_libraries) libcutils libexpat liblog libnativehelper libutils libz
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := dexopt
+
+# Turn on Taint Tracking
+ifeq ($(WITH_TAINT_TRACKING),true)
+  LOCAL_CFLAGS += -DWITH_TAINT_TRACKING
+endif
+ifeq ($(WITH_TAINT_ODEX),true)
+  LOCAL_CFLAGS += -DWITH_TAINT_ODEX
+endif
+
 include $(BUILD_EXECUTABLE)
 
 ifeq ($(WITH_HOST_DALVIK),true)
@@ -57,5 +66,14 @@ ifeq ($(WITH_HOST_DALVIK),true)
     LOCAL_CFLAGS += -DANDROID_SMP=1
     LOCAL_MODULE_TAGS := optional
     LOCAL_MODULE := dexopt
+    
+    # Turn on Taint Tracking
+    ifeq ($(WITH_TAINT_TRACKING),true)
+      LOCAL_CFLAGS += -DWITH_TAINT_TRACKING
+    endif
+    ifeq ($(WITH_TAINT_ODEX),true)
+      LOCAL_CFLAGS += -DWITH_TAINT_ODEX
+    endif
+    
     include $(BUILD_HOST_EXECUTABLE)
 endif

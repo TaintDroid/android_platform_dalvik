@@ -140,9 +140,19 @@ static void flushRegWide(CompilationUnit *cUnit, int reg1, int reg2)
         if (dvmCompilerS2VReg(cUnit, info2->sReg) <
             dvmCompilerS2VReg(cUnit, info1->sReg))
             info1 = info2;
+#ifdef WITH_TAINT_TRACKING
+        // interleaved taint tag
+        dvmCompilerFlushRegImpl(cUnit, rFP,
+                                dvmCompilerS2VReg(cUnit, info1->sReg) << 3,
+                                info1->reg, kWord);
+        dvmCompilerFlushRegImpl(cUnit, rFP,
+                                (dvmCompilerS2VReg(cUnit, info1->sReg) << 3) + 8,
+                                info1->partner, kWord);
+#else
         dvmCompilerFlushRegWideImpl(cUnit, rFP,
                                     dvmCompilerS2VReg(cUnit, info1->sReg) << 2,
                                     info1->reg, info1->partner);
+#endif /*WITH_TAINT_TRACKING*/
     }
 }
 
@@ -151,9 +161,15 @@ static void flushReg(CompilationUnit *cUnit, int reg)
     RegisterInfo *info = getRegInfo(cUnit, reg);
     if (info->live && info->dirty) {
         info->dirty = false;
+#ifdef WITH_TAINT_TRACKING
+        dvmCompilerFlushRegImpl(cUnit, rFP,
+                                dvmCompilerS2VReg(cUnit, info->sReg) << 3,
+                                reg, kWord);
+#else
         dvmCompilerFlushRegImpl(cUnit, rFP,
                                 dvmCompilerS2VReg(cUnit, info->sReg) << 2,
                                 reg, kWord);
+#endif /*WITH_TAINT_TRACKING*/
     }
 }
 
