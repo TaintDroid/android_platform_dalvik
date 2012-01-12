@@ -71,6 +71,9 @@ static void Dalvik_java_lang_System_arraycopy(const u4* args, JValue* pResult)
     dstArray = (ArrayObject*) args[2];
     dstPos = args[3];
     length = args[4];
+#ifdef WITH_TAINT_TRACKING
+    int srcPosTaint = args[7];
+#endif /*WITH_TAINT_TRACKING*/
 
     sameArray = (srcArray == dstArray);
 
@@ -157,9 +160,9 @@ static void Dalvik_java_lang_System_arraycopy(const u4* args, JValue* pResult)
 #ifdef WITH_TAINT_TRACKING
         if (dstPos == 0 && dstArray->length == length) {
         	/* entire array replaced */
-        	dstArray->taint.tag = srcArray->taint.tag;
+        	dstArray->taint.tag = (srcArray->taint.tag | srcPosTaint);
         } else {
-        	dstArray->taint.tag |= srcArray->taint.tag;
+		dstArray->taint.tag |= (srcArray->taint.tag | srcPosTaint);
         }
 #endif
     } else {
@@ -188,9 +191,9 @@ static void Dalvik_java_lang_System_arraycopy(const u4* args, JValue* pResult)
 #ifdef WITH_TAINT_TRACKING
             if (dstPos == 0 && dstArray->length == length) {
             	/* entire array replaced */
-            	dstArray->taint.tag = srcArray->taint.tag;
+            	dstArray->taint.tag = (srcArray->taint.tag | srcPosTaint);
             } else {
-            	dstArray->taint.tag |= srcArray->taint.tag;
+		dstArray->taint.tag |= (srcArray->taint.tag | srcPosTaint);
             }
 #endif
         } else {
@@ -244,9 +247,9 @@ static void Dalvik_java_lang_System_arraycopy(const u4* args, JValue* pResult)
 #ifdef WITH_TAINT_TRACKING
             if (dstPos == 0 && dstArray->length == length) {
             	/* entire array replaced */
-            	dstArray->taint.tag = srcArray->taint.tag;
+            	dstArray->taint.tag = (srcArray->taint.tag | srcPosTaint);
             } else {
-            	dstArray->taint.tag |= srcArray->taint.tag;
+		dstArray->taint.tag |= (srcArray->taint.tag | srcPosTaint);
             }
 #endif
             if (copyCount != length) {
