@@ -3,6 +3,11 @@ The TaintDroid additions are ...
  Copyright (c) 2010 The Pennsylvania State University
  Systems and Internet Infrastructure Security Laboratory
 
+ and
+ 
+ Copyright (c) 2010 University of Washington
+ (which funded the initial development)
+
 they were implemented by:
 
  William Enck <enck@cse.psu.edu>
