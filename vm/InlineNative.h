@@ -30,8 +30,13 @@ Method* dvmFindInlinableMethod(const char* classDescriptor,
 /*
  * Basic 4-argument inline operation handler.
  */
+#ifdef WITH_TAINT_TRACKING
+typedef bool (*InlineOp4Func)(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
+    u4 arg0_taint, u4 arg1_taint, struct Taint* rtaint, JValue* pResult);
+#else
 typedef bool (*InlineOp4Func)(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
     JValue* pResult);
+#endif /*WITH_TAINT_TRACKING*/
 
 /*
  * Table of inline operations.
@@ -104,17 +109,31 @@ extern const InlineOperation gDvmInlineOpsTable[];
  * Returns "true" if everything went normally, "false" if an exception
  * was thrown.
  */
+#ifdef WITH_TAINT_TRACKING
+INLINE bool dvmPerformInlineOp4Std(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
+    u4 arg0_taint, u4 arg1_taint, struct Taint* rtaint, JValue* pResult, int opIndex)
+#else
 INLINE bool dvmPerformInlineOp4Std(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
     JValue* pResult, int opIndex)
+#endif /*WITH_TAINT_TRACKING*/
 {
+#ifdef WITH_TAINT_TRACKING
+    return (*gDvmInlineOpsTable[opIndex].func)(arg0, arg1, arg2, arg3, arg0_taint, arg1_taint, rtaint, pResult);
+#else
     return (*gDvmInlineOpsTable[opIndex].func)(arg0, arg1, arg2, arg3, pResult);
+#endif /*WITH_TAINT_TRACKING*/
 }
 
 /*
  * Like the "std" version, but will emit profiling info.
  */
+#ifdef WITH_TAINT_TRACKING
+bool dvmPerformInlineOp4Dbg(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
+    u4 arg0_taint, u4 arg1_taint, struct Taint* rtaint, JValue* pResult, int opIndex);
+#else
 bool dvmPerformInlineOp4Dbg(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
     JValue* pResult, int opIndex);
+#endif /*WITH_TAINT_TRACKING*/
 
 /*
  * Return method & populate the table on first use.
@@ -124,70 +143,172 @@ extern "C" Method* dvmResolveInlineNative(int opIndex);
 /*
  * The actual inline native definitions.
  */
+#ifdef WITH_TAINT_TRACKING
 bool javaLangString_charAt(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
-                           JValue* pResult);
+    u4 arg0_taint, u4 arg1_taint, struct Taint* rtaint, JValue* pResult);
+#else
+bool javaLangString_charAt(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
+    JValue* pResult);
+#endif /*WITH_TAINT_TRACKING*/
 
+#ifdef WITH_TAINT_TRACKING
 bool javaLangString_compareTo(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
-                              JValue* pResult);
+    u4 arg0_taint, u4 arg1_taint, struct Taint* rtaint, JValue* pResult);
+#else
+bool javaLangString_compareTo(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
+    JValue* pResult);
+#endif /*WITH_TAINT_TRACKING*/
 
+#ifdef WITH_TAINT_TRACKING
 bool javaLangString_equals(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
-                           JValue* pResult);
+    u4 arg0_taint, u4 arg1_taint, struct Taint* rtaint, JValue* pResult);
+#else
+bool javaLangString_equals(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
+    JValue* pResult);
+#endif /*WITH_TAINT_TRACKING*/
 
+#ifdef WITH_TAINT_TRACKING
 bool javaLangString_length(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
-                           JValue* pResult);
+    u4 arg0_taint, u4 arg1_taint, struct Taint* rtaint, JValue* pResult);
+#else
+bool javaLangString_length(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
+    JValue* pResult);
+#endif /*WITH_TAINT_TRACKING*/
 
+#ifdef WITH_TAINT_TRACKING
 bool javaLangString_isEmpty(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
-                            JValue* pResult);
+    u4 arg0_taint, u4 arg1_taint, struct Taint* rtaint, JValue* pResult);
+#else
+bool javaLangString_isEmpty(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
+    JValue* pResult);
+#endif /*WITH_TAINT_TRACKING*/
 
+#ifdef WITH_TAINT_TRACKING
 bool javaLangString_fastIndexOf_II(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
-                                   JValue* pResult);
+    u4 arg0_taint, u4 arg1_taint, struct Taint* rtaint, JValue* pResult);
+#else
+bool javaLangString_fastIndexOf_II(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
+    JValue* pResult);
+#endif /*WITH_TAINT_TRACKING*/
 
+#ifdef WITH_TAINT_TRACKING
 bool javaLangMath_abs_int(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
-                          JValue* pResult);
+    u4 arg0_taint, u4 arg1_taint, struct Taint* rtaint, JValue* pResult);
+#else
+bool javaLangMath_abs_int(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
+    JValue* pResult);
+#endif /*WITH_TAINT_TRACKING*/
 
+#ifdef WITH_TAINT_TRACKING
 bool javaLangMath_abs_long(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
-                           JValue* pResult);
+    u4 arg0_taint, u4 arg1_taint, struct Taint* rtaint, JValue* pResult);
+#else
+bool javaLangMath_abs_long(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
+    JValue* pResult);
+#endif /*WITH_TAINT_TRACKING*/
 
+#ifdef WITH_TAINT_TRACKING
 bool javaLangMath_abs_float(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
-                            JValue* pResult);
+    u4 arg0_taint, u4 arg1_taint, struct Taint* rtaint, JValue* pResult);
+#else
+bool javaLangMath_abs_float(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
+    JValue* pResult);
+#endif /*WITH_TAINT_TRACKING*/
 
+#ifdef WITH_TAINT_TRACKING
 bool javaLangMath_abs_double(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
-                             JValue* pResult);
+    u4 arg0_taint, u4 arg1_taint, struct Taint* rtaint, JValue* pResult);
+#else
+bool javaLangMath_abs_double(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
+    JValue* pResult);
+#endif /*WITH_TAINT_TRACKING*/
 
+#ifdef WITH_TAINT_TRACKING
 bool javaLangMath_min_int(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
-                          JValue* pResult);
+    u4 arg0_taint, u4 arg1_taint, struct Taint* rtaint, JValue* pResult);
+#else
+bool javaLangMath_min_int(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
+    JValue* pResult);
+#endif /*WITH_TAINT_TRACKING*/
 
+#ifdef WITH_TAINT_TRACKING
 bool javaLangMath_max_int(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
-                          JValue* pResult);
+    u4 arg0_taint, u4 arg1_taint, struct Taint* rtaint, JValue* pResult);
+#else
+bool javaLangMath_max_int(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
+    JValue* pResult);
+#endif /*WITH_TAINT_TRACKING*/
 
+#ifdef WITH_TAINT_TRACKING
 bool javaLangMath_sqrt(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
-                       JValue* pResult);
+    u4 arg0_taint, u4 arg1_taint, struct Taint* rtaint, JValue* pResult);
+#else
+bool javaLangMath_sqrt(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
+    JValue* pResult);
+#endif /*WITH_TAINT_TRACKING*/
 
+#ifdef WITH_TAINT_TRACKING
 bool javaLangMath_cos(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
-                      JValue* pResult);
+    u4 arg0_taint, u4 arg1_taint, struct Taint* rtaint, JValue* pResult);
+#else
+bool javaLangMath_cos(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
+    JValue* pResult);
+#endif /*WITH_TAINT_TRACKING*/
 
+#ifdef WITH_TAINT_TRACKING
 bool javaLangMath_sin(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
-                      JValue* pResult);
+    u4 arg0_taint, u4 arg1_taint, struct Taint* rtaint, JValue* pResult);
+#else
+bool javaLangMath_sin(u4 arg0, u4 arg1, u4 arg2, u4 arg3,
+    JValue* pResult);
+#endif /*WITH_TAINT_TRACKING*/
 
+#ifdef WITH_TAINT_TRACKING
 bool javaLangFloat_floatToIntBits(u4 arg0, u4 arg1, u4 arg2, u4 arg,
-                                  JValue* pResult);
+    u4 arg0_taint, u4 arg1_taint, struct Taint* rtaint, JValue* pResult);
+#else
+bool javaLangFloat_floatToIntBits(u4 arg0, u4 arg1, u4 arg2, u4 arg,
+    JValue* pResult);
+#endif /*WITH_TAINT_TRACKING*/
 
+#ifdef WITH_TAINT_TRACKING
 bool javaLangFloat_floatToRawIntBits(u4 arg0, u4 arg1, u4 arg2, u4 arg,
-                                     JValue* pResult);
+    u4 arg0_taint, u4 arg1_taint, struct Taint* rtaint, JValue* pResult);
+#else
+bool javaLangFloat_floatToRawIntBits(u4 arg0, u4 arg1, u4 arg2, u4 arg,
+    JValue* pResult);
+#endif /*WITH_TAINT_TRACKING*/
 
+#ifdef WITH_TAINT_TRACKING
 bool javaLangFloat_intBitsToFloat(u4 arg0, u4 arg1, u4 arg2, u4 arg,
-                                  JValue* pResult);
+    u4 arg0_taint, u4 arg1_taint, struct Taint* rtaint, JValue* pResult);
+#else
+bool javaLangFloat_intBitsToFloat(u4 arg0, u4 arg1, u4 arg2, u4 arg,
+    JValue* pResult);
+#endif /*WITH_TAINT_TRACKING*/
 
+#ifdef WITH_TAINT_TRACKING
 bool javaLangDouble_doubleToLongBits(u4 arg0, u4 arg1, u4 arg2, u4 arg,
-                                     JValue* pResult);
+    u4 arg0_taint, u4 arg1_taint, struct Taint* rtaint, JValue* pResult);
+#else
+bool javaLangDouble_doubleToLongBits(u4 arg0, u4 arg1, u4 arg2, u4 arg,
+    JValue* pResult);
+#endif /*WITH_TAINT_TRACKING*/
 
+#ifdef WITH_TAINT_TRACKING
 bool javaLangDouble_longBitsToDouble(u4 arg0, u4 arg1, u4 arg2, u4 arg,
-                                     JValue* pResult);
+    u4 arg0_taint, u4 arg1_taint, struct Taint* rtaint, JValue* pResult);
+#else
+bool javaLangDouble_longBitsToDouble(u4 arg0, u4 arg1, u4 arg2, u4 arg,
+    JValue* pResult);
+#endif /*WITH_TAINT_TRACKING*/
 
+#ifdef WITH_TAINT_TRACKING
 bool javaLangDouble_doubleToRawLongBits(u4 arg0, u4 arg1, u4 arg2,
-                                        u4 arg, JValue* pResult);
-
-bool javaLangDouble_longBitsToDouble(u4 arg0, u4 arg1, u4 arg2, u4 arg,
-                                     JValue* pResult);
+    u4 arg, u4 arg0_taint, u4 arg1_taint, struct Taint* rtaint, JValue* pResult);
+#else
+bool javaLangDouble_doubleToRawLongBits(u4 arg0, u4 arg1, u4 arg2,
+    u4 arg, JValue* pResult);
+#endif /*WITH_TAINT_TRACKING*/
 
 #endif  // DALVIK_INLINENATIVE_H_

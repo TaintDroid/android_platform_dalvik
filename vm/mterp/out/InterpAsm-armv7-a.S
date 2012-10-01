@@ -4,7 +4,7 @@
  * --> DO NOT EDIT <--
  */
 
-/* File: armv5te/header.S */
+/* File: armv5te_taint/header.S */
 /*
  * Copyright (C) 2008 The Android Open Source Project
  *
@@ -183,14 +183,28 @@ unspecified registers or condition codes.
 /*
  * Get/set the 32-bit value from a Dalvik register.
  */
+#ifdef WITH_TAINT_TRACKING
+#define SET_TAINT_FP(_reg)      add     _reg, rFP, #4
+#define SET_TAINT_CLEAR(_reg)   mov     _reg, #0
+#define GET_VREG(_reg, _vreg)   ldr     _reg, [rFP, _vreg, lsl #3]
+#define SET_VREG(_reg, _vreg)   str     _reg, [rFP, _vreg, lsl #3]
+#define GET_VREG_TAINT(_reg, _vreg, _rFP)   ldr     _reg, [_rFP, _vreg, lsl #3]
+#define SET_VREG_TAINT(_reg, _vreg, _rFP)   str     _reg, [_rFP, _vreg, lsl #3]
+#else
 #define GET_VREG(_reg, _vreg)   ldr     _reg, [rFP, _vreg, lsl #2]
 #define SET_VREG(_reg, _vreg)   str     _reg, [rFP, _vreg, lsl #2]
+#endif /*WITH_TAINT_TRACKING*/
 
 /*
  * Convert a virtual register index into an address.
  */
+#ifdef WITH_TAINT_TRACKING
+#define VREG_INDEX_TO_ADDR(_reg, _vreg) \
+        add     _reg, rFP, _vreg, lsl #3
+#else
 #define VREG_INDEX_TO_ADDR(_reg, _vreg) \
         add     _reg, rFP, _vreg, lsl #2
+#endif /*WITH_TAINT_TRACKING*/
 
 /*
  * This is a #include, not a %include, because we want the C pre-processor
@@ -235,7 +249,7 @@ unspecified registers or condition codes.
 #endif
 .endm
 
-/* File: armv5te/entry.S */
+/* File: armv5te_taint/entry.S */
 /*
  * Copyright (C) 2008 The Android Open Source Project
  *
@@ -376,7 +390,7 @@ dvmAsmInstructionStart = .L_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_OP_NOP: /* 0x00 */
-/* File: armv5te/OP_NOP.S */
+/* File: armv5te_taint/OP_NOP.S */
     FETCH_ADVANCE_INST(1)               @ advance to next instr, load rINST
     GET_INST_OPCODE(ip)                 @ ip<- opcode from rINST
     GOTO_OPCODE(ip)                     @ execute it
@@ -391,101 +405,135 @@ dalvik_inst:
     .fnend
 #endif
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_MOVE: /* 0x01 */
-/* File: armv6t2/OP_MOVE.S */
+/* File: armv6t2_taint/OP_MOVE.S */
     /* for move, move-object, long-to-int */
     /* op vA, vB */
     mov     r1, rINST, lsr #12          @ r1<- B from 15:12
     ubfx    r0, rINST, #8, #4           @ r0<- A from 11:8
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
     GET_VREG(r2, r1)                    @ r2<- fp[B]
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r3)
+    GET_VREG_TAINT(r1, r1, r3)
+    SET_VREG_TAINT(r1, r0, r3)
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ ip<- opcode from rINST
     SET_VREG(r2, r0)                    @ fp[A]<- r2
     GOTO_OPCODE(ip)                     @ execute next instruction
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_MOVE_FROM16: /* 0x02 */
-/* File: armv5te/OP_MOVE_FROM16.S */
+/* File: armv5te_taint/OP_MOVE_FROM16.S */
     /* for: move/from16, move-object/from16 */
     /* op vAA, vBBBB */
     FETCH(r1, 1)                        @ r1<- BBBB
     mov     r0, rINST, lsr #8           @ r0<- AA
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     GET_VREG(r2, r1)                    @ r2<- fp[BBBB]
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r3)
+    GET_VREG_TAINT(r1, r1, r3)
+    SET_VREG_TAINT(r1, r0, r3)
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     SET_VREG(r2, r0)                    @ fp[AA]<- r2
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_MOVE_16: /* 0x03 */
-/* File: armv5te/OP_MOVE_16.S */
+/* File: armv5te_taint/OP_MOVE_16.S */
     /* for: move/16, move-object/16 */
     /* op vAAAA, vBBBB */
     FETCH(r1, 2)                        @ r1<- BBBB
     FETCH(r0, 1)                        @ r0<- AAAA
     FETCH_ADVANCE_INST(3)               @ advance rPC, load rINST
     GET_VREG(r2, r1)                    @ r2<- fp[BBBB]
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r3)
+    GET_VREG_TAINT(r1, r1, r3)
+    SET_VREG_TAINT(r1, r0, r3)
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     SET_VREG(r2, r0)                    @ fp[AAAA]<- r2
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_MOVE_WIDE: /* 0x04 */
-/* File: armv6t2/OP_MOVE_WIDE.S */
+/* File: armv6t2_taint/OP_MOVE_WIDE.S */
     /* move-wide vA, vB */
     /* NOTE: regs can overlap, e.g. "move v6,v7" or "move v7,v6" */
     mov     r3, rINST, lsr #12          @ r3<- B
     ubfx    r2, rINST, #8, #4           @ r2<- A
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[B]
-    add     r2, rFP, r2, lsl #2         @ r2<- &fp[A]
-    ldmia   r3, {r0-r1}                 @ r0/r1<- fp[B]
+// begin WITH_TAINT_TRACKING
+    add     r3, rFP, r3, lsl #3         @ r3<- &fp[B]
+    add     r9, rFP, r2, lsl #3         @ r9<- &fp[A]
+    ldmia   r3, {r0-r3}                 @ r0/r1<- fp[B]
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r2, {r0-r1}                 @ fp[A]<- r0/r1
+// begin WITH_TAINT_TRACKING
+    stmia   r9, {r0-r3}                 @ fp[A]<- r0/r1
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
 
 /* ------------------------------ */
     .balign 64
 .L_OP_MOVE_WIDE_FROM16: /* 0x05 */
-/* File: armv5te/OP_MOVE_WIDE_FROM16.S */
+/* File: armv5te_taint/OP_MOVE_WIDE_FROM16.S */
     /* move-wide/from16 vAA, vBBBB */
     /* NOTE: regs can overlap, e.g. "move v6,v7" or "move v7,v6" */
     FETCH(r3, 1)                        @ r3<- BBBB
     mov     r2, rINST, lsr #8           @ r2<- AA
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[BBBB]
-    add     r2, rFP, r2, lsl #2         @ r2<- &fp[AA]
-    ldmia   r3, {r0-r1}                 @ r0/r1<- fp[BBBB]
+// begin WITH_TAINT_TRACKING
+    add     r3, rFP, r3, lsl #3         @ r3<- &fp[BBBB]
+    add     r9, rFP, r2, lsl #3         @ r9<- &fp[AA]
+    ldmia   r3, {r0-r3}                 @ r0/r1<- fp[BBBB]
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r2, {r0-r1}                 @ fp[AA]<- r0/r1
+// begin WITH_TAINT_TRACKING
+    stmia   r9, {r0-r3}                 @ fp[AA]<- r0/r1
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
 
 /* ------------------------------ */
     .balign 64
 .L_OP_MOVE_WIDE_16: /* 0x06 */
-/* File: armv5te/OP_MOVE_WIDE_16.S */
+/* File: armv5te_taint/OP_MOVE_WIDE_16.S */
     /* move-wide/16 vAAAA, vBBBB */
     /* NOTE: regs can overlap, e.g. "move v6,v7" or "move v7,v6" */
     FETCH(r3, 2)                        @ r3<- BBBB
     FETCH(r2, 1)                        @ r2<- AAAA
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[BBBB]
-    add     r2, rFP, r2, lsl #2         @ r2<- &fp[AAAA]
-    ldmia   r3, {r0-r1}                 @ r0/r1<- fp[BBBB]
+// begin WITH_TAINT_TRACKING
+    add     r3, rFP, r3, lsl #3         @ r3<- &fp[BBBB]
+    add     r9, rFP, r2, lsl #3         @ r9<- &fp[AAAA]
+    ldmia   r3, {r0-r3}                 @ r0/r1<- fp[BBBB]
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(3)               @ advance rPC, load rINST
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r2, {r0-r1}                 @ fp[AAAA]<- r0/r1
+// begin WITH_TAINT_TRACKING
+    stmia   r9, {r0-r3}                 @ fp[AAAA]<- r0/r1
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
 
 /* ------------------------------ */
     .balign 64
 .L_OP_MOVE_OBJECT: /* 0x07 */
-/* File: armv5te/OP_MOVE_OBJECT.S */
-/* File: armv5te/OP_MOVE.S */
+/* File: armv5te_taint/OP_MOVE_OBJECT.S */
+/* File: armv5te_taint/OP_MOVE.S */
     /* for move, move-object, long-to-int */
     /* op vA, vB */
     mov     r1, rINST, lsr #12          @ r1<- B from 15:12
@@ -493,47 +541,65 @@ dalvik_inst:
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
     GET_VREG(r2, r1)                    @ r2<- fp[B]
     and     r0, r0, #15
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r3)
+    GET_VREG_TAINT(r1, r1, r3)
+    SET_VREG_TAINT(r1, r0, r3)
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ ip<- opcode from rINST
     SET_VREG(r2, r0)                    @ fp[A]<- r2
     GOTO_OPCODE(ip)                     @ execute next instruction
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_MOVE_OBJECT_FROM16: /* 0x08 */
-/* File: armv5te/OP_MOVE_OBJECT_FROM16.S */
-/* File: armv5te/OP_MOVE_FROM16.S */
+/* File: armv5te_taint/OP_MOVE_OBJECT_FROM16.S */
+/* File: armv5te_taint/OP_MOVE_FROM16.S */
     /* for: move/from16, move-object/from16 */
     /* op vAA, vBBBB */
     FETCH(r1, 1)                        @ r1<- BBBB
     mov     r0, rINST, lsr #8           @ r0<- AA
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     GET_VREG(r2, r1)                    @ r2<- fp[BBBB]
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r3)
+    GET_VREG_TAINT(r1, r1, r3)
+    SET_VREG_TAINT(r1, r0, r3)
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     SET_VREG(r2, r0)                    @ fp[AA]<- r2
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_MOVE_OBJECT_16: /* 0x09 */
-/* File: armv5te/OP_MOVE_OBJECT_16.S */
-/* File: armv5te/OP_MOVE_16.S */
+/* File: armv5te_taint/OP_MOVE_OBJECT_16.S */
+/* File: armv5te_taint/OP_MOVE_16.S */
     /* for: move/16, move-object/16 */
     /* op vAAAA, vBBBB */
     FETCH(r1, 2)                        @ r1<- BBBB
     FETCH(r0, 1)                        @ r0<- AAAA
     FETCH_ADVANCE_INST(3)               @ advance rPC, load rINST
     GET_VREG(r2, r1)                    @ r2<- fp[BBBB]
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r3)
+    GET_VREG_TAINT(r1, r1, r3)
+    SET_VREG_TAINT(r1, r0, r3)
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     SET_VREG(r2, r0)                    @ fp[AAAA]<- r2
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_MOVE_RESULT: /* 0x0a */
-/* File: armv5te/OP_MOVE_RESULT.S */
+/* File: armv5te_taint/OP_MOVE_RESULT.S */
     /* for: move-result, move-result-object */
     /* op vAA */
     mov     r2, rINST, lsr #8           @ r2<- AA
@@ -541,27 +607,42 @@ dalvik_inst:
     ldr     r0, [rSELF, #offThread_retval]    @ r0<- self->retval.i
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     SET_VREG(r0, r2)                    @ fp[AA]<- r0
+// begin WITH_TAINT_TRACKING
+    ldr     r0, [rSELF, #offThread_rtaint]
+    SET_TAINT_FP(r1)
+    SET_VREG_TAINT(r0, r2, r1)
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
 /* ------------------------------ */
     .balign 64
 .L_OP_MOVE_RESULT_WIDE: /* 0x0b */
-/* File: armv5te/OP_MOVE_RESULT_WIDE.S */
+/* File: armv5te_taint/OP_MOVE_RESULT_WIDE.S */
     /* move-result-wide vAA */
     mov     r2, rINST, lsr #8           @ r2<- AA
     add     r3, rSELF, #offThread_retval  @ r3<- &self->retval
-    add     r2, rFP, r2, lsl #2         @ r2<- &fp[AA]
+// begin WITH_TAINT_TRACKING
+    add     r2, rFP, r2, lsl #3         @ r2<- &fp[AA]
+// end WITH_TAINT_TRACKING
     ldmia   r3, {r0-r1}                 @ r0/r1<- retval.j
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r2, {r0-r1}                 @ fp[AA]<- r0/r1
+// begin WITH_TAINT_TRACKING
+//    stmia   r2, {r0-r1}                 @ fp[AA]<- r0/r1
+    ldr r3, [rSELF, #offThread_rtaint]
+    str r0, [r2, #0]
+    str r3, [r2, #4]
+    str r1, [r2, #8]
+    str r3, [r2, #12]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
 
 /* ------------------------------ */
     .balign 64
 .L_OP_MOVE_RESULT_OBJECT: /* 0x0c */
-/* File: armv5te/OP_MOVE_RESULT_OBJECT.S */
-/* File: armv5te/OP_MOVE_RESULT.S */
+/* File: armv5te_taint/OP_MOVE_RESULT_OBJECT.S */
+/* File: armv5te_taint/OP_MOVE_RESULT.S */
     /* for: move-result, move-result-object */
     /* op vAA */
     mov     r2, rINST, lsr #8           @ r2<- AA
@@ -569,19 +650,29 @@ dalvik_inst:
     ldr     r0, [rSELF, #offThread_retval]    @ r0<- self->retval.i
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     SET_VREG(r0, r2)                    @ fp[AA]<- r0
+// begin WITH_TAINT_TRACKING
+    ldr     r0, [rSELF, #offThread_rtaint]
+    SET_TAINT_FP(r1)
+    SET_VREG_TAINT(r0, r2, r1)
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_MOVE_EXCEPTION: /* 0x0d */
-/* File: armv5te/OP_MOVE_EXCEPTION.S */
+/* File: armv5te_taint/OP_MOVE_EXCEPTION.S */
     /* move-exception vAA */
     mov     r2, rINST, lsr #8           @ r2<- AA
     ldr     r3, [rSELF, #offThread_exception]  @ r3<- dvmGetException bypass
     mov     r1, #0                      @ r1<- 0
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
     SET_VREG(r3, r2)                    @ fp[AA]<- exception obj
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r3)
+    SET_TAINT_CLEAR(r9)
+    SET_VREG_TAINT(r9, r2, r3)
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     str     r1, [rSELF, #offThread_exception]  @ dvmClearException bypass
     GOTO_OPCODE(ip)                     @ jump to next instruction
@@ -589,13 +680,16 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_RETURN_VOID: /* 0x0e */
-/* File: armv5te/OP_RETURN_VOID.S */
+/* File: armv5te_taint/OP_RETURN_VOID.S */
+    SET_TAINT_CLEAR(r1)
+    str     r1, [rSELF, #offThread_rtaint]
     b       common_returnFromMethod
+
 
 /* ------------------------------ */
     .balign 64
 .L_OP_RETURN: /* 0x0f */
-/* File: armv5te/OP_RETURN.S */
+/* File: armv5te_taint/OP_RETURN.S */
     /*
      * Return a 32-bit value.  Copies the return value into the "thread"
      * structure, then jumps to the return handler.
@@ -605,30 +699,43 @@ dalvik_inst:
     /* op vAA */
     mov     r2, rINST, lsr #8           @ r2<- AA
     GET_VREG(r0, r2)                    @ r0<- vAA
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r1)
+    GET_VREG_TAINT(r3, r2, r1)
+    str     r3, [rSELF, #offThread_rtaint]
+// end WITH_TAINT_TRACKING
     str     r0, [rSELF, #offThread_retval] @ retval.i <- vAA
     b       common_returnFromMethod
 
 /* ------------------------------ */
     .balign 64
 .L_OP_RETURN_WIDE: /* 0x10 */
-/* File: armv5te/OP_RETURN_WIDE.S */
+/* File: armv5te_taint/OP_RETURN_WIDE.S */
     /*
      * Return a 64-bit value.  Copies the return value into the "thread"
      * structure, then jumps to the return handler.
      */
     /* return-wide vAA */
     mov     r2, rINST, lsr #8           @ r2<- AA
-    add     r2, rFP, r2, lsl #2         @ r2<- &fp[AA]
+// begin WITH_TAINT_TRACKING
+    add     r2, rFP, r2, lsl #3         @ r2<- &fp[AA]
+// end WITH_TAINT_TRACKING
     add     r3, rSELF, #offThread_retval  @ r3<- &self->retval
-    ldmia   r2, {r0-r1}                 @ r0/r1 <- vAA/vAA+1
+// begin WITH_TAINT_TRACKING
+//    ldmia   r2, {r0-r1}                 @ r0/r1 <- vAA/vAA+1
+    ldr     r0, [r2, #0]
+    ldr     r1, [r2, #8]
+    ldr     r9, [r2, #4]
+    str     r9, [rSELF, #offThread_rtaint]
+// end WITH_TAINT_TRACKING
     stmia   r3, {r0-r1}                 @ retval<- r0/r1
     b       common_returnFromMethod
 
 /* ------------------------------ */
     .balign 64
 .L_OP_RETURN_OBJECT: /* 0x11 */
-/* File: armv5te/OP_RETURN_OBJECT.S */
-/* File: armv5te/OP_RETURN.S */
+/* File: armv5te_taint/OP_RETURN_OBJECT.S */
+/* File: armv5te_taint/OP_RETURN.S */
     /*
      * Return a 32-bit value.  Copies the return value into the "thread"
      * structure, then jumps to the return handler.
@@ -638,6 +745,11 @@ dalvik_inst:
     /* op vAA */
     mov     r2, rINST, lsr #8           @ r2<- AA
     GET_VREG(r0, r2)                    @ r0<- vAA
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r1)
+    GET_VREG_TAINT(r3, r2, r1)
+    str     r3, [rSELF, #offThread_rtaint]
+// end WITH_TAINT_TRACKING
     str     r0, [rSELF, #offThread_retval] @ retval.i <- vAA
     b       common_returnFromMethod
 
@@ -645,12 +757,17 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_CONST_4: /* 0x12 */
-/* File: armv6t2/OP_CONST_4.S */
+/* File: armv6t2_taint/OP_CONST_4.S */
     /* const/4 vA, #+B */
     mov     r1, rINST, lsl #16          @ r1<- Bxxx0000
     ubfx    r0, rINST, #8, #4           @ r0<- A
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
     mov     r1, r1, asr #28             @ r1<- sssssssB (sign-extended)
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r2)
+    SET_TAINT_CLEAR(r3)
+    SET_VREG_TAINT(r3, r0, r2)
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ ip<- opcode from rINST
     SET_VREG(r1, r0)                    @ fp[A]<- r1
     GOTO_OPCODE(ip)                     @ execute next instruction
@@ -658,76 +775,110 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_CONST_16: /* 0x13 */
-/* File: armv5te/OP_CONST_16.S */
+/* File: armv5te_taint/OP_CONST_16.S */
     /* const/16 vAA, #+BBBB */
     FETCH_S(r0, 1)                      @ r0<- ssssBBBB (sign-extended)
     mov     r3, rINST, lsr #8           @ r3<- AA
+// BEGIN WITH_TAINT_TRACKING
+	SET_TAINT_FP(r1)
+	SET_TAINT_CLEAR(r2)
+    SET_VREG_TAINT(r2, r3, r1)
+// END WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     SET_VREG(r0, r3)                    @ vAA<- r0
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_CONST: /* 0x14 */
-/* File: armv5te/OP_CONST.S */
+/* File: armv5te_taint/OP_CONST.S */
     /* const vAA, #+BBBBbbbb */
     mov     r3, rINST, lsr #8           @ r3<- AA
     FETCH(r0, 1)                        @ r0<- bbbb (low)
     FETCH(r1, 2)                        @ r1<- BBBB (high)
     FETCH_ADVANCE_INST(3)               @ advance rPC, load rINST
     orr     r0, r0, r1, lsl #16         @ r0<- BBBBbbbb
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r2)
+    SET_TAINT_CLEAR(r1)
+    SET_VREG_TAINT(r1, r3, r2)
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     SET_VREG(r0, r3)                    @ vAA<- r0
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
 
 /* ------------------------------ */
     .balign 64
 .L_OP_CONST_HIGH16: /* 0x15 */
-/* File: armv5te/OP_CONST_HIGH16.S */
+/* File: armv5te_taint/OP_CONST_HIGH16.S */
     /* const/high16 vAA, #+BBBB0000 */
     FETCH(r0, 1)                        @ r0<- 0000BBBB (zero-extended)
     mov     r3, rINST, lsr #8           @ r3<- AA
     mov     r0, r0, lsl #16             @ r0<- BBBB0000
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r2)
+    SET_TAINT_CLEAR(r1)
+    SET_VREG_TAINT(r1, r3, r2)
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     SET_VREG(r0, r3)                    @ vAA<- r0
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_CONST_WIDE_16: /* 0x16 */
-/* File: armv5te/OP_CONST_WIDE_16.S */
+/* File: armv5te_taint/OP_CONST_WIDE_16.S */
     /* const-wide/16 vAA, #+BBBB */
     FETCH_S(r0, 1)                      @ r0<- ssssBBBB (sign-extended)
     mov     r3, rINST, lsr #8           @ r3<- AA
-    mov     r1, r0, asr #31             @ r1<- ssssssss
+// begin WITH_TAINT_TRACKING
+    mov     r2, r0, asr #31             @ r1<- ssssssss
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[AA]
+// begin WITH_TAINT_TRACKING
+    add     r9, rFP, r3, lsl #3         @ r3<- &fp[AA]
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r3, {r0-r1}                 @ vAA<- r0/r1
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_CLEAR(r1)
+    SET_TAINT_CLEAR(r3)
+    stmia   r9, {r0-r3}                 @ vAA<- r0/r1
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
 
 /* ------------------------------ */
     .balign 64
 .L_OP_CONST_WIDE_32: /* 0x17 */
-/* File: armv5te/OP_CONST_WIDE_32.S */
+/* File: armv5te_taint/OP_CONST_WIDE_32.S */
     /* const-wide/32 vAA, #+BBBBbbbb */
     FETCH(r0, 1)                        @ r0<- 0000bbbb (low)
     mov     r3, rINST, lsr #8           @ r3<- AA
     FETCH_S(r2, 2)                      @ r2<- ssssBBBB (high)
     FETCH_ADVANCE_INST(3)               @ advance rPC, load rINST
     orr     r0, r0, r2, lsl #16         @ r0<- BBBBbbbb
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[AA]
-    mov     r1, r0, asr #31             @ r1<- ssssssss
+// begin WITH_TAINT_TRACKING
+    add     r9, rFP, r3, lsl #3         @ r9<- &fp[AA]
+    mov     r2, r0, asr #31             @ r2<- ssssssss
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r3, {r0-r1}                 @ vAA<- r0/r1
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_CLEAR(r1)
+    SET_TAINT_CLEAR(r3)
+    stmia   r9, {r0-r3}                 @ vAA<- r0/r1
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
 
 /* ------------------------------ */
     .balign 64
 .L_OP_CONST_WIDE: /* 0x18 */
-/* File: armv5te/OP_CONST_WIDE.S */
+/* File: armv5te_taint/OP_CONST_WIDE.S */
     /* const-wide vAA, #+HHHHhhhhBBBBbbbb */
     FETCH(r0, 1)                        @ r0<- bbbb (low)
     FETCH(r1, 2)                        @ r1<- BBBB (low middle)
@@ -735,32 +886,50 @@ dalvik_inst:
     orr     r0, r0, r1, lsl #16         @ r0<- BBBBbbbb (low word)
     FETCH(r3, 4)                        @ r3<- HHHH (high)
     mov     r9, rINST, lsr #8           @ r9<- AA
-    orr     r1, r2, r3, lsl #16         @ r1<- HHHHhhhh (high word)
+// begin WITH_TAINT_TRACKING
+    orr     r2, r2, r3, lsl #16         @ r2<- HHHHhhhh (high word)
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(5)               @ advance rPC, load rINST
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[AA]
+// begin WITH_TAINT_TRACKING
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[AA]
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r9, {r0-r1}                 @ vAA<- r0/r1
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_CLEAR(r1)
+    SET_TAINT_CLEAR(r3)
+    stmia   r9, {r0-r3}                 @ vAA<- r0/r1
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
 
 /* ------------------------------ */
     .balign 64
 .L_OP_CONST_WIDE_HIGH16: /* 0x19 */
-/* File: armv5te/OP_CONST_WIDE_HIGH16.S */
+/* File: armv5te_taint/OP_CONST_WIDE_HIGH16.S */
     /* const-wide/high16 vAA, #+BBBB000000000000 */
     FETCH(r1, 1)                        @ r1<- 0000BBBB (zero-extended)
     mov     r3, rINST, lsr #8           @ r3<- AA
     mov     r0, #0                      @ r0<- 00000000
-    mov     r1, r1, lsl #16             @ r1<- BBBB0000
+// begin WITH_TAINT_TRACKING
+    mov     r2, r1, lsl #16             @ r1<- BBBB0000
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[AA]
+// begin WITH_TAINT_TRACKING
+    add     r9, rFP, r3, lsl #3         @ r3<- &fp[AA]
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r3, {r0-r1}                 @ vAA<- r0/r1
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_CLEAR(r1)
+    SET_TAINT_CLEAR(r3)
+    stmia   r9, {r0-r3}                 @ vAA<- r0/r1
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
 
 /* ------------------------------ */
     .balign 64
 .L_OP_CONST_STRING: /* 0x1a */
-/* File: armv5te/OP_CONST_STRING.S */
+/* File: armv5te_taint/OP_CONST_STRING.S */
     /* const/string vAA, String@BBBB */
     FETCH(r1, 1)                        @ r1<- BBBB
     ldr     r2, [rSELF, #offThread_methodClassDex]  @ r2<- self->methodClassDex
@@ -769,6 +938,11 @@ dalvik_inst:
     ldr     r0, [r2, r1, lsl #2]        @ r0<- pResStrings[BBBB]
     cmp     r0, #0                      @ not yet resolved?
     beq     .LOP_CONST_STRING_resolve
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r2)
+    SET_TAINT_CLEAR(r3)
+    SET_VREG_TAINT(r3, r9, r2)
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     SET_VREG(r0, r9)                    @ vAA<- r0
@@ -777,7 +951,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_CONST_STRING_JUMBO: /* 0x1b */
-/* File: armv5te/OP_CONST_STRING_JUMBO.S */
+/* File: armv5te_taint/OP_CONST_STRING_JUMBO.S */
     /* const/string vAA, String@BBBBBBBB */
     FETCH(r0, 1)                        @ r0<- bbbb (low)
     FETCH(r1, 2)                        @ r1<- BBBB (high)
@@ -788,6 +962,11 @@ dalvik_inst:
     ldr     r0, [r2, r1, lsl #2]        @ r0<- pResStrings[BBBB]
     cmp     r0, #0
     beq     .LOP_CONST_STRING_JUMBO_resolve
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r2)
+    SET_TAINT_CLEAR(r3)
+    SET_VREG_TAINT(r3, r9, r2)
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(3)               @ advance rPC, load rINST
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     SET_VREG(r0, r9)                    @ vAA<- r0
@@ -796,7 +975,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_CONST_CLASS: /* 0x1c */
-/* File: armv5te/OP_CONST_CLASS.S */
+/* File: armv5te_taint/OP_CONST_CLASS.S */
     /* const/class vAA, Class@BBBB */
     FETCH(r1, 1)                        @ r1<- BBBB
     ldr     r2, [rSELF, #offThread_methodClassDex]  @ r2<- self->methodClassDex
@@ -805,6 +984,11 @@ dalvik_inst:
     ldr     r0, [r2, r1, lsl #2]        @ r0<- pResClasses[BBBB]
     cmp     r0, #0                      @ not yet resolved?
     beq     .LOP_CONST_CLASS_resolve
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r2)
+    SET_TAINT_CLEAR(r3)
+    SET_VREG_TAINT(r3, r9, r2)
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     SET_VREG(r0, r9)                    @ vAA<- r0
@@ -813,7 +997,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_MONITOR_ENTER: /* 0x1d */
-/* File: armv5te/OP_MONITOR_ENTER.S */
+/* File: armv5te_taint/OP_MONITOR_ENTER.S */
     /*
      * Synchronize on an object.
      */
@@ -832,7 +1016,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_MONITOR_EXIT: /* 0x1e */
-/* File: armv5te/OP_MONITOR_EXIT.S */
+/* File: armv5te_taint/OP_MONITOR_EXIT.S */
     /*
      * Unlock an object.
      *
@@ -860,7 +1044,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_CHECK_CAST: /* 0x1f */
-/* File: armv5te/OP_CHECK_CAST.S */
+/* File: armv5te_taint/OP_CHECK_CAST.S */
     /*
      * Check to see if a cast from one class to another is allowed.
      */
@@ -887,7 +1071,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_INSTANCE_OF: /* 0x20 */
-/* File: armv5te/OP_INSTANCE_OF.S */
+/* File: armv5te_taint/OP_INSTANCE_OF.S */
     /*
      * Check to see if an object reference is an instance of a class.
      *
@@ -916,7 +1100,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_ARRAY_LENGTH: /* 0x21 */
-/* File: armv6t2/OP_ARRAY_LENGTH.S */
+/* File: armv6t2_taint/OP_ARRAY_LENGTH.S */
     /*
      * Return the length of an array.
      */
@@ -925,6 +1109,11 @@ dalvik_inst:
     GET_VREG(r0, r1)                    @ r0<- vB (object ref)
     cmp     r0, #0                      @ is object null?
     beq     common_errNullObject        @ yup, fail
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r1)
+    SET_TAINT_CLEAR(r3)
+    SET_VREG_TAINT(r3, r2, r1)
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
     ldr     r3, [r0, #offArrayObject_length]    @ r3<- array length
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
@@ -934,7 +1123,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_NEW_INSTANCE: /* 0x22 */
-/* File: armv5te/OP_NEW_INSTANCE.S */
+/* File: armv5te_taint/OP_NEW_INSTANCE.S */
     /*
      * Create a new instance of a class.
      */
@@ -961,7 +1150,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_NEW_ARRAY: /* 0x23 */
-/* File: armv5te/OP_NEW_ARRAY.S */
+/* File: armv5te_taint/OP_NEW_ARRAY.S */
     /*
      * Allocate an array of objects, specified with the array class
      * and a count.
@@ -986,7 +1175,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_FILLED_NEW_ARRAY: /* 0x24 */
-/* File: armv5te/OP_FILLED_NEW_ARRAY.S */
+/* File: armv5te_taint/OP_FILLED_NEW_ARRAY.S */
     /*
      * Create a new array with elements filled from registers.
      *
@@ -1013,8 +1202,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_FILLED_NEW_ARRAY_RANGE: /* 0x25 */
-/* File: armv5te/OP_FILLED_NEW_ARRAY_RANGE.S */
-/* File: armv5te/OP_FILLED_NEW_ARRAY.S */
+/* File: armv5te_taint/OP_FILLED_NEW_ARRAY_RANGE.S */
+/* File: armv5te_taint/OP_FILLED_NEW_ARRAY.S */
     /*
      * Create a new array with elements filled from registers.
      *
@@ -1042,7 +1231,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_FILL_ARRAY_DATA: /* 0x26 */
-/* File: armv5te/OP_FILL_ARRAY_DATA.S */
+/* File: armv5te_taint/OP_FILL_ARRAY_DATA.S */
     /* fill-array-data vAA, +BBBBBBBB */
     FETCH(r0, 1)                        @ r0<- bbbb (lo)
     FETCH(r1, 2)                        @ r1<- BBBB (hi)
@@ -1061,7 +1250,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_THROW: /* 0x27 */
-/* File: armv5te/OP_THROW.S */
+/* File: armv5te_taint/OP_THROW.S */
     /*
      * Throw an exception object in the current thread.
      */
@@ -1078,7 +1267,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_GOTO: /* 0x28 */
-/* File: armv5te/OP_GOTO.S */
+/* File: armv5te_taint/OP_GOTO.S */
     /*
      * Unconditional branch, 8-bit offset.
      *
@@ -1103,7 +1292,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_GOTO_16: /* 0x29 */
-/* File: armv5te/OP_GOTO_16.S */
+/* File: armv5te_taint/OP_GOTO_16.S */
     /*
      * Unconditional branch, 16-bit offset.
      *
@@ -1125,7 +1314,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_GOTO_32: /* 0x2a */
-/* File: armv5te/OP_GOTO_32.S */
+/* File: armv5te_taint/OP_GOTO_32.S */
     /*
      * Unconditional branch, 32-bit offset.
      *
@@ -1157,7 +1346,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_PACKED_SWITCH: /* 0x2b */
-/* File: armv5te/OP_PACKED_SWITCH.S */
+/* File: armv5te_taint/OP_PACKED_SWITCH.S */
     /*
      * Handle a packed-switch or sparse-switch instruction.  In both cases
      * we decode it and hand it off to a helper function.
@@ -1195,8 +1384,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_SPARSE_SWITCH: /* 0x2c */
-/* File: armv5te/OP_SPARSE_SWITCH.S */
-/* File: armv5te/OP_PACKED_SWITCH.S */
+/* File: armv5te_taint/OP_SPARSE_SWITCH.S */
+/* File: armv5te_taint/OP_PACKED_SWITCH.S */
     /*
      * Handle a packed-switch or sparse-switch instruction.  In both cases
      * we decode it and hand it off to a helper function.
@@ -1235,7 +1424,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_CMPL_FLOAT: /* 0x2d */
-/* File: arm-vfp/OP_CMPL_FLOAT.S */
+/* File: arm-vfp_taint/OP_CMPL_FLOAT.S */
     /*
      * Compare two floating-point values.  Puts 0, 1, or -1 into the
      * destination register based on the results of the comparison.
@@ -1274,7 +1463,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_CMPG_FLOAT: /* 0x2e */
-/* File: arm-vfp/OP_CMPG_FLOAT.S */
+/* File: arm-vfp_taint/OP_CMPG_FLOAT.S */
     /*
      * Compare two floating-point values.  Puts 0, 1, or -1 into the
      * destination register based on the results of the comparison.
@@ -1313,7 +1502,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_CMPL_DOUBLE: /* 0x2f */
-/* File: arm-vfp/OP_CMPL_DOUBLE.S */
+/* File: arm-vfp_taint/OP_CMPL_DOUBLE.S */
     /*
      * Compare two floating-point values.  Puts 0, 1, or -1 into the
      * destination register based on the results of the comparison.
@@ -1337,22 +1526,25 @@ dalvik_inst:
     mov     r3, r0, lsr #8              @ r3<- CC
     VREG_INDEX_TO_ADDR(r2, r2)          @ r2<- &vBB
     VREG_INDEX_TO_ADDR(r3, r3)          @ r3<- &vCC
-    fldd    d0, [r2]                    @ d0<- vBB
-    fldd    d1, [r3]                    @ d1<- vCC
+// begin WITH_TAINT_TRACKING
+//    fldd    d0, [r2]                    @ d0<- vBB
+    flds    s0, [r2]
+    flds    s1, [r2, #8]
+//    fldd    d1, [r3]                    @ d1<- vCC
+    flds    s2, [r3]
+    flds    s3, [r3, #8]
+// end WITH_TAINT_TRACKING
     fcmped  d0, d1                      @ compare (vBB, vCC)
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     mvn     r0, #0                      @ r0<- -1 (default)
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    fmstat                              @ export status flags
-    movgt   r0, #1                      @ (greater than) r1<- 1
-    moveq   r0, #0                      @ (equal) r1<- 0
     b       .LOP_CMPL_DOUBLE_finish          @ argh
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_CMPG_DOUBLE: /* 0x30 */
-/* File: arm-vfp/OP_CMPG_DOUBLE.S */
+/* File: arm-vfp_taint/OP_CMPG_DOUBLE.S */
     /*
      * Compare two floating-point values.  Puts 0, 1, or -1 into the
      * destination register based on the results of the comparison.
@@ -1376,22 +1568,25 @@ dalvik_inst:
     mov     r3, r0, lsr #8              @ r3<- CC
     VREG_INDEX_TO_ADDR(r2, r2)          @ r2<- &vBB
     VREG_INDEX_TO_ADDR(r3, r3)          @ r3<- &vCC
-    fldd    d0, [r2]                    @ d0<- vBB
-    fldd    d1, [r3]                    @ d1<- vCC
+// begin WITH_TAINT_TRACKING
+//    fldd    d0, [r2]                    @ d0<- vBB
+    flds    s0, [r2]
+    flds    s1, [r2, #8]
+//    fldd    d1, [r3]                    @ d1<- vCC
+    flds    s2, [r3]
+    flds    s3, [r3, #8]
+// end WITH_TAINT_TRACKING
     fcmped  d0, d1                      @ compare (vBB, vCC)
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     mov     r0, #1                      @ r0<- 1 (default)
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    fmstat                              @ export status flags
-    mvnmi   r0, #0                      @ (less than) r1<- -1
-    moveq   r0, #0                      @ (equal) r1<- 0
     b       .LOP_CMPG_DOUBLE_finish          @ argh
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_CMP_LONG: /* 0x31 */
-/* File: armv5te/OP_CMP_LONG.S */
+/* File: armv5te_taint/OP_CMP_LONG.S */
     /*
      * Compare two 64-bit values.  Puts 0, 1, or -1 into the destination
      * register based on the results of the comparison.
@@ -1417,10 +1612,9 @@ dalvik_inst:
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r2, r0, #255                @ r2<- BB
     mov     r3, r0, lsr #8              @ r3<- CC
-    add     r2, rFP, r2, lsl #2         @ r2<- &fp[BB]
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[CC]
-    ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
-    ldmia   r3, {r2-r3}                 @ r2/r3<- vCC/vCC+1
+// begin WITH_TAINT_TRACKING
+    bl      cmp_long_taint_prop
+// end WITH_TAINT_TRACKING
     cmp     r1, r3                      @ compare (vBB+1, vCC+1)
     blt     .LOP_CMP_LONG_less            @ signed compare on high part
     bgt     .LOP_CMP_LONG_greater
@@ -1432,8 +1626,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_IF_EQ: /* 0x32 */
-/* File: armv6t2/OP_IF_EQ.S */
-/* File: armv6t2/bincmp.S */
+/* File: armv6t2_taint/OP_IF_EQ.S */
+/* File: armv6t2_taint/bincmp.S */
     /*
      * Generic two-operand compare-and-branch operation.  Provide a "revcmp"
      * fragment that specifies the *reverse* comparison to perform, e.g.
@@ -1466,8 +1660,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_IF_NE: /* 0x33 */
-/* File: armv6t2/OP_IF_NE.S */
-/* File: armv6t2/bincmp.S */
+/* File: armv6t2_taint/OP_IF_NE.S */
+/* File: armv6t2_taint/bincmp.S */
     /*
      * Generic two-operand compare-and-branch operation.  Provide a "revcmp"
      * fragment that specifies the *reverse* comparison to perform, e.g.
@@ -1500,8 +1694,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_IF_LT: /* 0x34 */
-/* File: armv6t2/OP_IF_LT.S */
-/* File: armv6t2/bincmp.S */
+/* File: armv6t2_taint/OP_IF_LT.S */
+/* File: armv6t2_taint/bincmp.S */
     /*
      * Generic two-operand compare-and-branch operation.  Provide a "revcmp"
      * fragment that specifies the *reverse* comparison to perform, e.g.
@@ -1534,8 +1728,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_IF_GE: /* 0x35 */
-/* File: armv6t2/OP_IF_GE.S */
-/* File: armv6t2/bincmp.S */
+/* File: armv6t2_taint/OP_IF_GE.S */
+/* File: armv6t2_taint/bincmp.S */
     /*
      * Generic two-operand compare-and-branch operation.  Provide a "revcmp"
      * fragment that specifies the *reverse* comparison to perform, e.g.
@@ -1568,8 +1762,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_IF_GT: /* 0x36 */
-/* File: armv6t2/OP_IF_GT.S */
-/* File: armv6t2/bincmp.S */
+/* File: armv6t2_taint/OP_IF_GT.S */
+/* File: armv6t2_taint/bincmp.S */
     /*
      * Generic two-operand compare-and-branch operation.  Provide a "revcmp"
      * fragment that specifies the *reverse* comparison to perform, e.g.
@@ -1602,8 +1796,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_IF_LE: /* 0x37 */
-/* File: armv6t2/OP_IF_LE.S */
-/* File: armv6t2/bincmp.S */
+/* File: armv6t2_taint/OP_IF_LE.S */
+/* File: armv6t2_taint/bincmp.S */
     /*
      * Generic two-operand compare-and-branch operation.  Provide a "revcmp"
      * fragment that specifies the *reverse* comparison to perform, e.g.
@@ -1636,8 +1830,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_IF_EQZ: /* 0x38 */
-/* File: armv5te/OP_IF_EQZ.S */
-/* File: armv5te/zcmp.S */
+/* File: armv5te_taint/OP_IF_EQZ.S */
+/* File: armv5te_taint/zcmp.S */
     /*
      * Generic one-operand compare-and-branch operation.  Provide a "revcmp"
      * fragment that specifies the *reverse* comparison to perform, e.g.
@@ -1668,8 +1862,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_IF_NEZ: /* 0x39 */
-/* File: armv5te/OP_IF_NEZ.S */
-/* File: armv5te/zcmp.S */
+/* File: armv5te_taint/OP_IF_NEZ.S */
+/* File: armv5te_taint/zcmp.S */
     /*
      * Generic one-operand compare-and-branch operation.  Provide a "revcmp"
      * fragment that specifies the *reverse* comparison to perform, e.g.
@@ -1700,8 +1894,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_IF_LTZ: /* 0x3a */
-/* File: armv5te/OP_IF_LTZ.S */
-/* File: armv5te/zcmp.S */
+/* File: armv5te_taint/OP_IF_LTZ.S */
+/* File: armv5te_taint/zcmp.S */
     /*
      * Generic one-operand compare-and-branch operation.  Provide a "revcmp"
      * fragment that specifies the *reverse* comparison to perform, e.g.
@@ -1732,8 +1926,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_IF_GEZ: /* 0x3b */
-/* File: armv5te/OP_IF_GEZ.S */
-/* File: armv5te/zcmp.S */
+/* File: armv5te_taint/OP_IF_GEZ.S */
+/* File: armv5te_taint/zcmp.S */
     /*
      * Generic one-operand compare-and-branch operation.  Provide a "revcmp"
      * fragment that specifies the *reverse* comparison to perform, e.g.
@@ -1764,8 +1958,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_IF_GTZ: /* 0x3c */
-/* File: armv5te/OP_IF_GTZ.S */
-/* File: armv5te/zcmp.S */
+/* File: armv5te_taint/OP_IF_GTZ.S */
+/* File: armv5te_taint/zcmp.S */
     /*
      * Generic one-operand compare-and-branch operation.  Provide a "revcmp"
      * fragment that specifies the *reverse* comparison to perform, e.g.
@@ -1796,8 +1990,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_IF_LEZ: /* 0x3d */
-/* File: armv5te/OP_IF_LEZ.S */
-/* File: armv5te/zcmp.S */
+/* File: armv5te_taint/OP_IF_LEZ.S */
+/* File: armv5te_taint/zcmp.S */
     /*
      * Generic one-operand compare-and-branch operation.  Provide a "revcmp"
      * fragment that specifies the *reverse* comparison to perform, e.g.
@@ -1828,55 +2022,61 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_UNUSED_3E: /* 0x3e */
-/* File: armv5te/OP_UNUSED_3E.S */
-/* File: armv5te/unused.S */
+/* File: armv5te_taint/OP_UNUSED_3E.S */
+/* File: armv5te_taint/unused.S */
     bl      common_abort
+
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_UNUSED_3F: /* 0x3f */
-/* File: armv5te/OP_UNUSED_3F.S */
-/* File: armv5te/unused.S */
+/* File: armv5te_taint/OP_UNUSED_3F.S */
+/* File: armv5te_taint/unused.S */
     bl      common_abort
+
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_UNUSED_40: /* 0x40 */
-/* File: armv5te/OP_UNUSED_40.S */
-/* File: armv5te/unused.S */
+/* File: armv5te_taint/OP_UNUSED_40.S */
+/* File: armv5te_taint/unused.S */
     bl      common_abort
+
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_UNUSED_41: /* 0x41 */
-/* File: armv5te/OP_UNUSED_41.S */
-/* File: armv5te/unused.S */
+/* File: armv5te_taint/OP_UNUSED_41.S */
+/* File: armv5te_taint/unused.S */
     bl      common_abort
+
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_UNUSED_42: /* 0x42 */
-/* File: armv5te/OP_UNUSED_42.S */
-/* File: armv5te/unused.S */
+/* File: armv5te_taint/OP_UNUSED_42.S */
+/* File: armv5te_taint/unused.S */
     bl      common_abort
+
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_UNUSED_43: /* 0x43 */
-/* File: armv5te/OP_UNUSED_43.S */
-/* File: armv5te/unused.S */
+/* File: armv5te_taint/OP_UNUSED_43.S */
+/* File: armv5te_taint/unused.S */
     bl      common_abort
+
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_AGET: /* 0x44 */
-/* File: armv5te/OP_AGET.S */
+/* File: armv5te_taint/OP_AGET.S */
     /*
      * Array get, 32 bits or less.  vAA <- vBB[vCC].
      *
@@ -1893,20 +2093,27 @@ dalvik_inst:
     GET_VREG(r1, r3)                    @ r1<- vCC (requested index)
     cmp     r0, #0                      @ null array object?
     beq     common_errNullObject        @ yes, bail
+// begin WITH_TAINT_TRACKING
+    bl		.LOP_AGET_taint_prop_1
+// end WITH_TAINT_TRACKING
     ldr     r3, [r0, #offArrayObject_length]    @ r3<- arrayObj->length
     add     r0, r0, r1, lsl #2     @ r0<- arrayObj + index*width
     cmp     r1, r3                      @ compare unsigned index, length
-    bcs     common_errArrayIndex        @ index >= length, bail
-    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+// begin WITH_TAINT_TRACKING
+//    bcs     common_errArrayIndex        @ index >= length, bail	// in subroutine
+//    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST // in subroutine
+    bl		.LOP_AGET_taint_prop_2
+// end WITH_TAINT_TRACKING
     ldr   r2, [r0, #offArrayObject_contents]  @ r2<- vBB[vCC]
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     SET_VREG(r2, r9)                    @ vAA<- r2
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_AGET_WIDE: /* 0x45 */
-/* File: armv5te/OP_AGET_WIDE.S */
+/* File: armv5te_taint/OP_AGET_WIDE.S */
     /*
      * Array get, 64 bits.  vAA <- vBB[vCC].
      *
@@ -1921,6 +2128,9 @@ dalvik_inst:
     GET_VREG(r1, r3)                    @ r1<- vCC (requested index)
     cmp     r0, #0                      @ null array object?
     beq     common_errNullObject        @ yes, bail
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_AGET_WIDE_taint_prop      @ r10<- taint
+// end WITH_TAINT_TRACKING
     ldr     r3, [r0, #offArrayObject_length]    @ r3<- arrayObj->length
     add     r0, r0, r1, lsl #3          @ r0<- arrayObj + index*width
     cmp     r1, r3                      @ compare unsigned index, length
@@ -1933,8 +2143,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_AGET_OBJECT: /* 0x46 */
-/* File: armv5te/OP_AGET_OBJECT.S */
-/* File: armv5te/OP_AGET.S */
+/* File: armv5te_taint/OP_AGET_OBJECT.S */
+/* File: armv5te_taint/OP_AGET.S */
     /*
      * Array get, 32 bits or less.  vAA <- vBB[vCC].
      *
@@ -1951,22 +2161,29 @@ dalvik_inst:
     GET_VREG(r1, r3)                    @ r1<- vCC (requested index)
     cmp     r0, #0                      @ null array object?
     beq     common_errNullObject        @ yes, bail
+// begin WITH_TAINT_TRACKING
+    bl		.LOP_AGET_OBJECT_taint_prop_1
+// end WITH_TAINT_TRACKING
     ldr     r3, [r0, #offArrayObject_length]    @ r3<- arrayObj->length
     add     r0, r0, r1, lsl #2     @ r0<- arrayObj + index*width
     cmp     r1, r3                      @ compare unsigned index, length
-    bcs     common_errArrayIndex        @ index >= length, bail
-    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+// begin WITH_TAINT_TRACKING
+//    bcs     common_errArrayIndex        @ index >= length, bail	// in subroutine
+//    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST // in subroutine
+    bl		.LOP_AGET_OBJECT_taint_prop_2
+// end WITH_TAINT_TRACKING
     ldr   r2, [r0, #offArrayObject_contents]  @ r2<- vBB[vCC]
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     SET_VREG(r2, r9)                    @ vAA<- r2
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_AGET_BOOLEAN: /* 0x47 */
-/* File: armv5te/OP_AGET_BOOLEAN.S */
-/* File: armv5te/OP_AGET.S */
+/* File: armv5te_taint/OP_AGET_BOOLEAN.S */
+/* File: armv5te_taint/OP_AGET.S */
     /*
      * Array get, 32 bits or less.  vAA <- vBB[vCC].
      *
@@ -1983,22 +2200,29 @@ dalvik_inst:
     GET_VREG(r1, r3)                    @ r1<- vCC (requested index)
     cmp     r0, #0                      @ null array object?
     beq     common_errNullObject        @ yes, bail
+// begin WITH_TAINT_TRACKING
+    bl		.LOP_AGET_BOOLEAN_taint_prop_1
+// end WITH_TAINT_TRACKING
     ldr     r3, [r0, #offArrayObject_length]    @ r3<- arrayObj->length
     add     r0, r0, r1, lsl #0     @ r0<- arrayObj + index*width
     cmp     r1, r3                      @ compare unsigned index, length
-    bcs     common_errArrayIndex        @ index >= length, bail
-    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+// begin WITH_TAINT_TRACKING
+//    bcs     common_errArrayIndex        @ index >= length, bail	// in subroutine
+//    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST // in subroutine
+    bl		.LOP_AGET_BOOLEAN_taint_prop_2
+// end WITH_TAINT_TRACKING
     ldrb   r2, [r0, #offArrayObject_contents]  @ r2<- vBB[vCC]
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     SET_VREG(r2, r9)                    @ vAA<- r2
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_AGET_BYTE: /* 0x48 */
-/* File: armv5te/OP_AGET_BYTE.S */
-/* File: armv5te/OP_AGET.S */
+/* File: armv5te_taint/OP_AGET_BYTE.S */
+/* File: armv5te_taint/OP_AGET.S */
     /*
      * Array get, 32 bits or less.  vAA <- vBB[vCC].
      *
@@ -2015,22 +2239,29 @@ dalvik_inst:
     GET_VREG(r1, r3)                    @ r1<- vCC (requested index)
     cmp     r0, #0                      @ null array object?
     beq     common_errNullObject        @ yes, bail
+// begin WITH_TAINT_TRACKING
+    bl		.LOP_AGET_BYTE_taint_prop_1
+// end WITH_TAINT_TRACKING
     ldr     r3, [r0, #offArrayObject_length]    @ r3<- arrayObj->length
     add     r0, r0, r1, lsl #0     @ r0<- arrayObj + index*width
     cmp     r1, r3                      @ compare unsigned index, length
-    bcs     common_errArrayIndex        @ index >= length, bail
-    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+// begin WITH_TAINT_TRACKING
+//    bcs     common_errArrayIndex        @ index >= length, bail	// in subroutine
+//    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST // in subroutine
+    bl		.LOP_AGET_BYTE_taint_prop_2
+// end WITH_TAINT_TRACKING
     ldrsb   r2, [r0, #offArrayObject_contents]  @ r2<- vBB[vCC]
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     SET_VREG(r2, r9)                    @ vAA<- r2
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_AGET_CHAR: /* 0x49 */
-/* File: armv5te/OP_AGET_CHAR.S */
-/* File: armv5te/OP_AGET.S */
+/* File: armv5te_taint/OP_AGET_CHAR.S */
+/* File: armv5te_taint/OP_AGET.S */
     /*
      * Array get, 32 bits or less.  vAA <- vBB[vCC].
      *
@@ -2047,22 +2278,29 @@ dalvik_inst:
     GET_VREG(r1, r3)                    @ r1<- vCC (requested index)
     cmp     r0, #0                      @ null array object?
     beq     common_errNullObject        @ yes, bail
+// begin WITH_TAINT_TRACKING
+    bl		.LOP_AGET_CHAR_taint_prop_1
+// end WITH_TAINT_TRACKING
     ldr     r3, [r0, #offArrayObject_length]    @ r3<- arrayObj->length
     add     r0, r0, r1, lsl #1     @ r0<- arrayObj + index*width
     cmp     r1, r3                      @ compare unsigned index, length
-    bcs     common_errArrayIndex        @ index >= length, bail
-    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+// begin WITH_TAINT_TRACKING
+//    bcs     common_errArrayIndex        @ index >= length, bail	// in subroutine
+//    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST // in subroutine
+    bl		.LOP_AGET_CHAR_taint_prop_2
+// end WITH_TAINT_TRACKING
     ldrh   r2, [r0, #offArrayObject_contents]  @ r2<- vBB[vCC]
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     SET_VREG(r2, r9)                    @ vAA<- r2
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_AGET_SHORT: /* 0x4a */
-/* File: armv5te/OP_AGET_SHORT.S */
-/* File: armv5te/OP_AGET.S */
+/* File: armv5te_taint/OP_AGET_SHORT.S */
+/* File: armv5te_taint/OP_AGET.S */
     /*
      * Array get, 32 bits or less.  vAA <- vBB[vCC].
      *
@@ -2079,21 +2317,28 @@ dalvik_inst:
     GET_VREG(r1, r3)                    @ r1<- vCC (requested index)
     cmp     r0, #0                      @ null array object?
     beq     common_errNullObject        @ yes, bail
+// begin WITH_TAINT_TRACKING
+    bl		.LOP_AGET_SHORT_taint_prop_1
+// end WITH_TAINT_TRACKING
     ldr     r3, [r0, #offArrayObject_length]    @ r3<- arrayObj->length
     add     r0, r0, r1, lsl #1     @ r0<- arrayObj + index*width
     cmp     r1, r3                      @ compare unsigned index, length
-    bcs     common_errArrayIndex        @ index >= length, bail
-    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+// begin WITH_TAINT_TRACKING
+//    bcs     common_errArrayIndex        @ index >= length, bail	// in subroutine
+//    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST // in subroutine
+    bl		.LOP_AGET_SHORT_taint_prop_2
+// end WITH_TAINT_TRACKING
     ldrsh   r2, [r0, #offArrayObject_contents]  @ r2<- vBB[vCC]
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     SET_VREG(r2, r9)                    @ vAA<- r2
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_APUT: /* 0x4b */
-/* File: armv5te/OP_APUT.S */
+/* File: armv5te_taint/OP_APUT.S */
     /*
      * Array put, 32 bits or less.  vBB[vCC] <- vAA.
      *
@@ -2114,16 +2359,19 @@ dalvik_inst:
     add     r0, r0, r1, lsl #2     @ r0<- arrayObj + index*width
     cmp     r1, r3                      @ compare unsigned index, length
     bcs     common_errArrayIndex        @ index >= length, bail
-    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+// begin WITH_TAINT_TRACKING
+    bl	.LOP_APUT_taint_prop
+// end WITH_TAINT_TRACKING
     GET_VREG(r2, r9)                    @ r2<- vAA
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     str  r2, [r0, #offArrayObject_contents]  @ vBB[vCC]<- r2
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_APUT_WIDE: /* 0x4c */
-/* File: armv5te/OP_APUT_WIDE.S */
+/* File: armv5te_taint/OP_APUT_WIDE.S */
     /*
      * Array put, 64 bits.  vBB[vCC] <- vAA.
      *
@@ -2139,9 +2387,14 @@ dalvik_inst:
     cmp     r0, #0                      @ null array object?
     beq     common_errNullObject        @ yes, bail
     ldr     r3, [r0, #offArrayObject_length]    @ r3<- arrayObj->length
+// begin WITH_TAINT_TRACKING
+    mov     r10, r0
+// end WITH_TAINT_TRACKING
     add     r0, r0, r1, lsl #3          @ r0<- arrayObj + index*width
     cmp     r1, r3                      @ compare unsigned index, length
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[AA]
+// begin WITH_TAINT_TRACKING
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[AA]
+// end WITH_TAINT_TRACKING
     bcc     .LOP_APUT_WIDE_finish          @ okay, continue below
     b       common_errArrayIndex        @ index >= length, bail
     @ May want to swap the order of these two branches depending on how the
@@ -2151,7 +2404,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_APUT_OBJECT: /* 0x4d */
-/* File: armv5te/OP_APUT_OBJECT.S */
+/* File: armv5te_taint/OP_APUT_OBJECT.S */
     /*
      * Store an object into an array.  vBB[vCC] <- vAA.
      */
@@ -2162,9 +2415,15 @@ dalvik_inst:
     mov     r3, r0, lsr #8              @ r3<- CC
     GET_VREG(rINST, r2)                 @ rINST<- vBB (array object)
     GET_VREG(r1, r3)                    @ r1<- vCC (requested index)
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_APUT_OBJECT_taint_prop_1
+// end WITH_TAINT_TRACKING
     cmp     rINST, #0                   @ null array object?
     GET_VREG(r9, r9)                    @ r9<- vAA
     beq     common_errNullObject        @ yes, bail
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_APUT_OBJECT_taint_prop_2
+// end WITH_TAINT_TRACKING
     ldr     r3, [rINST, #offArrayObject_length]   @ r3<- arrayObj->length
     add     r10, rINST, r1, lsl #2      @ r10<- arrayObj + index*width
     cmp     r1, r3                      @ compare unsigned index, length
@@ -2175,8 +2434,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_APUT_BOOLEAN: /* 0x4e */
-/* File: armv5te/OP_APUT_BOOLEAN.S */
-/* File: armv5te/OP_APUT.S */
+/* File: armv5te_taint/OP_APUT_BOOLEAN.S */
+/* File: armv5te_taint/OP_APUT.S */
     /*
      * Array put, 32 bits or less.  vBB[vCC] <- vAA.
      *
@@ -2197,18 +2456,21 @@ dalvik_inst:
     add     r0, r0, r1, lsl #0     @ r0<- arrayObj + index*width
     cmp     r1, r3                      @ compare unsigned index, length
     bcs     common_errArrayIndex        @ index >= length, bail
-    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+// begin WITH_TAINT_TRACKING
+    bl	.LOP_APUT_BOOLEAN_taint_prop
+// end WITH_TAINT_TRACKING
     GET_VREG(r2, r9)                    @ r2<- vAA
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     strb  r2, [r0, #offArrayObject_contents]  @ vBB[vCC]<- r2
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_APUT_BYTE: /* 0x4f */
-/* File: armv5te/OP_APUT_BYTE.S */
-/* File: armv5te/OP_APUT.S */
+/* File: armv5te_taint/OP_APUT_BYTE.S */
+/* File: armv5te_taint/OP_APUT.S */
     /*
      * Array put, 32 bits or less.  vBB[vCC] <- vAA.
      *
@@ -2229,18 +2491,21 @@ dalvik_inst:
     add     r0, r0, r1, lsl #0     @ r0<- arrayObj + index*width
     cmp     r1, r3                      @ compare unsigned index, length
     bcs     common_errArrayIndex        @ index >= length, bail
-    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+// begin WITH_TAINT_TRACKING
+    bl	.LOP_APUT_BYTE_taint_prop
+// end WITH_TAINT_TRACKING
     GET_VREG(r2, r9)                    @ r2<- vAA
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     strb  r2, [r0, #offArrayObject_contents]  @ vBB[vCC]<- r2
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_APUT_CHAR: /* 0x50 */
-/* File: armv5te/OP_APUT_CHAR.S */
-/* File: armv5te/OP_APUT.S */
+/* File: armv5te_taint/OP_APUT_CHAR.S */
+/* File: armv5te_taint/OP_APUT.S */
     /*
      * Array put, 32 bits or less.  vBB[vCC] <- vAA.
      *
@@ -2261,18 +2526,21 @@ dalvik_inst:
     add     r0, r0, r1, lsl #1     @ r0<- arrayObj + index*width
     cmp     r1, r3                      @ compare unsigned index, length
     bcs     common_errArrayIndex        @ index >= length, bail
-    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+// begin WITH_TAINT_TRACKING
+    bl	.LOP_APUT_CHAR_taint_prop
+// end WITH_TAINT_TRACKING
     GET_VREG(r2, r9)                    @ r2<- vAA
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     strh  r2, [r0, #offArrayObject_contents]  @ vBB[vCC]<- r2
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_APUT_SHORT: /* 0x51 */
-/* File: armv5te/OP_APUT_SHORT.S */
-/* File: armv5te/OP_APUT.S */
+/* File: armv5te_taint/OP_APUT_SHORT.S */
+/* File: armv5te_taint/OP_APUT.S */
     /*
      * Array put, 32 bits or less.  vBB[vCC] <- vAA.
      *
@@ -2293,17 +2561,20 @@ dalvik_inst:
     add     r0, r0, r1, lsl #1     @ r0<- arrayObj + index*width
     cmp     r1, r3                      @ compare unsigned index, length
     bcs     common_errArrayIndex        @ index >= length, bail
-    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+// begin WITH_TAINT_TRACKING
+    bl	.LOP_APUT_SHORT_taint_prop
+// end WITH_TAINT_TRACKING
     GET_VREG(r2, r9)                    @ r2<- vAA
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     strh  r2, [r0, #offArrayObject_contents]  @ vBB[vCC]<- r2
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_IGET: /* 0x52 */
-/* File: armv6t2/OP_IGET.S */
+/* File: armv6t2_taint/OP_IGET.S */
     /*
      * General 32-bit instance field get.
      *
@@ -2314,8 +2585,9 @@ dalvik_inst:
     ldr     r3, [rSELF, #offThread_methodClassDex]    @ r3<- DvmDex
     FETCH(r1, 1)                        @ r1<- field ref CCCC
     ldr     r2, [r3, #offDvmDex_pResFields] @ r2<- pDvmDex->pResFields
-    GET_VREG(r9, r0)                    @ r9<- fp[B], the object pointer
-    ldr     r0, [r2, r1, lsl #2]        @ r0<- resolved InstField ptr
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_IGET_taint_prop
+// end WITH_TAINT_TRACKING
     cmp     r0, #0                      @ is resolved entry null?
     bne     .LOP_IGET_finish          @ no, already resolved
 8:  ldr     r2, [rSELF, #offThread_method]    @ r2<- current method
@@ -2329,7 +2601,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_IGET_WIDE: /* 0x53 */
-/* File: armv6t2/OP_IGET_WIDE.S */
+/* File: armv6t2_taint/OP_IGET_WIDE.S */
     /*
      * Wide 32-bit instance field get.
      */
@@ -2338,8 +2610,9 @@ dalvik_inst:
     ldr     r3, [rSELF, #offThread_methodClassDex]    @ r3<- DvmDex
     FETCH(r1, 1)                        @ r1<- field ref CCCC
     ldr     r2, [r3, #offDvmDex_pResFields] @ r2<- pResFields
-    GET_VREG(r9, r0)                    @ r9<- fp[B], the object pointer
-    ldr     r0, [r2, r1, lsl #2]        @ r0<- resolved InstField ptr
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_IGET_WIDE_taint_prop
+// end WITH_TAINT_TRACKING
     cmp     r0, #0                      @ is resolved entry null?
     bne     .LOP_IGET_WIDE_finish          @ no, already resolved
 8:  ldr     r2, [rSELF, #offThread_method] @ r2<- current method
@@ -2353,8 +2626,10 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_IGET_OBJECT: /* 0x54 */
-/* File: armv5te/OP_IGET_OBJECT.S */
-/* File: armv5te/OP_IGET.S */
+/* File: armv5te_taint/OP_IGET_OBJECT.S */
+/* File: armv5te_taint/OP_IGET.S */
+// begin WITH_TAINT_TRACKING
+// end WITH_TAINT_TRACKING
     /*
      * General 32-bit instance field get.
      *
@@ -2365,8 +2640,9 @@ dalvik_inst:
     ldr     r3, [rSELF, #offThread_methodClassDex]    @ r3<- DvmDex
     FETCH(r1, 1)                        @ r1<- field ref CCCC
     ldr     r2, [r3, #offDvmDex_pResFields] @ r2<- pDvmDex->pResFields
-    GET_VREG(r9, r0)                    @ r9<- fp[B], the object pointer
-    ldr     r0, [r2, r1, lsl #2]        @ r0<- resolved InstField ptr
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_IGET_OBJECT_taint_prop
+// end WITH_TAINT_TRACKING
     cmp     r0, #0                      @ is resolved entry null?
     bne     .LOP_IGET_OBJECT_finish          @ no, already resolved
 8:  ldr     r2, [rSELF, #offThread_method]    @ r2<- current method
@@ -2381,9 +2657,11 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_IGET_BOOLEAN: /* 0x55 */
-/* File: armv5te/OP_IGET_BOOLEAN.S */
-@include "armv5te/OP_IGET.S" { "load":"ldrb", "sqnum":"1" }
-/* File: armv5te/OP_IGET.S */
+/* File: armv5te_taint/OP_IGET_BOOLEAN.S */
+@include "armv5te_taint/OP_IGET.S" { "load":"ldrb", "sqnum":"1" }
+/* File: armv5te_taint/OP_IGET.S */
+// begin WITH_TAINT_TRACKING
+// end WITH_TAINT_TRACKING
     /*
      * General 32-bit instance field get.
      *
@@ -2394,8 +2672,9 @@ dalvik_inst:
     ldr     r3, [rSELF, #offThread_methodClassDex]    @ r3<- DvmDex
     FETCH(r1, 1)                        @ r1<- field ref CCCC
     ldr     r2, [r3, #offDvmDex_pResFields] @ r2<- pDvmDex->pResFields
-    GET_VREG(r9, r0)                    @ r9<- fp[B], the object pointer
-    ldr     r0, [r2, r1, lsl #2]        @ r0<- resolved InstField ptr
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_IGET_BOOLEAN_taint_prop
+// end WITH_TAINT_TRACKING
     cmp     r0, #0                      @ is resolved entry null?
     bne     .LOP_IGET_BOOLEAN_finish          @ no, already resolved
 8:  ldr     r2, [rSELF, #offThread_method]    @ r2<- current method
@@ -2410,9 +2689,11 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_IGET_BYTE: /* 0x56 */
-/* File: armv5te/OP_IGET_BYTE.S */
-@include "armv5te/OP_IGET.S" { "load":"ldrsb", "sqnum":"2" }
-/* File: armv5te/OP_IGET.S */
+/* File: armv5te_taint/OP_IGET_BYTE.S */
+@include "armv5te_taint/OP_IGET.S" { "load":"ldrsb", "sqnum":"2" }
+/* File: armv5te_taint/OP_IGET.S */
+// begin WITH_TAINT_TRACKING
+// end WITH_TAINT_TRACKING
     /*
      * General 32-bit instance field get.
      *
@@ -2423,8 +2704,9 @@ dalvik_inst:
     ldr     r3, [rSELF, #offThread_methodClassDex]    @ r3<- DvmDex
     FETCH(r1, 1)                        @ r1<- field ref CCCC
     ldr     r2, [r3, #offDvmDex_pResFields] @ r2<- pDvmDex->pResFields
-    GET_VREG(r9, r0)                    @ r9<- fp[B], the object pointer
-    ldr     r0, [r2, r1, lsl #2]        @ r0<- resolved InstField ptr
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_IGET_BYTE_taint_prop
+// end WITH_TAINT_TRACKING
     cmp     r0, #0                      @ is resolved entry null?
     bne     .LOP_IGET_BYTE_finish          @ no, already resolved
 8:  ldr     r2, [rSELF, #offThread_method]    @ r2<- current method
@@ -2439,9 +2721,11 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_IGET_CHAR: /* 0x57 */
-/* File: armv5te/OP_IGET_CHAR.S */
-@include "armv5te/OP_IGET.S" { "load":"ldrh", "sqnum":"3" }
-/* File: armv5te/OP_IGET.S */
+/* File: armv5te_taint/OP_IGET_CHAR.S */
+@include "armv5te_taint/OP_IGET.S" { "load":"ldrh", "sqnum":"3" }
+/* File: armv5te_taint/OP_IGET.S */
+// begin WITH_TAINT_TRACKING
+// end WITH_TAINT_TRACKING
     /*
      * General 32-bit instance field get.
      *
@@ -2452,8 +2736,9 @@ dalvik_inst:
     ldr     r3, [rSELF, #offThread_methodClassDex]    @ r3<- DvmDex
     FETCH(r1, 1)                        @ r1<- field ref CCCC
     ldr     r2, [r3, #offDvmDex_pResFields] @ r2<- pDvmDex->pResFields
-    GET_VREG(r9, r0)                    @ r9<- fp[B], the object pointer
-    ldr     r0, [r2, r1, lsl #2]        @ r0<- resolved InstField ptr
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_IGET_CHAR_taint_prop
+// end WITH_TAINT_TRACKING
     cmp     r0, #0                      @ is resolved entry null?
     bne     .LOP_IGET_CHAR_finish          @ no, already resolved
 8:  ldr     r2, [rSELF, #offThread_method]    @ r2<- current method
@@ -2465,12 +2750,15 @@ dalvik_inst:
     b       common_exceptionThrown
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_IGET_SHORT: /* 0x58 */
-/* File: armv5te/OP_IGET_SHORT.S */
-@include "armv5te/OP_IGET.S" { "load":"ldrsh", "sqnum":"4" }
-/* File: armv5te/OP_IGET.S */
+/* File: armv5te_taint/OP_IGET_SHORT.S */
+@include "armv5te_taint/OP_IGET.S" { "load":"ldrsh", "sqnum":"4" }
+/* File: armv5te_taint/OP_IGET.S */
+// begin WITH_TAINT_TRACKING
+// end WITH_TAINT_TRACKING
     /*
      * General 32-bit instance field get.
      *
@@ -2481,8 +2769,9 @@ dalvik_inst:
     ldr     r3, [rSELF, #offThread_methodClassDex]    @ r3<- DvmDex
     FETCH(r1, 1)                        @ r1<- field ref CCCC
     ldr     r2, [r3, #offDvmDex_pResFields] @ r2<- pDvmDex->pResFields
-    GET_VREG(r9, r0)                    @ r9<- fp[B], the object pointer
-    ldr     r0, [r2, r1, lsl #2]        @ r0<- resolved InstField ptr
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_IGET_SHORT_taint_prop
+// end WITH_TAINT_TRACKING
     cmp     r0, #0                      @ is resolved entry null?
     bne     .LOP_IGET_SHORT_finish          @ no, already resolved
 8:  ldr     r2, [rSELF, #offThread_method]    @ r2<- current method
@@ -2497,7 +2786,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_IPUT: /* 0x59 */
-/* File: armv6t2/OP_IPUT.S */
+/* File: armv6t2_taint/OP_IPUT.S */
     /*
      * General 32-bit instance field put.
      *
@@ -2523,7 +2812,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_IPUT_WIDE: /* 0x5a */
-/* File: armv6t2/OP_IPUT_WIDE.S */
+/* File: armv6t2_taint/OP_IPUT_WIDE.S */
     /* iput-wide vA, vB, field@CCCC */
     mov     r0, rINST, lsr #12          @ r0<- B
     ldr     r3, [rSELF, #offThread_methodClassDex]    @ r3<- DvmDex
@@ -2544,7 +2833,9 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_IPUT_OBJECT: /* 0x5b */
-/* File: armv5te/OP_IPUT_OBJECT.S */
+/* File: armv5te_taint/OP_IPUT_OBJECT.S */
+// begin WITH_TAINT_TRACKING
+// end WITH_TAINT_TRACKING
     /*
      * 32-bit instance field put.
      *
@@ -2570,9 +2861,11 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_IPUT_BOOLEAN: /* 0x5c */
-/* File: armv5te/OP_IPUT_BOOLEAN.S */
-@include "armv5te/OP_IPUT.S" { "store":"strb", "sqnum":"1" }
-/* File: armv5te/OP_IPUT.S */
+/* File: armv5te_taint/OP_IPUT_BOOLEAN.S */
+@include "armv5te_taint/OP_IPUT.S" { "store":"strb", "sqnum":"1" }
+/* File: armv5te_taint/OP_IPUT.S */
+// begin WITH_TAINT_TRACKING
+// end WITH_TAINT_TRACKING
     /*
      * General 32-bit instance field put.
      *
@@ -2599,9 +2892,11 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_IPUT_BYTE: /* 0x5d */
-/* File: armv5te/OP_IPUT_BYTE.S */
-@include "armv5te/OP_IPUT.S" { "store":"strb", "sqnum":"2" }
-/* File: armv5te/OP_IPUT.S */
+/* File: armv5te_taint/OP_IPUT_BYTE.S */
+@include "armv5te_taint/OP_IPUT.S" { "store":"strb", "sqnum":"2" }
+/* File: armv5te_taint/OP_IPUT.S */
+// begin WITH_TAINT_TRACKING
+// end WITH_TAINT_TRACKING
     /*
      * General 32-bit instance field put.
      *
@@ -2628,9 +2923,11 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_IPUT_CHAR: /* 0x5e */
-/* File: armv5te/OP_IPUT_CHAR.S */
-@include "armv5te/OP_IPUT.S" { "store":"strh", "sqnum":"3" }
-/* File: armv5te/OP_IPUT.S */
+/* File: armv5te_taint/OP_IPUT_CHAR.S */
+@include "armv5te_taint/OP_IPUT.S" { "store":"strh", "sqnum":"3" }
+/* File: armv5te_taint/OP_IPUT.S */
+// begin WITH_TAINT_TRACKING
+// end WITH_TAINT_TRACKING
     /*
      * General 32-bit instance field put.
      *
@@ -2657,9 +2954,11 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_IPUT_SHORT: /* 0x5f */
-/* File: armv5te/OP_IPUT_SHORT.S */
-@include "armv5te/OP_IPUT.S" { "store":"strh", "sqnum":"4" }
-/* File: armv5te/OP_IPUT.S */
+/* File: armv5te_taint/OP_IPUT_SHORT.S */
+@include "armv5te_taint/OP_IPUT.S" { "store":"strh", "sqnum":"4" }
+/* File: armv5te_taint/OP_IPUT.S */
+// begin WITH_TAINT_TRACKING
+// end WITH_TAINT_TRACKING
     /*
      * General 32-bit instance field put.
      *
@@ -2686,7 +2985,9 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_SGET: /* 0x60 */
-/* File: armv5te/OP_SGET.S */
+/* File: armv5te_taint/OP_SGET.S */
+// begin WITH_TAINT_TRACKING
+// end WITH_TAINT_TRACKING
     /*
      * General 32-bit SGET handler.
      *
@@ -2700,18 +3001,18 @@ dalvik_inst:
     cmp     r0, #0                      @ is resolved entry null?
     beq     .LOP_SGET_resolve         @ yes, do resolve
 .LOP_SGET_finish: @ field ptr in r0
-    ldr     r1, [r0, #offStaticField_value] @ r1<- field value
-    @ no-op                             @ acquiring load
-    mov     r2, rINST, lsr #8           @ r2<- AA
+// begin WITH_TAINT_TRACKING
+    bl		.LOP_SGET_taint_prop
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
-    SET_VREG(r1, r2)                    @ fp[AA]<- r1
+    SET_VREG(r0, r2)                    @ fp[AA]<- r0
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
 /* ------------------------------ */
     .balign 64
 .L_OP_SGET_WIDE: /* 0x61 */
-/* File: armv5te/OP_SGET_WIDE.S */
+/* File: armv5te_taint/OP_SGET_WIDE.S */
     /*
      * 64-bit SGET handler.
      */
@@ -2722,25 +3023,16 @@ dalvik_inst:
     ldr     r0, [r10, r1, lsl #2]       @ r0<- resolved StaticField ptr
     cmp     r0, #0                      @ is resolved entry null?
     beq     .LOP_SGET_WIDE_resolve         @ yes, do resolve
-.LOP_SGET_WIDE_finish:
-    mov     r9, rINST, lsr #8           @ r9<- AA
-    .if 0
-    add     r0, r0, #offStaticField_value @ r0<- pointer to data
-    bl      dvmQuasiAtomicRead64        @ r0/r1<- contents of field
-    .else
-    ldrd    r0, [r0, #offStaticField_value] @ r0/r1<- field value (aligned)
-    .endif
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[AA]
-    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
-    stmia   r9, {r0-r1}                 @ vAA/vAA+1<- r0/r1
-    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    GOTO_OPCODE(ip)                     @ jump to next instruction
+    b		.LOP_SGET_WIDE_finish
+
 
 /* ------------------------------ */
     .balign 64
 .L_OP_SGET_OBJECT: /* 0x62 */
-/* File: armv5te/OP_SGET_OBJECT.S */
-/* File: armv5te/OP_SGET.S */
+/* File: armv5te_taint/OP_SGET_OBJECT.S */
+/* File: armv5te_taint/OP_SGET.S */
+// begin WITH_TAINT_TRACKING
+// end WITH_TAINT_TRACKING
     /*
      * General 32-bit SGET handler.
      *
@@ -2754,11 +3046,11 @@ dalvik_inst:
     cmp     r0, #0                      @ is resolved entry null?
     beq     .LOP_SGET_OBJECT_resolve         @ yes, do resolve
 .LOP_SGET_OBJECT_finish: @ field ptr in r0
-    ldr     r1, [r0, #offStaticField_value] @ r1<- field value
-    @ no-op                             @ acquiring load
-    mov     r2, rINST, lsr #8           @ r2<- AA
+// begin WITH_TAINT_TRACKING
+    bl		.LOP_SGET_OBJECT_taint_prop
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
-    SET_VREG(r1, r2)                    @ fp[AA]<- r1
+    SET_VREG(r0, r2)                    @ fp[AA]<- r0
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
@@ -2766,8 +3058,10 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_SGET_BOOLEAN: /* 0x63 */
-/* File: armv5te/OP_SGET_BOOLEAN.S */
-/* File: armv5te/OP_SGET.S */
+/* File: armv5te_taint/OP_SGET_BOOLEAN.S */
+/* File: armv5te_taint/OP_SGET.S */
+// begin WITH_TAINT_TRACKING
+// end WITH_TAINT_TRACKING
     /*
      * General 32-bit SGET handler.
      *
@@ -2781,11 +3075,11 @@ dalvik_inst:
     cmp     r0, #0                      @ is resolved entry null?
     beq     .LOP_SGET_BOOLEAN_resolve         @ yes, do resolve
 .LOP_SGET_BOOLEAN_finish: @ field ptr in r0
-    ldr     r1, [r0, #offStaticField_value] @ r1<- field value
-    @ no-op                             @ acquiring load
-    mov     r2, rINST, lsr #8           @ r2<- AA
+// begin WITH_TAINT_TRACKING
+    bl		.LOP_SGET_BOOLEAN_taint_prop
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
-    SET_VREG(r1, r2)                    @ fp[AA]<- r1
+    SET_VREG(r0, r2)                    @ fp[AA]<- r0
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
@@ -2793,8 +3087,10 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_SGET_BYTE: /* 0x64 */
-/* File: armv5te/OP_SGET_BYTE.S */
-/* File: armv5te/OP_SGET.S */
+/* File: armv5te_taint/OP_SGET_BYTE.S */
+/* File: armv5te_taint/OP_SGET.S */
+// begin WITH_TAINT_TRACKING
+// end WITH_TAINT_TRACKING
     /*
      * General 32-bit SGET handler.
      *
@@ -2808,11 +3104,11 @@ dalvik_inst:
     cmp     r0, #0                      @ is resolved entry null?
     beq     .LOP_SGET_BYTE_resolve         @ yes, do resolve
 .LOP_SGET_BYTE_finish: @ field ptr in r0
-    ldr     r1, [r0, #offStaticField_value] @ r1<- field value
-    @ no-op                             @ acquiring load
-    mov     r2, rINST, lsr #8           @ r2<- AA
+// begin WITH_TAINT_TRACKING
+    bl		.LOP_SGET_BYTE_taint_prop
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
-    SET_VREG(r1, r2)                    @ fp[AA]<- r1
+    SET_VREG(r0, r2)                    @ fp[AA]<- r0
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
@@ -2820,8 +3116,10 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_SGET_CHAR: /* 0x65 */
-/* File: armv5te/OP_SGET_CHAR.S */
-/* File: armv5te/OP_SGET.S */
+/* File: armv5te_taint/OP_SGET_CHAR.S */
+/* File: armv5te_taint/OP_SGET.S */
+// begin WITH_TAINT_TRACKING
+// end WITH_TAINT_TRACKING
     /*
      * General 32-bit SGET handler.
      *
@@ -2835,11 +3133,11 @@ dalvik_inst:
     cmp     r0, #0                      @ is resolved entry null?
     beq     .LOP_SGET_CHAR_resolve         @ yes, do resolve
 .LOP_SGET_CHAR_finish: @ field ptr in r0
-    ldr     r1, [r0, #offStaticField_value] @ r1<- field value
-    @ no-op                             @ acquiring load
-    mov     r2, rINST, lsr #8           @ r2<- AA
+// begin WITH_TAINT_TRACKING
+    bl		.LOP_SGET_CHAR_taint_prop
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
-    SET_VREG(r1, r2)                    @ fp[AA]<- r1
+    SET_VREG(r0, r2)                    @ fp[AA]<- r0
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
@@ -2847,8 +3145,10 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_SGET_SHORT: /* 0x66 */
-/* File: armv5te/OP_SGET_SHORT.S */
-/* File: armv5te/OP_SGET.S */
+/* File: armv5te_taint/OP_SGET_SHORT.S */
+/* File: armv5te_taint/OP_SGET.S */
+// begin WITH_TAINT_TRACKING
+// end WITH_TAINT_TRACKING
     /*
      * General 32-bit SGET handler.
      *
@@ -2862,11 +3162,11 @@ dalvik_inst:
     cmp     r0, #0                      @ is resolved entry null?
     beq     .LOP_SGET_SHORT_resolve         @ yes, do resolve
 .LOP_SGET_SHORT_finish: @ field ptr in r0
-    ldr     r1, [r0, #offStaticField_value] @ r1<- field value
-    @ no-op                             @ acquiring load
-    mov     r2, rINST, lsr #8           @ r2<- AA
+// begin WITH_TAINT_TRACKING
+    bl		.LOP_SGET_SHORT_taint_prop
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
-    SET_VREG(r1, r2)                    @ fp[AA]<- r1
+    SET_VREG(r0, r2)                    @ fp[AA]<- r0
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
@@ -2874,7 +3174,9 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_SPUT: /* 0x67 */
-/* File: armv5te/OP_SPUT.S */
+/* File: armv5te_taint/OP_SPUT.S */
+// begin WITH_TAINT_TRACKING
+// end WITH_TAINT_TRACKING
     /*
      * General 32-bit SPUT handler.
      *
@@ -2892,15 +3194,15 @@ dalvik_inst:
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     GET_VREG(r1, r2)                    @ r1<- fp[AA]
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    @ no-op                        @ releasing store
-    str     r1, [r0, #offStaticField_value] @ field<- vAA
-    @ no-op 
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_SPUT_taint_prop
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
 /* ------------------------------ */
     .balign 64
 .L_OP_SPUT_WIDE: /* 0x68 */
-/* File: armv5te/OP_SPUT_WIDE.S */
+/* File: armv5te_taint/OP_SPUT_WIDE.S */
     /*
      * 64-bit SPUT handler.
      */
@@ -2910,13 +3212,20 @@ dalvik_inst:
     ldr     r10, [r0, #offDvmDex_pResFields] @ r10<- dvmDex->pResFields
     mov     r9, rINST, lsr #8           @ r9<- AA
     ldr     r2, [r10, r1, lsl #2]        @ r2<- resolved StaticField ptr
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[AA]
+// begin WITH_TAINT_TRACKING
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[AA]
+// end WITH_TAINT_TRACKING
     cmp     r2, #0                      @ is resolved entry null?
     beq     .LOP_SPUT_WIDE_resolve         @ yes, do resolve
 .LOP_SPUT_WIDE_finish: @ field ptr in r2, AA in r9
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
-    ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
+// begin WITH_TAINT_TRACKING
+    bl		.LOP_SPUT_WIDE_taint_prop
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(r10)                @ extract opcode from rINST
+// begin WITH_TAINT_TRACKING
+    str	    r3, [r2, #offStaticField_taint]
+// end WITH_TAINT_TRACKING
     .if 0
     add     r2, r2, #offStaticField_value @ r2<- pointer to data
     bl      dvmQuasiAtomicSwap64Sync    @ stores r0/r1 into addr r2
@@ -2928,7 +3237,9 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_SPUT_OBJECT: /* 0x69 */
-/* File: armv5te/OP_SPUT_OBJECT.S */
+/* File: armv5te_taint/OP_SPUT_OBJECT.S */
+// begin WITH_TAINT_TRACKING
+// end WITH_TAINT_TRACKING
     /*
      * 32-bit SPUT handler for objects
      *
@@ -2945,7 +3256,12 @@ dalvik_inst:
     mov     r2, rINST, lsr #8           @ r2<- AA
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     GET_VREG(r1, r2)                    @ r1<- fp[AA]
-    ldr     r2, [rSELF, #offThread_cardTable]  @ r2<- card table base
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r3)
+    GET_VREG_TAINT(r3, r2, r3)          @ r3<- taint
+//    ldr     r2, [rSELF, #offThread_cardTable]  @ r2<- card table base
+    ldr     r10, [rSELF, #offThread_cardTable]  @ r10<- card table base
+// end WITH_TAINT_TRACKING
     ldr     r9, [r0, #offField_clazz]   @ r9<- field->clazz
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     @ no-op                         @ releasing store
@@ -2954,8 +3270,10 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_SPUT_BOOLEAN: /* 0x6a */
-/* File: armv5te/OP_SPUT_BOOLEAN.S */
-/* File: armv5te/OP_SPUT.S */
+/* File: armv5te_taint/OP_SPUT_BOOLEAN.S */
+/* File: armv5te_taint/OP_SPUT.S */
+// begin WITH_TAINT_TRACKING
+// end WITH_TAINT_TRACKING
     /*
      * General 32-bit SPUT handler.
      *
@@ -2973,17 +3291,19 @@ dalvik_inst:
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     GET_VREG(r1, r2)                    @ r1<- fp[AA]
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    @ no-op                        @ releasing store
-    str     r1, [r0, #offStaticField_value] @ field<- vAA
-    @ no-op 
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_SPUT_BOOLEAN_taint_prop
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_SPUT_BYTE: /* 0x6b */
-/* File: armv5te/OP_SPUT_BYTE.S */
-/* File: armv5te/OP_SPUT.S */
+/* File: armv5te_taint/OP_SPUT_BYTE.S */
+/* File: armv5te_taint/OP_SPUT.S */
+// begin WITH_TAINT_TRACKING
+// end WITH_TAINT_TRACKING
     /*
      * General 32-bit SPUT handler.
      *
@@ -3001,17 +3321,19 @@ dalvik_inst:
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     GET_VREG(r1, r2)                    @ r1<- fp[AA]
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    @ no-op                        @ releasing store
-    str     r1, [r0, #offStaticField_value] @ field<- vAA
-    @ no-op 
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_SPUT_BYTE_taint_prop
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_SPUT_CHAR: /* 0x6c */
-/* File: armv5te/OP_SPUT_CHAR.S */
-/* File: armv5te/OP_SPUT.S */
+/* File: armv5te_taint/OP_SPUT_CHAR.S */
+/* File: armv5te_taint/OP_SPUT.S */
+// begin WITH_TAINT_TRACKING
+// end WITH_TAINT_TRACKING
     /*
      * General 32-bit SPUT handler.
      *
@@ -3029,17 +3351,19 @@ dalvik_inst:
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     GET_VREG(r1, r2)                    @ r1<- fp[AA]
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    @ no-op                        @ releasing store
-    str     r1, [r0, #offStaticField_value] @ field<- vAA
-    @ no-op 
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_SPUT_CHAR_taint_prop
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_SPUT_SHORT: /* 0x6d */
-/* File: armv5te/OP_SPUT_SHORT.S */
-/* File: armv5te/OP_SPUT.S */
+/* File: armv5te_taint/OP_SPUT_SHORT.S */
+/* File: armv5te_taint/OP_SPUT.S */
+// begin WITH_TAINT_TRACKING
+// end WITH_TAINT_TRACKING
     /*
      * General 32-bit SPUT handler.
      *
@@ -3057,16 +3381,16 @@ dalvik_inst:
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     GET_VREG(r1, r2)                    @ r1<- fp[AA]
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    @ no-op                        @ releasing store
-    str     r1, [r0, #offStaticField_value] @ field<- vAA
-    @ no-op 
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_SPUT_SHORT_taint_prop
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_INVOKE_VIRTUAL: /* 0x6e */
-/* File: armv5te/OP_INVOKE_VIRTUAL.S */
+/* File: armv5te_taint/OP_INVOKE_VIRTUAL.S */
     /*
      * Handle a virtual method call.
      *
@@ -3096,7 +3420,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_INVOKE_SUPER: /* 0x6f */
-/* File: armv5te/OP_INVOKE_SUPER.S */
+/* File: armv5te_taint/OP_INVOKE_SUPER.S */
     /*
      * Handle a "super" method call.
      *
@@ -3125,7 +3449,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_INVOKE_DIRECT: /* 0x70 */
-/* File: armv5te/OP_INVOKE_DIRECT.S */
+/* File: armv5te_taint/OP_INVOKE_DIRECT.S */
     /*
      * Handle a direct method call.
      *
@@ -3158,7 +3482,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_INVOKE_STATIC: /* 0x71 */
-/* File: armv5te/OP_INVOKE_STATIC.S */
+/* File: armv5te_taint/OP_INVOKE_STATIC.S */
     /*
      * Handle a static method call.
      *
@@ -3182,7 +3506,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_INVOKE_INTERFACE: /* 0x72 */
-/* File: armv5te/OP_INVOKE_INTERFACE.S */
+/* File: armv5te_taint/OP_INVOKE_INTERFACE.S */
     /*
      * Handle an interface method call.
      *
@@ -3210,16 +3534,17 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_UNUSED_73: /* 0x73 */
-/* File: armv5te/OP_UNUSED_73.S */
-/* File: armv5te/unused.S */
+/* File: armv5te_taint/OP_UNUSED_73.S */
+/* File: armv5te_taint/unused.S */
     bl      common_abort
+
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_INVOKE_VIRTUAL_RANGE: /* 0x74 */
-/* File: armv5te/OP_INVOKE_VIRTUAL_RANGE.S */
-/* File: armv5te/OP_INVOKE_VIRTUAL.S */
+/* File: armv5te_taint/OP_INVOKE_VIRTUAL_RANGE.S */
+/* File: armv5te_taint/OP_INVOKE_VIRTUAL.S */
     /*
      * Handle a virtual method call.
      *
@@ -3250,8 +3575,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_INVOKE_SUPER_RANGE: /* 0x75 */
-/* File: armv5te/OP_INVOKE_SUPER_RANGE.S */
-/* File: armv5te/OP_INVOKE_SUPER.S */
+/* File: armv5te_taint/OP_INVOKE_SUPER_RANGE.S */
+/* File: armv5te_taint/OP_INVOKE_SUPER.S */
     /*
      * Handle a "super" method call.
      *
@@ -3281,8 +3606,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_INVOKE_DIRECT_RANGE: /* 0x76 */
-/* File: armv5te/OP_INVOKE_DIRECT_RANGE.S */
-/* File: armv5te/OP_INVOKE_DIRECT.S */
+/* File: armv5te_taint/OP_INVOKE_DIRECT_RANGE.S */
+/* File: armv5te_taint/OP_INVOKE_DIRECT.S */
     /*
      * Handle a direct method call.
      *
@@ -3316,8 +3641,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_INVOKE_STATIC_RANGE: /* 0x77 */
-/* File: armv5te/OP_INVOKE_STATIC_RANGE.S */
-/* File: armv5te/OP_INVOKE_STATIC.S */
+/* File: armv5te_taint/OP_INVOKE_STATIC_RANGE.S */
+/* File: armv5te_taint/OP_INVOKE_STATIC.S */
     /*
      * Handle a static method call.
      *
@@ -3342,8 +3667,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_INVOKE_INTERFACE_RANGE: /* 0x78 */
-/* File: armv5te/OP_INVOKE_INTERFACE_RANGE.S */
-/* File: armv5te/OP_INVOKE_INTERFACE.S */
+/* File: armv5te_taint/OP_INVOKE_INTERFACE_RANGE.S */
+/* File: armv5te_taint/OP_INVOKE_INTERFACE.S */
     /*
      * Handle an interface method call.
      *
@@ -3372,24 +3697,26 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_UNUSED_79: /* 0x79 */
-/* File: armv5te/OP_UNUSED_79.S */
-/* File: armv5te/unused.S */
+/* File: armv5te_taint/OP_UNUSED_79.S */
+/* File: armv5te_taint/unused.S */
     bl      common_abort
+
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_UNUSED_7A: /* 0x7a */
-/* File: armv5te/OP_UNUSED_7A.S */
-/* File: armv5te/unused.S */
+/* File: armv5te_taint/OP_UNUSED_7A.S */
+/* File: armv5te_taint/unused.S */
     bl      common_abort
+
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_NEG_INT: /* 0x7b */
-/* File: armv6t2/OP_NEG_INT.S */
-/* File: armv6t2/unop.S */
+/* File: armv6t2_taint/OP_NEG_INT.S */
+/* File: armv6t2_taint/unop.S */
     /*
      * Generic 32-bit unary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = op r0".
@@ -3402,6 +3729,11 @@ dalvik_inst:
     mov     r3, rINST, lsr #12          @ r3<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
     GET_VREG(r0, r3)                    @ r0<- vB
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r1)
+    GET_VREG_TAINT(r2, r3, r1)          @ r2<- vB.taint
+    SET_VREG_TAINT(r2, r9, r1)
+// end WITH_TAINT_TRACKING
                                @ optional op; may set condition codes
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
     rsb     r0, r0, #0                              @ r0<- op, r0-r3 changed
@@ -3414,8 +3746,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_NOT_INT: /* 0x7c */
-/* File: armv6t2/OP_NOT_INT.S */
-/* File: armv6t2/unop.S */
+/* File: armv6t2_taint/OP_NOT_INT.S */
+/* File: armv6t2_taint/unop.S */
     /*
      * Generic 32-bit unary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = op r0".
@@ -3428,6 +3760,11 @@ dalvik_inst:
     mov     r3, rINST, lsr #12          @ r3<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
     GET_VREG(r0, r3)                    @ r0<- vB
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r1)
+    GET_VREG_TAINT(r2, r3, r1)          @ r2<- vB.taint
+    SET_VREG_TAINT(r2, r9, r1)
+// end WITH_TAINT_TRACKING
                                @ optional op; may set condition codes
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
     mvn     r0, r0                              @ r0<- op, r0-r3 changed
@@ -3440,8 +3777,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_NEG_LONG: /* 0x7d */
-/* File: armv6t2/OP_NEG_LONG.S */
-/* File: armv6t2/unopWide.S */
+/* File: armv6t2_taint/OP_NEG_LONG.S */
+/* File: armv6t2_taint/unopWide.S */
     /*
      * Generic 64-bit unary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = op r0/r1".
@@ -3452,23 +3789,26 @@ dalvik_inst:
     /* unop vA, vB */
     mov     r3, rINST, lsr #12          @ r3<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[B]
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[A]
-    ldmia   r3, {r0-r1}                 @ r0/r1<- vAA
+// begin WITH_TAINT_TRACKING
+    add     r3, rFP, r3, lsl #3         @ r3<- &fp[B]
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[A]
+//    ldmia   r3, {r0-r1}                 @ r0/r1<- vAA
+    ldr     r0, [r3, #0]
+    ldr     r1, [r3, #8]
+    ldr     r10, [r3, #4]
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
     rsbs    r0, r0, #0                           @ optional op; may set condition codes
     rsc     r1, r1, #0                              @ r0/r1<- op, r2-r3 changed
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r9, {r0-r1}                 @ vAA<- r0/r1
-    GOTO_OPCODE(ip)                     @ jump to next instruction
-    /* 10-11 instructions */
+    b       .LOP_NEG_LONG_finish
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_NOT_LONG: /* 0x7e */
-/* File: armv6t2/OP_NOT_LONG.S */
-/* File: armv6t2/unopWide.S */
+/* File: armv6t2_taint/OP_NOT_LONG.S */
+/* File: armv6t2_taint/unopWide.S */
     /*
      * Generic 64-bit unary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = op r0/r1".
@@ -3479,23 +3819,26 @@ dalvik_inst:
     /* unop vA, vB */
     mov     r3, rINST, lsr #12          @ r3<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[B]
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[A]
-    ldmia   r3, {r0-r1}                 @ r0/r1<- vAA
+// begin WITH_TAINT_TRACKING
+    add     r3, rFP, r3, lsl #3         @ r3<- &fp[B]
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[A]
+//    ldmia   r3, {r0-r1}                 @ r0/r1<- vAA
+    ldr     r0, [r3, #0]
+    ldr     r1, [r3, #8]
+    ldr     r10, [r3, #4]
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
     mvn     r0, r0                           @ optional op; may set condition codes
     mvn     r1, r1                              @ r0/r1<- op, r2-r3 changed
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r9, {r0-r1}                 @ vAA<- r0/r1
-    GOTO_OPCODE(ip)                     @ jump to next instruction
-    /* 10-11 instructions */
+    b       .LOP_NOT_LONG_finish
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_NEG_FLOAT: /* 0x7f */
-/* File: armv6t2/OP_NEG_FLOAT.S */
-/* File: armv6t2/unop.S */
+/* File: armv6t2_taint/OP_NEG_FLOAT.S */
+/* File: armv6t2_taint/unop.S */
     /*
      * Generic 32-bit unary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = op r0".
@@ -3508,6 +3851,11 @@ dalvik_inst:
     mov     r3, rINST, lsr #12          @ r3<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
     GET_VREG(r0, r3)                    @ r0<- vB
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r1)
+    GET_VREG_TAINT(r2, r3, r1)          @ r2<- vB.taint
+    SET_VREG_TAINT(r2, r9, r1)
+// end WITH_TAINT_TRACKING
                                @ optional op; may set condition codes
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
     add     r0, r0, #0x80000000                              @ r0<- op, r0-r3 changed
@@ -3520,8 +3868,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_NEG_DOUBLE: /* 0x80 */
-/* File: armv6t2/OP_NEG_DOUBLE.S */
-/* File: armv6t2/unopWide.S */
+/* File: armv6t2_taint/OP_NEG_DOUBLE.S */
+/* File: armv6t2_taint/unopWide.S */
     /*
      * Generic 64-bit unary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = op r0/r1".
@@ -3532,23 +3880,26 @@ dalvik_inst:
     /* unop vA, vB */
     mov     r3, rINST, lsr #12          @ r3<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[B]
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[A]
-    ldmia   r3, {r0-r1}                 @ r0/r1<- vAA
+// begin WITH_TAINT_TRACKING
+    add     r3, rFP, r3, lsl #3         @ r3<- &fp[B]
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[A]
+//    ldmia   r3, {r0-r1}                 @ r0/r1<- vAA
+    ldr     r0, [r3, #0]
+    ldr     r1, [r3, #8]
+    ldr     r10, [r3, #4]
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
                                @ optional op; may set condition codes
     add     r1, r1, #0x80000000                              @ r0/r1<- op, r2-r3 changed
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r9, {r0-r1}                 @ vAA<- r0/r1
-    GOTO_OPCODE(ip)                     @ jump to next instruction
-    /* 10-11 instructions */
+    b       .LOP_NEG_DOUBLE_finish
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_INT_TO_LONG: /* 0x81 */
-/* File: armv6t2/OP_INT_TO_LONG.S */
-/* File: armv6t2/unopWider.S */
+/* File: armv6t2_taint/OP_INT_TO_LONG.S */
+/* File: armv6t2_taint/unopWider.S */
     /*
      * Generic 32bit-to-64bit unary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = op r0", where
@@ -3560,21 +3911,23 @@ dalvik_inst:
     mov     r3, rINST, lsr #12          @ r3<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
     GET_VREG(r0, r3)                    @ r0<- vB
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[A]
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r2)
+    GET_VREG_TAINT(r10, r3, r2)
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[A]
+// end WITH_TAINT_TRACKING
                                @ optional op; may set condition codes
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
     mov     r1, r0, asr #31                              @ r0<- op, r0-r3 changed
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r9, {r0-r1}                 @ vA/vA+1<- r0/r1
-    GOTO_OPCODE(ip)                     @ jump to next instruction
-    /* 9-10 instructions */
+    b      .LOP_INT_TO_LONG_finish
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_INT_TO_FLOAT: /* 0x82 */
-/* File: arm-vfp/OP_INT_TO_FLOAT.S */
-/* File: arm-vfp/funop.S */
+/* File: arm-vfp_taint/OP_INT_TO_FLOAT.S */
+/* File: arm-vfp_taint/funop.S */
     /*
      * Generic 32-bit unary floating-point operation.  Provide an "instr"
      * line that specifies an instruction that performs "s1 = op s0".
@@ -3586,20 +3939,26 @@ dalvik_inst:
     mov     r9, rINST, lsr #8           @ r9<- A+
     VREG_INDEX_TO_ADDR(r3, r3)          @ r3<- &vB
     flds    s0, [r3]                    @ s0<- vB
+// begin WITH_TAINT_TRACKING
+    ldr     r0, [r3, #4]
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
     and     r9, r9, #15                 @ r9<- A
     fsitos  s1, s0                              @ s1<- op
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     VREG_INDEX_TO_ADDR(r9, r9)          @ r9<- &vA
     fsts    s1, [r9]                    @ vA<- s1
+// begin WITH_TAINT_TRACKING
+    str     r0, [r9, #4]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_INT_TO_DOUBLE: /* 0x83 */
-/* File: arm-vfp/OP_INT_TO_DOUBLE.S */
-/* File: arm-vfp/funopWider.S */
+/* File: arm-vfp_taint/OP_INT_TO_DOUBLE.S */
+/* File: arm-vfp_taint/funopWider.S */
     /*
      * Generic 32bit-to-64bit floating point unary operation.  Provide an
      * "instr" line that specifies an instruction that performs "d0 = op s0".
@@ -3611,21 +3970,30 @@ dalvik_inst:
     mov     r9, rINST, lsr #8           @ r9<- A+
     VREG_INDEX_TO_ADDR(r3, r3)          @ r3<- &vB
     flds    s0, [r3]                    @ s0<- vB
+// begin WITH_TAINT_TRACKING
+    ldr     r0, [r3, #4]
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
     and     r9, r9, #15                 @ r9<- A
     fsitod  d0, s0                              @ d0<- op
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     VREG_INDEX_TO_ADDR(r9, r9)          @ r9<- &vA
-    fstd    d0, [r9]                    @ vA<- d0
+// begin WITH_TAINT_TRACKING
+//    fstd    d0, [r9]                    @ vA<- d0
+    fsts    s0, [r9]
+    fsts    s1, [r9, #8]
+    str     r0, [r9, #4]
+    str     r0, [r9, #12]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_LONG_TO_INT: /* 0x84 */
-/* File: armv5te/OP_LONG_TO_INT.S */
+/* File: armv5te_taint/OP_LONG_TO_INT.S */
 /* we ignore the high word, making this equivalent to a 32-bit reg move */
-/* File: armv5te/OP_MOVE.S */
+/* File: armv5te_taint/OP_MOVE.S */
     /* for move, move-object, long-to-int */
     /* op vA, vB */
     mov     r1, rINST, lsr #12          @ r1<- B from 15:12
@@ -3633,16 +4001,22 @@ dalvik_inst:
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
     GET_VREG(r2, r1)                    @ r2<- fp[B]
     and     r0, r0, #15
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r3)
+    GET_VREG_TAINT(r1, r1, r3)
+    SET_VREG_TAINT(r1, r0, r3)
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ ip<- opcode from rINST
     SET_VREG(r2, r0)                    @ fp[A]<- r2
     GOTO_OPCODE(ip)                     @ execute next instruction
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_LONG_TO_FLOAT: /* 0x85 */
-/* File: armv6t2/OP_LONG_TO_FLOAT.S */
-/* File: armv6t2/unopNarrower.S */
+/* File: armv6t2_taint/OP_LONG_TO_FLOAT.S */
+/* File: armv6t2_taint/unopNarrower.S */
     /*
      * Generic 64bit-to-32bit unary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = op r0/r1", where
@@ -3656,13 +4030,22 @@ dalvik_inst:
     /* unop vA, vB */
     mov     r3, rINST, lsr #12          @ r3<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[B]
-    ldmia   r3, {r0-r1}                 @ r0/r1<- vB/vB+1
+// begin WITH_TAINT_TRACKING
+    add     r3, rFP, r3, lsl #3         @ r3<- &fp[B]
+//    ldmia   r3, {r0-r1}                 @ r0/r1<- vB/vB+1
+    ldr     r0, [r3, #0]
+    ldr     r10, [r3, #4]
+    ldr     r1, [r3, #8]
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
                                @ optional op; may set condition codes
     bl      __aeabi_l2f                              @ r0<- op, r0-r3 changed
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
+// begin WITH_TAINT_TRACKING
     SET_VREG(r0, r9)                    @ vA<- r0
+    SET_TAINT_FP(r1)
+    SET_VREG_TAINT(r10, r9, r1)
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
     /* 9-10 instructions */
 
@@ -3670,8 +4053,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_LONG_TO_DOUBLE: /* 0x86 */
-/* File: armv6t2/OP_LONG_TO_DOUBLE.S */
-/* File: armv6t2/unopWide.S */
+/* File: armv6t2_taint/OP_LONG_TO_DOUBLE.S */
+/* File: armv6t2_taint/unopWide.S */
     /*
      * Generic 64-bit unary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = op r0/r1".
@@ -3682,23 +4065,26 @@ dalvik_inst:
     /* unop vA, vB */
     mov     r3, rINST, lsr #12          @ r3<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[B]
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[A]
-    ldmia   r3, {r0-r1}                 @ r0/r1<- vAA
+// begin WITH_TAINT_TRACKING
+    add     r3, rFP, r3, lsl #3         @ r3<- &fp[B]
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[A]
+//    ldmia   r3, {r0-r1}                 @ r0/r1<- vAA
+    ldr     r0, [r3, #0]
+    ldr     r1, [r3, #8]
+    ldr     r10, [r3, #4]
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
                                @ optional op; may set condition codes
     bl      __aeabi_l2d                              @ r0/r1<- op, r2-r3 changed
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r9, {r0-r1}                 @ vAA<- r0/r1
-    GOTO_OPCODE(ip)                     @ jump to next instruction
-    /* 10-11 instructions */
+    b       .LOP_LONG_TO_DOUBLE_finish
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_FLOAT_TO_INT: /* 0x87 */
-/* File: arm-vfp/OP_FLOAT_TO_INT.S */
-/* File: arm-vfp/funop.S */
+/* File: arm-vfp_taint/OP_FLOAT_TO_INT.S */
+/* File: arm-vfp_taint/funop.S */
     /*
      * Generic 32-bit unary floating-point operation.  Provide an "instr"
      * line that specifies an instruction that performs "s1 = op s0".
@@ -3710,21 +4096,27 @@ dalvik_inst:
     mov     r9, rINST, lsr #8           @ r9<- A+
     VREG_INDEX_TO_ADDR(r3, r3)          @ r3<- &vB
     flds    s0, [r3]                    @ s0<- vB
+// begin WITH_TAINT_TRACKING
+    ldr     r0, [r3, #4]
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
     and     r9, r9, #15                 @ r9<- A
     ftosizs s1, s0                              @ s1<- op
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     VREG_INDEX_TO_ADDR(r9, r9)          @ r9<- &vA
     fsts    s1, [r9]                    @ vA<- s1
+// begin WITH_TAINT_TRACKING
+    str     r0, [r9, #4]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_FLOAT_TO_LONG: /* 0x88 */
-/* File: armv6t2/OP_FLOAT_TO_LONG.S */
-@include "armv6t2/unopWider.S" {"instr":"bl      __aeabi_f2lz"}
-/* File: armv6t2/unopWider.S */
+/* File: armv6t2_taint/OP_FLOAT_TO_LONG.S */
+@include "armv6t2_taint/unopWider.S" {"instr":"bl      __aeabi_f2lz"}
+/* File: armv6t2_taint/unopWider.S */
     /*
      * Generic 32bit-to-64bit unary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = op r0", where
@@ -3736,22 +4128,24 @@ dalvik_inst:
     mov     r3, rINST, lsr #12          @ r3<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
     GET_VREG(r0, r3)                    @ r0<- vB
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[A]
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r2)
+    GET_VREG_TAINT(r10, r3, r2)
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[A]
+// end WITH_TAINT_TRACKING
                                @ optional op; may set condition codes
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
     bl      f2l_doconv                              @ r0<- op, r0-r3 changed
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r9, {r0-r1}                 @ vA/vA+1<- r0/r1
-    GOTO_OPCODE(ip)                     @ jump to next instruction
-    /* 9-10 instructions */
+    b      .LOP_FLOAT_TO_LONG_finish
 
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_FLOAT_TO_DOUBLE: /* 0x89 */
-/* File: arm-vfp/OP_FLOAT_TO_DOUBLE.S */
-/* File: arm-vfp/funopWider.S */
+/* File: arm-vfp_taint/OP_FLOAT_TO_DOUBLE.S */
+/* File: arm-vfp_taint/funopWider.S */
     /*
      * Generic 32bit-to-64bit floating point unary operation.  Provide an
      * "instr" line that specifies an instruction that performs "d0 = op s0".
@@ -3763,20 +4157,29 @@ dalvik_inst:
     mov     r9, rINST, lsr #8           @ r9<- A+
     VREG_INDEX_TO_ADDR(r3, r3)          @ r3<- &vB
     flds    s0, [r3]                    @ s0<- vB
+// begin WITH_TAINT_TRACKING
+    ldr     r0, [r3, #4]
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
     and     r9, r9, #15                 @ r9<- A
     fcvtds  d0, s0                              @ d0<- op
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     VREG_INDEX_TO_ADDR(r9, r9)          @ r9<- &vA
-    fstd    d0, [r9]                    @ vA<- d0
+// begin WITH_TAINT_TRACKING
+//    fstd    d0, [r9]                    @ vA<- d0
+    fsts    s0, [r9]
+    fsts    s1, [r9, #8]
+    str     r0, [r9, #4]
+    str     r0, [r9, #12]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_DOUBLE_TO_INT: /* 0x8a */
-/* File: arm-vfp/OP_DOUBLE_TO_INT.S */
-/* File: arm-vfp/funopNarrower.S */
+/* File: arm-vfp_taint/OP_DOUBLE_TO_INT.S */
+/* File: arm-vfp_taint/funopNarrower.S */
     /*
      * Generic 64bit-to-32bit unary floating point operation.  Provide an
      * "instr" line that specifies an instruction that performs "s0 = op d0".
@@ -3787,22 +4190,30 @@ dalvik_inst:
     mov     r3, rINST, lsr #12          @ r3<- B
     mov     r9, rINST, lsr #8           @ r9<- A+
     VREG_INDEX_TO_ADDR(r3, r3)          @ r3<- &vB
-    fldd    d0, [r3]                    @ d0<- vB
+// begin WITH_TAINT_TRACKING
+//    fldd    d0, [r3]                    @ d0<- vB
+    flds    s0, [r3]
+    flds    s1, [r3, #8]
+    ldr     r0, [r3, #4]
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
     and     r9, r9, #15                 @ r9<- A
     ftosizd  s0, d0                              @ s0<- op
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     VREG_INDEX_TO_ADDR(r9, r9)          @ r9<- &vA
     fsts    s0, [r9]                    @ vA<- s0
+// begin WITH_TAINT_TRACKING
+    str     r0, [r9, #4]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_DOUBLE_TO_LONG: /* 0x8b */
-/* File: armv6t2/OP_DOUBLE_TO_LONG.S */
-@include "armv6t2/unopWide.S" {"instr":"bl      __aeabi_d2lz"}
-/* File: armv6t2/unopWide.S */
+/* File: armv6t2_taint/OP_DOUBLE_TO_LONG.S */
+@include "armv6t2_taint/unopWide.S" {"instr":"bl      __aeabi_d2lz"}
+/* File: armv6t2_taint/unopWide.S */
     /*
      * Generic 64-bit unary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = op r0/r1".
@@ -3813,24 +4224,27 @@ dalvik_inst:
     /* unop vA, vB */
     mov     r3, rINST, lsr #12          @ r3<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[B]
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[A]
-    ldmia   r3, {r0-r1}                 @ r0/r1<- vAA
+// begin WITH_TAINT_TRACKING
+    add     r3, rFP, r3, lsl #3         @ r3<- &fp[B]
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[A]
+//    ldmia   r3, {r0-r1}                 @ r0/r1<- vAA
+    ldr     r0, [r3, #0]
+    ldr     r1, [r3, #8]
+    ldr     r10, [r3, #4]
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
                                @ optional op; may set condition codes
     bl      d2l_doconv                              @ r0/r1<- op, r2-r3 changed
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r9, {r0-r1}                 @ vAA<- r0/r1
-    GOTO_OPCODE(ip)                     @ jump to next instruction
-    /* 10-11 instructions */
+    b       .LOP_DOUBLE_TO_LONG_finish
 
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_DOUBLE_TO_FLOAT: /* 0x8c */
-/* File: arm-vfp/OP_DOUBLE_TO_FLOAT.S */
-/* File: arm-vfp/funopNarrower.S */
+/* File: arm-vfp_taint/OP_DOUBLE_TO_FLOAT.S */
+/* File: arm-vfp_taint/funopNarrower.S */
     /*
      * Generic 64bit-to-32bit unary floating point operation.  Provide an
      * "instr" line that specifies an instruction that performs "s0 = op d0".
@@ -3841,21 +4255,29 @@ dalvik_inst:
     mov     r3, rINST, lsr #12          @ r3<- B
     mov     r9, rINST, lsr #8           @ r9<- A+
     VREG_INDEX_TO_ADDR(r3, r3)          @ r3<- &vB
-    fldd    d0, [r3]                    @ d0<- vB
+// begin WITH_TAINT_TRACKING
+//    fldd    d0, [r3]                    @ d0<- vB
+    flds    s0, [r3]
+    flds    s1, [r3, #8]
+    ldr     r0, [r3, #4]
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
     and     r9, r9, #15                 @ r9<- A
     fcvtsd  s0, d0                              @ s0<- op
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     VREG_INDEX_TO_ADDR(r9, r9)          @ r9<- &vA
     fsts    s0, [r9]                    @ vA<- s0
+// begin WITH_TAINT_TRACKING
+    str     r0, [r9, #4]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_INT_TO_BYTE: /* 0x8d */
-/* File: armv6t2/OP_INT_TO_BYTE.S */
-/* File: armv6t2/unop.S */
+/* File: armv6t2_taint/OP_INT_TO_BYTE.S */
+/* File: armv6t2_taint/unop.S */
     /*
      * Generic 32-bit unary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = op r0".
@@ -3868,6 +4290,11 @@ dalvik_inst:
     mov     r3, rINST, lsr #12          @ r3<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
     GET_VREG(r0, r3)                    @ r0<- vB
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r1)
+    GET_VREG_TAINT(r2, r3, r1)          @ r2<- vB.taint
+    SET_VREG_TAINT(r2, r9, r1)
+// end WITH_TAINT_TRACKING
                                @ optional op; may set condition codes
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
     sxtb    r0, r0                              @ r0<- op, r0-r3 changed
@@ -3880,8 +4307,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_INT_TO_CHAR: /* 0x8e */
-/* File: armv6t2/OP_INT_TO_CHAR.S */
-/* File: armv6t2/unop.S */
+/* File: armv6t2_taint/OP_INT_TO_CHAR.S */
+/* File: armv6t2_taint/unop.S */
     /*
      * Generic 32-bit unary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = op r0".
@@ -3894,6 +4321,11 @@ dalvik_inst:
     mov     r3, rINST, lsr #12          @ r3<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
     GET_VREG(r0, r3)                    @ r0<- vB
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r1)
+    GET_VREG_TAINT(r2, r3, r1)          @ r2<- vB.taint
+    SET_VREG_TAINT(r2, r9, r1)
+// end WITH_TAINT_TRACKING
                                @ optional op; may set condition codes
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
     uxth    r0, r0                              @ r0<- op, r0-r3 changed
@@ -3906,8 +4338,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_INT_TO_SHORT: /* 0x8f */
-/* File: armv6t2/OP_INT_TO_SHORT.S */
-/* File: armv6t2/unop.S */
+/* File: armv6t2_taint/OP_INT_TO_SHORT.S */
+/* File: armv6t2_taint/unop.S */
     /*
      * Generic 32-bit unary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = op r0".
@@ -3920,6 +4352,11 @@ dalvik_inst:
     mov     r3, rINST, lsr #12          @ r3<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
     GET_VREG(r0, r3)                    @ r0<- vB
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r1)
+    GET_VREG_TAINT(r2, r3, r1)          @ r2<- vB.taint
+    SET_VREG_TAINT(r2, r9, r1)
+// end WITH_TAINT_TRACKING
                                @ optional op; may set condition codes
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
     sxth    r0, r0                              @ r0<- op, r0-r3 changed
@@ -3932,8 +4369,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_ADD_INT: /* 0x90 */
-/* File: armv5te/OP_ADD_INT.S */
-/* File: armv5te/binop.S */
+/* File: armv5te_taint/OP_ADD_INT.S */
+/* File: armv5te_taint/binop.S */
     /*
      * Generic 32-bit binary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = r0 op r1".
@@ -3961,6 +4398,9 @@ dalvik_inst:
     beq     common_errDivideByZero
     .endif
 
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_ADD_INT_taint_prop
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
                                @ optional op; may set condition codes
     add     r0, r0, r1                              @ r0<- op, r0-r3 changed
@@ -3970,11 +4410,12 @@ dalvik_inst:
     /* 11-14 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_SUB_INT: /* 0x91 */
-/* File: armv5te/OP_SUB_INT.S */
-/* File: armv5te/binop.S */
+/* File: armv5te_taint/OP_SUB_INT.S */
+/* File: armv5te_taint/binop.S */
     /*
      * Generic 32-bit binary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = r0 op r1".
@@ -4002,6 +4443,9 @@ dalvik_inst:
     beq     common_errDivideByZero
     .endif
 
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_SUB_INT_taint_prop
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
                                @ optional op; may set condition codes
     sub     r0, r0, r1                              @ r0<- op, r0-r3 changed
@@ -4011,12 +4455,13 @@ dalvik_inst:
     /* 11-14 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_MUL_INT: /* 0x92 */
-/* File: armv5te/OP_MUL_INT.S */
+/* File: armv5te_taint/OP_MUL_INT.S */
 /* must be "mul r0, r1, r0" -- "r0, r0, r1" is illegal */
-/* File: armv5te/binop.S */
+/* File: armv5te_taint/binop.S */
     /*
      * Generic 32-bit binary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = r0 op r1".
@@ -4044,6 +4489,9 @@ dalvik_inst:
     beq     common_errDivideByZero
     .endif
 
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_MUL_INT_taint_prop
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
                                @ optional op; may set condition codes
     mul     r0, r1, r0                              @ r0<- op, r0-r3 changed
@@ -4053,11 +4501,12 @@ dalvik_inst:
     /* 11-14 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_DIV_INT: /* 0x93 */
-/* File: armv5te/OP_DIV_INT.S */
-/* File: armv5te/binop.S */
+/* File: armv5te_taint/OP_DIV_INT.S */
+/* File: armv5te_taint/binop.S */
     /*
      * Generic 32-bit binary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = r0 op r1".
@@ -4085,6 +4534,9 @@ dalvik_inst:
     beq     common_errDivideByZero
     .endif
 
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_DIV_INT_taint_prop
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
                                @ optional op; may set condition codes
     bl     __aeabi_idiv                              @ r0<- op, r0-r3 changed
@@ -4094,12 +4546,13 @@ dalvik_inst:
     /* 11-14 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_REM_INT: /* 0x94 */
-/* File: armv5te/OP_REM_INT.S */
+/* File: armv5te_taint/OP_REM_INT.S */
 /* idivmod returns quotient in r0 and remainder in r1 */
-/* File: armv5te/binop.S */
+/* File: armv5te_taint/binop.S */
     /*
      * Generic 32-bit binary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = r0 op r1".
@@ -4127,6 +4580,9 @@ dalvik_inst:
     beq     common_errDivideByZero
     .endif
 
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_REM_INT_taint_prop
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
                                @ optional op; may set condition codes
     bl      __aeabi_idivmod                              @ r1<- op, r0-r3 changed
@@ -4136,11 +4592,12 @@ dalvik_inst:
     /* 11-14 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_AND_INT: /* 0x95 */
-/* File: armv5te/OP_AND_INT.S */
-/* File: armv5te/binop.S */
+/* File: armv5te_taint/OP_AND_INT.S */
+/* File: armv5te_taint/binop.S */
     /*
      * Generic 32-bit binary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = r0 op r1".
@@ -4168,6 +4625,9 @@ dalvik_inst:
     beq     common_errDivideByZero
     .endif
 
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_AND_INT_taint_prop
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
                                @ optional op; may set condition codes
     and     r0, r0, r1                              @ r0<- op, r0-r3 changed
@@ -4177,11 +4637,12 @@ dalvik_inst:
     /* 11-14 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_OR_INT: /* 0x96 */
-/* File: armv5te/OP_OR_INT.S */
-/* File: armv5te/binop.S */
+/* File: armv5te_taint/OP_OR_INT.S */
+/* File: armv5te_taint/binop.S */
     /*
      * Generic 32-bit binary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = r0 op r1".
@@ -4209,6 +4670,9 @@ dalvik_inst:
     beq     common_errDivideByZero
     .endif
 
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_OR_INT_taint_prop
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
                                @ optional op; may set condition codes
     orr     r0, r0, r1                              @ r0<- op, r0-r3 changed
@@ -4218,11 +4682,12 @@ dalvik_inst:
     /* 11-14 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_XOR_INT: /* 0x97 */
-/* File: armv5te/OP_XOR_INT.S */
-/* File: armv5te/binop.S */
+/* File: armv5te_taint/OP_XOR_INT.S */
+/* File: armv5te_taint/binop.S */
     /*
      * Generic 32-bit binary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = r0 op r1".
@@ -4250,6 +4715,9 @@ dalvik_inst:
     beq     common_errDivideByZero
     .endif
 
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_XOR_INT_taint_prop
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
                                @ optional op; may set condition codes
     eor     r0, r0, r1                              @ r0<- op, r0-r3 changed
@@ -4259,11 +4727,12 @@ dalvik_inst:
     /* 11-14 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_SHL_INT: /* 0x98 */
-/* File: armv5te/OP_SHL_INT.S */
-/* File: armv5te/binop.S */
+/* File: armv5te_taint/OP_SHL_INT.S */
+/* File: armv5te_taint/binop.S */
     /*
      * Generic 32-bit binary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = r0 op r1".
@@ -4291,6 +4760,9 @@ dalvik_inst:
     beq     common_errDivideByZero
     .endif
 
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_SHL_INT_taint_prop
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     and     r1, r1, #31                           @ optional op; may set condition codes
     mov     r0, r0, asl r1                              @ r0<- op, r0-r3 changed
@@ -4300,11 +4772,12 @@ dalvik_inst:
     /* 11-14 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_SHR_INT: /* 0x99 */
-/* File: armv5te/OP_SHR_INT.S */
-/* File: armv5te/binop.S */
+/* File: armv5te_taint/OP_SHR_INT.S */
+/* File: armv5te_taint/binop.S */
     /*
      * Generic 32-bit binary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = r0 op r1".
@@ -4332,6 +4805,9 @@ dalvik_inst:
     beq     common_errDivideByZero
     .endif
 
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_SHR_INT_taint_prop
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     and     r1, r1, #31                           @ optional op; may set condition codes
     mov     r0, r0, asr r1                              @ r0<- op, r0-r3 changed
@@ -4341,11 +4817,12 @@ dalvik_inst:
     /* 11-14 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_USHR_INT: /* 0x9a */
-/* File: armv5te/OP_USHR_INT.S */
-/* File: armv5te/binop.S */
+/* File: armv5te_taint/OP_USHR_INT.S */
+/* File: armv5te_taint/binop.S */
     /*
      * Generic 32-bit binary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = r0 op r1".
@@ -4373,6 +4850,9 @@ dalvik_inst:
     beq     common_errDivideByZero
     .endif
 
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_USHR_INT_taint_prop
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     and     r1, r1, #31                           @ optional op; may set condition codes
     mov     r0, r0, lsr r1                              @ r0<- op, r0-r3 changed
@@ -4382,11 +4862,12 @@ dalvik_inst:
     /* 11-14 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_ADD_LONG: /* 0x9b */
-/* File: armv5te/OP_ADD_LONG.S */
-/* File: armv5te/binopWide.S */
+/* File: armv5te_taint/OP_ADD_LONG.S */
+/* File: armv5te_taint/binopWide.S */
     /*
      * Generic 64-bit binary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = r0-r1 op r2-r3".
@@ -4407,11 +4888,9 @@ dalvik_inst:
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r2, r0, #255                @ r2<- BB
     mov     r3, r0, lsr #8              @ r3<- CC
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[AA]
-    add     r2, rFP, r2, lsl #2         @ r2<- &fp[BB]
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[CC]
-    ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
-    ldmia   r3, {r2-r3}                 @ r2/r3<- vCC/vCC+1
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_ADD_LONG_taint_prop
+// end WITH_TAINT_TRACKING
     .if 0
     orrs    ip, r2, r3                  @ second arg (r2-r3) is zero?
     beq     common_errDivideByZero
@@ -4421,16 +4900,23 @@ dalvik_inst:
     adds    r0, r0, r2                           @ optional op; may set condition codes
     adc     r1, r1, r3                              @ result<- op, r0-r3 changed
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r9, {r0,r1}     @ vAA/vAA+1<- r0/r1
+// begin WITH_TAINT_TRACKING
+//    stmia   r9, {r0,r1}     @ vAA/vAA+1<- r0/r1
+    str     r0, [r9, #0]
+    str     r10, [r9, #4]
+    str     r1, [r9, #8]
+    str     r10, [r9, #12]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
     /* 14-17 instructions */
+
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_SUB_LONG: /* 0x9c */
-/* File: armv5te/OP_SUB_LONG.S */
-/* File: armv5te/binopWide.S */
+/* File: armv5te_taint/OP_SUB_LONG.S */
+/* File: armv5te_taint/binopWide.S */
     /*
      * Generic 64-bit binary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = r0-r1 op r2-r3".
@@ -4451,11 +4937,9 @@ dalvik_inst:
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r2, r0, #255                @ r2<- BB
     mov     r3, r0, lsr #8              @ r3<- CC
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[AA]
-    add     r2, rFP, r2, lsl #2         @ r2<- &fp[BB]
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[CC]
-    ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
-    ldmia   r3, {r2-r3}                 @ r2/r3<- vCC/vCC+1
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_SUB_LONG_taint_prop
+// end WITH_TAINT_TRACKING
     .if 0
     orrs    ip, r2, r3                  @ second arg (r2-r3) is zero?
     beq     common_errDivideByZero
@@ -4465,15 +4949,22 @@ dalvik_inst:
     subs    r0, r0, r2                           @ optional op; may set condition codes
     sbc     r1, r1, r3                              @ result<- op, r0-r3 changed
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r9, {r0,r1}     @ vAA/vAA+1<- r0/r1
+// begin WITH_TAINT_TRACKING
+//    stmia   r9, {r0,r1}     @ vAA/vAA+1<- r0/r1
+    str     r0, [r9, #0]
+    str     r10, [r9, #4]
+    str     r1, [r9, #8]
+    str     r10, [r9, #12]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
     /* 14-17 instructions */
+
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_MUL_LONG: /* 0x9d */
-/* File: armv5te/OP_MUL_LONG.S */
+/* File: armv5te_taint/OP_MUL_LONG.S */
     /*
      * Signed 64-bit integer multiply.
      *
@@ -4496,24 +4987,25 @@ dalvik_inst:
     FETCH(r0, 1)                        @ r0<- CCBB
     and     r2, r0, #255                @ r2<- BB
     mov     r3, r0, lsr #8              @ r3<- CC
-    add     r2, rFP, r2, lsl #2         @ r2<- &fp[BB]
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[CC]
-    ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
-    ldmia   r3, {r2-r3}                 @ r2/r3<- vCC/vCC+1
+// begin WITH_TAINT_TRACKING
+    bl		mul_long_taint_prop
+// end WITH_TAINT_TRACKING
     mul     ip, r2, r1                  @  ip<- ZxW
     umull   r9, r10, r2, r0             @  r9/r10 <- ZxX
     mla     r2, r0, r3, ip              @  r2<- YxX + (ZxW)
     mov     r0, rINST, lsr #8           @ r0<- AA
     add     r10, r2, r10                @  r10<- r10 + low(ZxW + (YxX))
-    add     r0, rFP, r0, lsl #2         @ r0<- &fp[AA]
+// begin WITH_TAINT_TRACKING
+    add     r0, rFP, r0, lsl #3         @ r0<- &fp[AA]
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     b       .LOP_MUL_LONG_finish
 
 /* ------------------------------ */
     .balign 64
 .L_OP_DIV_LONG: /* 0x9e */
-/* File: armv5te/OP_DIV_LONG.S */
-/* File: armv5te/binopWide.S */
+/* File: armv5te_taint/OP_DIV_LONG.S */
+/* File: armv5te_taint/binopWide.S */
     /*
      * Generic 64-bit binary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = r0-r1 op r2-r3".
@@ -4534,11 +5026,9 @@ dalvik_inst:
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r2, r0, #255                @ r2<- BB
     mov     r3, r0, lsr #8              @ r3<- CC
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[AA]
-    add     r2, rFP, r2, lsl #2         @ r2<- &fp[BB]
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[CC]
-    ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
-    ldmia   r3, {r2-r3}                 @ r2/r3<- vCC/vCC+1
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_DIV_LONG_taint_prop
+// end WITH_TAINT_TRACKING
     .if 1
     orrs    ip, r2, r3                  @ second arg (r2-r3) is zero?
     beq     common_errDivideByZero
@@ -4548,17 +5038,24 @@ dalvik_inst:
                                @ optional op; may set condition codes
     bl      __aeabi_ldivmod                              @ result<- op, r0-r3 changed
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r9, {r0,r1}     @ vAA/vAA+1<- r0/r1
+// begin WITH_TAINT_TRACKING
+//    stmia   r9, {r0,r1}     @ vAA/vAA+1<- r0/r1
+    str     r0, [r9, #0]
+    str     r10, [r9, #4]
+    str     r1, [r9, #8]
+    str     r10, [r9, #12]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
     /* 14-17 instructions */
+
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_REM_LONG: /* 0x9f */
-/* File: armv5te/OP_REM_LONG.S */
+/* File: armv5te_taint/OP_REM_LONG.S */
 /* ldivmod returns quotient in r0/r1 and remainder in r2/r3 */
-/* File: armv5te/binopWide.S */
+/* File: armv5te_taint/binopWide.S */
     /*
      * Generic 64-bit binary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = r0-r1 op r2-r3".
@@ -4579,11 +5076,9 @@ dalvik_inst:
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r2, r0, #255                @ r2<- BB
     mov     r3, r0, lsr #8              @ r3<- CC
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[AA]
-    add     r2, rFP, r2, lsl #2         @ r2<- &fp[BB]
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[CC]
-    ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
-    ldmia   r3, {r2-r3}                 @ r2/r3<- vCC/vCC+1
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_REM_LONG_taint_prop
+// end WITH_TAINT_TRACKING
     .if 1
     orrs    ip, r2, r3                  @ second arg (r2-r3) is zero?
     beq     common_errDivideByZero
@@ -4593,16 +5088,23 @@ dalvik_inst:
                                @ optional op; may set condition codes
     bl      __aeabi_ldivmod                              @ result<- op, r0-r3 changed
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r9, {r2,r3}     @ vAA/vAA+1<- r2/r3
+// begin WITH_TAINT_TRACKING
+//    stmia   r9, {r2,r3}     @ vAA/vAA+1<- r2/r3
+    str     r2, [r9, #0]
+    str     r10, [r9, #4]
+    str     r3, [r9, #8]
+    str     r10, [r9, #12]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
     /* 14-17 instructions */
+
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_AND_LONG: /* 0xa0 */
-/* File: armv5te/OP_AND_LONG.S */
-/* File: armv5te/binopWide.S */
+/* File: armv5te_taint/OP_AND_LONG.S */
+/* File: armv5te_taint/binopWide.S */
     /*
      * Generic 64-bit binary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = r0-r1 op r2-r3".
@@ -4623,11 +5125,9 @@ dalvik_inst:
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r2, r0, #255                @ r2<- BB
     mov     r3, r0, lsr #8              @ r3<- CC
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[AA]
-    add     r2, rFP, r2, lsl #2         @ r2<- &fp[BB]
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[CC]
-    ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
-    ldmia   r3, {r2-r3}                 @ r2/r3<- vCC/vCC+1
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_AND_LONG_taint_prop
+// end WITH_TAINT_TRACKING
     .if 0
     orrs    ip, r2, r3                  @ second arg (r2-r3) is zero?
     beq     common_errDivideByZero
@@ -4637,16 +5137,23 @@ dalvik_inst:
     and     r0, r0, r2                           @ optional op; may set condition codes
     and     r1, r1, r3                              @ result<- op, r0-r3 changed
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r9, {r0,r1}     @ vAA/vAA+1<- r0/r1
+// begin WITH_TAINT_TRACKING
+//    stmia   r9, {r0,r1}     @ vAA/vAA+1<- r0/r1
+    str     r0, [r9, #0]
+    str     r10, [r9, #4]
+    str     r1, [r9, #8]
+    str     r10, [r9, #12]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
     /* 14-17 instructions */
+
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_OR_LONG: /* 0xa1 */
-/* File: armv5te/OP_OR_LONG.S */
-/* File: armv5te/binopWide.S */
+/* File: armv5te_taint/OP_OR_LONG.S */
+/* File: armv5te_taint/binopWide.S */
     /*
      * Generic 64-bit binary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = r0-r1 op r2-r3".
@@ -4667,11 +5174,9 @@ dalvik_inst:
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r2, r0, #255                @ r2<- BB
     mov     r3, r0, lsr #8              @ r3<- CC
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[AA]
-    add     r2, rFP, r2, lsl #2         @ r2<- &fp[BB]
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[CC]
-    ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
-    ldmia   r3, {r2-r3}                 @ r2/r3<- vCC/vCC+1
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_OR_LONG_taint_prop
+// end WITH_TAINT_TRACKING
     .if 0
     orrs    ip, r2, r3                  @ second arg (r2-r3) is zero?
     beq     common_errDivideByZero
@@ -4681,16 +5186,23 @@ dalvik_inst:
     orr     r0, r0, r2                           @ optional op; may set condition codes
     orr     r1, r1, r3                              @ result<- op, r0-r3 changed
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r9, {r0,r1}     @ vAA/vAA+1<- r0/r1
+// begin WITH_TAINT_TRACKING
+//    stmia   r9, {r0,r1}     @ vAA/vAA+1<- r0/r1
+    str     r0, [r9, #0]
+    str     r10, [r9, #4]
+    str     r1, [r9, #8]
+    str     r10, [r9, #12]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
     /* 14-17 instructions */
+
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_XOR_LONG: /* 0xa2 */
-/* File: armv5te/OP_XOR_LONG.S */
-/* File: armv5te/binopWide.S */
+/* File: armv5te_taint/OP_XOR_LONG.S */
+/* File: armv5te_taint/binopWide.S */
     /*
      * Generic 64-bit binary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = r0-r1 op r2-r3".
@@ -4711,11 +5223,9 @@ dalvik_inst:
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r2, r0, #255                @ r2<- BB
     mov     r3, r0, lsr #8              @ r3<- CC
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[AA]
-    add     r2, rFP, r2, lsl #2         @ r2<- &fp[BB]
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[CC]
-    ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
-    ldmia   r3, {r2-r3}                 @ r2/r3<- vCC/vCC+1
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_XOR_LONG_taint_prop
+// end WITH_TAINT_TRACKING
     .if 0
     orrs    ip, r2, r3                  @ second arg (r2-r3) is zero?
     beq     common_errDivideByZero
@@ -4725,15 +5235,22 @@ dalvik_inst:
     eor     r0, r0, r2                           @ optional op; may set condition codes
     eor     r1, r1, r3                              @ result<- op, r0-r3 changed
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r9, {r0,r1}     @ vAA/vAA+1<- r0/r1
+// begin WITH_TAINT_TRACKING
+//    stmia   r9, {r0,r1}     @ vAA/vAA+1<- r0/r1
+    str     r0, [r9, #0]
+    str     r10, [r9, #4]
+    str     r1, [r9, #8]
+    str     r10, [r9, #12]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
     /* 14-17 instructions */
+
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_SHL_LONG: /* 0xa3 */
-/* File: armv5te/OP_SHL_LONG.S */
+/* File: armv5te_taint/OP_SHL_LONG.S */
     /*
      * Long integer shift.  This is different from the generic 32/64-bit
      * binary operations because vAA/vBB are 64-bit but vCC (the shift
@@ -4745,11 +5262,9 @@ dalvik_inst:
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r3, r0, #255                @ r3<- BB
     mov     r0, r0, lsr #8              @ r0<- CC
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[BB]
-    GET_VREG(r2, r0)                    @ r2<- vCC
-    ldmia   r3, {r0-r1}                 @ r0/r1<- vBB/vBB+1
-    and     r2, r2, #63                 @ r2<- r2 & 0x3f
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[AA]
+// begin WITH_TAINT_TRACKING
+    bl      shl_long_taint_prop
+// end WITH_TAINT_TRACKING
 
     mov     r1, r1, asl r2              @  r1<- r1 << r2
     rsb     r3, r2, #32                 @  r3<- 32 - r2
@@ -4762,7 +5277,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_SHR_LONG: /* 0xa4 */
-/* File: armv5te/OP_SHR_LONG.S */
+/* File: armv5te_taint/OP_SHR_LONG.S */
     /*
      * Long integer shift.  This is different from the generic 32/64-bit
      * binary operations because vAA/vBB are 64-bit but vCC (the shift
@@ -4774,11 +5289,9 @@ dalvik_inst:
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r3, r0, #255                @ r3<- BB
     mov     r0, r0, lsr #8              @ r0<- CC
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[BB]
-    GET_VREG(r2, r0)                    @ r2<- vCC
-    ldmia   r3, {r0-r1}                 @ r0/r1<- vBB/vBB+1
-    and     r2, r2, #63                 @ r0<- r0 & 0x3f
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[AA]
+// begin WITH_TAINT_TRACKING
+    bl      shr_long_taint_prop
+// end WITH_TAINT_TRACKING
 
     mov     r0, r0, lsr r2              @  r0<- r2 >> r2
     rsb     r3, r2, #32                 @  r3<- 32 - r2
@@ -4791,7 +5304,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_USHR_LONG: /* 0xa5 */
-/* File: armv5te/OP_USHR_LONG.S */
+/* File: armv5te_taint/OP_USHR_LONG.S */
     /*
      * Long integer shift.  This is different from the generic 32/64-bit
      * binary operations because vAA/vBB are 64-bit but vCC (the shift
@@ -4803,11 +5316,9 @@ dalvik_inst:
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r3, r0, #255                @ r3<- BB
     mov     r0, r0, lsr #8              @ r0<- CC
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[BB]
-    GET_VREG(r2, r0)                    @ r2<- vCC
-    ldmia   r3, {r0-r1}                 @ r0/r1<- vBB/vBB+1
-    and     r2, r2, #63                 @ r0<- r0 & 0x3f
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[AA]
+// begin WITH_TAINT_TRACKING
+    bl      ushr_long_taint_prop
+// end WITH_TAINT_TRACKING
 
     mov     r0, r0, lsr r2              @  r0<- r2 >> r2
     rsb     r3, r2, #32                 @  r3<- 32 - r2
@@ -4820,8 +5331,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_ADD_FLOAT: /* 0xa6 */
-/* File: arm-vfp/OP_ADD_FLOAT.S */
-/* File: arm-vfp/fbinop.S */
+/* File: arm-vfp_taint/OP_ADD_FLOAT.S */
+/* File: arm-vfp_taint/fbinop.S */
     /*
      * Generic 32-bit floating-point operation.  Provide an "instr" line that
      * specifies an instruction that performs "s2 = s0 op s1".  Because we
@@ -4838,20 +5349,19 @@ dalvik_inst:
     VREG_INDEX_TO_ADDR(r2, r2)          @ r2<- &vBB
     flds    s1, [r3]                    @ s1<- vCC
     flds    s0, [r2]                    @ s0<- vBB
-
-    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
-    fadds   s2, s0, s1                              @ s2<- op
-    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    VREG_INDEX_TO_ADDR(r9, r9)          @ r9<- &vAA
-    fsts    s2, [r9]                    @ vAA<- s2
-    GOTO_OPCODE(ip)                     @ jump to next instruction
+// begin WITH_TAINT_TRACKING
+    ldr     r0, [r3, #4]
+    ldr     r1, [r2, #4]
+    orr     r0, r0, r1
+// end WITH_TAINT_TRACKING
+    b     .LOP_ADD_FLOAT_finish
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_SUB_FLOAT: /* 0xa7 */
-/* File: arm-vfp/OP_SUB_FLOAT.S */
-/* File: arm-vfp/fbinop.S */
+/* File: arm-vfp_taint/OP_SUB_FLOAT.S */
+/* File: arm-vfp_taint/fbinop.S */
     /*
      * Generic 32-bit floating-point operation.  Provide an "instr" line that
      * specifies an instruction that performs "s2 = s0 op s1".  Because we
@@ -4868,20 +5378,19 @@ dalvik_inst:
     VREG_INDEX_TO_ADDR(r2, r2)          @ r2<- &vBB
     flds    s1, [r3]                    @ s1<- vCC
     flds    s0, [r2]                    @ s0<- vBB
-
-    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
-    fsubs   s2, s0, s1                              @ s2<- op
-    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    VREG_INDEX_TO_ADDR(r9, r9)          @ r9<- &vAA
-    fsts    s2, [r9]                    @ vAA<- s2
-    GOTO_OPCODE(ip)                     @ jump to next instruction
+// begin WITH_TAINT_TRACKING
+    ldr     r0, [r3, #4]
+    ldr     r1, [r2, #4]
+    orr     r0, r0, r1
+// end WITH_TAINT_TRACKING
+    b     .LOP_SUB_FLOAT_finish
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_MUL_FLOAT: /* 0xa8 */
-/* File: arm-vfp/OP_MUL_FLOAT.S */
-/* File: arm-vfp/fbinop.S */
+/* File: arm-vfp_taint/OP_MUL_FLOAT.S */
+/* File: arm-vfp_taint/fbinop.S */
     /*
      * Generic 32-bit floating-point operation.  Provide an "instr" line that
      * specifies an instruction that performs "s2 = s0 op s1".  Because we
@@ -4898,20 +5407,19 @@ dalvik_inst:
     VREG_INDEX_TO_ADDR(r2, r2)          @ r2<- &vBB
     flds    s1, [r3]                    @ s1<- vCC
     flds    s0, [r2]                    @ s0<- vBB
-
-    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
-    fmuls   s2, s0, s1                              @ s2<- op
-    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    VREG_INDEX_TO_ADDR(r9, r9)          @ r9<- &vAA
-    fsts    s2, [r9]                    @ vAA<- s2
-    GOTO_OPCODE(ip)                     @ jump to next instruction
+// begin WITH_TAINT_TRACKING
+    ldr     r0, [r3, #4]
+    ldr     r1, [r2, #4]
+    orr     r0, r0, r1
+// end WITH_TAINT_TRACKING
+    b     .LOP_MUL_FLOAT_finish
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_DIV_FLOAT: /* 0xa9 */
-/* File: arm-vfp/OP_DIV_FLOAT.S */
-/* File: arm-vfp/fbinop.S */
+/* File: arm-vfp_taint/OP_DIV_FLOAT.S */
+/* File: arm-vfp_taint/fbinop.S */
     /*
      * Generic 32-bit floating-point operation.  Provide an "instr" line that
      * specifies an instruction that performs "s2 = s0 op s1".  Because we
@@ -4928,21 +5436,20 @@ dalvik_inst:
     VREG_INDEX_TO_ADDR(r2, r2)          @ r2<- &vBB
     flds    s1, [r3]                    @ s1<- vCC
     flds    s0, [r2]                    @ s0<- vBB
-
-    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
-    fdivs   s2, s0, s1                              @ s2<- op
-    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    VREG_INDEX_TO_ADDR(r9, r9)          @ r9<- &vAA
-    fsts    s2, [r9]                    @ vAA<- s2
-    GOTO_OPCODE(ip)                     @ jump to next instruction
+// begin WITH_TAINT_TRACKING
+    ldr     r0, [r3, #4]
+    ldr     r1, [r2, #4]
+    orr     r0, r0, r1
+// end WITH_TAINT_TRACKING
+    b     .LOP_DIV_FLOAT_finish
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_REM_FLOAT: /* 0xaa */
-/* File: armv5te/OP_REM_FLOAT.S */
+/* File: armv5te_taint/OP_REM_FLOAT.S */
 /* EABI doesn't define a float remainder function, but libm does */
-/* File: armv5te/binop.S */
+/* File: armv5te_taint/binop.S */
     /*
      * Generic 32-bit binary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = r0 op r1".
@@ -4970,6 +5477,9 @@ dalvik_inst:
     beq     common_errDivideByZero
     .endif
 
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_REM_FLOAT_taint_prop
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
                                @ optional op; may set condition codes
     bl      fmodf                              @ r0<- op, r0-r3 changed
@@ -4979,11 +5489,12 @@ dalvik_inst:
     /* 11-14 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_ADD_DOUBLE: /* 0xab */
-/* File: arm-vfp/OP_ADD_DOUBLE.S */
-/* File: arm-vfp/fbinopWide.S */
+/* File: arm-vfp_taint/OP_ADD_DOUBLE.S */
+/* File: arm-vfp_taint/fbinopWide.S */
     /*
      * Generic 64-bit double-precision floating point binary operation.
      * Provide an "instr" line that specifies an instruction that performs
@@ -4998,22 +5509,25 @@ dalvik_inst:
     and     r2, r0, #255                @ r2<- BB
     VREG_INDEX_TO_ADDR(r3, r3)          @ r3<- &vCC
     VREG_INDEX_TO_ADDR(r2, r2)          @ r2<- &vBB
-    fldd    d1, [r3]                    @ d1<- vCC
-    fldd    d0, [r2]                    @ d0<- vBB
-
-    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
-    faddd   d2, d0, d1                              @ s2<- op
-    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    VREG_INDEX_TO_ADDR(r9, r9)          @ r9<- &vAA
-    fstd    d2, [r9]                    @ vAA<- d2
-    GOTO_OPCODE(ip)                     @ jump to next instruction
+// begin WITH_TAINT_TRACKING
+//    fldd    d1, [r3]                    @ d1<- vCC
+//    fldd    d0, [r2]                    @ d0<- vBB
+    flds    s2, [r3]
+    flds    s3, [r3, #8]
+    flds    s0, [r2]
+    flds    s1, [r2, #8]
+    ldr     r0, [r3, #4]
+    ldr     r1, [r2, #4]
+    orr     r0, r0, r1
+// end WITH_TAINT_TRACKING
+    b     .LOP_ADD_DOUBLE_finish
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_SUB_DOUBLE: /* 0xac */
-/* File: arm-vfp/OP_SUB_DOUBLE.S */
-/* File: arm-vfp/fbinopWide.S */
+/* File: arm-vfp_taint/OP_SUB_DOUBLE.S */
+/* File: arm-vfp_taint/fbinopWide.S */
     /*
      * Generic 64-bit double-precision floating point binary operation.
      * Provide an "instr" line that specifies an instruction that performs
@@ -5028,22 +5542,25 @@ dalvik_inst:
     and     r2, r0, #255                @ r2<- BB
     VREG_INDEX_TO_ADDR(r3, r3)          @ r3<- &vCC
     VREG_INDEX_TO_ADDR(r2, r2)          @ r2<- &vBB
-    fldd    d1, [r3]                    @ d1<- vCC
-    fldd    d0, [r2]                    @ d0<- vBB
-
-    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
-    fsubd   d2, d0, d1                              @ s2<- op
-    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    VREG_INDEX_TO_ADDR(r9, r9)          @ r9<- &vAA
-    fstd    d2, [r9]                    @ vAA<- d2
-    GOTO_OPCODE(ip)                     @ jump to next instruction
+// begin WITH_TAINT_TRACKING
+//    fldd    d1, [r3]                    @ d1<- vCC
+//    fldd    d0, [r2]                    @ d0<- vBB
+    flds    s2, [r3]
+    flds    s3, [r3, #8]
+    flds    s0, [r2]
+    flds    s1, [r2, #8]
+    ldr     r0, [r3, #4]
+    ldr     r1, [r2, #4]
+    orr     r0, r0, r1
+// end WITH_TAINT_TRACKING
+    b     .LOP_SUB_DOUBLE_finish
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_MUL_DOUBLE: /* 0xad */
-/* File: arm-vfp/OP_MUL_DOUBLE.S */
-/* File: arm-vfp/fbinopWide.S */
+/* File: arm-vfp_taint/OP_MUL_DOUBLE.S */
+/* File: arm-vfp_taint/fbinopWide.S */
     /*
      * Generic 64-bit double-precision floating point binary operation.
      * Provide an "instr" line that specifies an instruction that performs
@@ -5058,22 +5575,25 @@ dalvik_inst:
     and     r2, r0, #255                @ r2<- BB
     VREG_INDEX_TO_ADDR(r3, r3)          @ r3<- &vCC
     VREG_INDEX_TO_ADDR(r2, r2)          @ r2<- &vBB
-    fldd    d1, [r3]                    @ d1<- vCC
-    fldd    d0, [r2]                    @ d0<- vBB
-
-    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
-    fmuld   d2, d0, d1                              @ s2<- op
-    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    VREG_INDEX_TO_ADDR(r9, r9)          @ r9<- &vAA
-    fstd    d2, [r9]                    @ vAA<- d2
-    GOTO_OPCODE(ip)                     @ jump to next instruction
+// begin WITH_TAINT_TRACKING
+//    fldd    d1, [r3]                    @ d1<- vCC
+//    fldd    d0, [r2]                    @ d0<- vBB
+    flds    s2, [r3]
+    flds    s3, [r3, #8]
+    flds    s0, [r2]
+    flds    s1, [r2, #8]
+    ldr     r0, [r3, #4]
+    ldr     r1, [r2, #4]
+    orr     r0, r0, r1
+// end WITH_TAINT_TRACKING
+    b     .LOP_MUL_DOUBLE_finish
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_DIV_DOUBLE: /* 0xae */
-/* File: arm-vfp/OP_DIV_DOUBLE.S */
-/* File: arm-vfp/fbinopWide.S */
+/* File: arm-vfp_taint/OP_DIV_DOUBLE.S */
+/* File: arm-vfp_taint/fbinopWide.S */
     /*
      * Generic 64-bit double-precision floating point binary operation.
      * Provide an "instr" line that specifies an instruction that performs
@@ -5088,23 +5608,26 @@ dalvik_inst:
     and     r2, r0, #255                @ r2<- BB
     VREG_INDEX_TO_ADDR(r3, r3)          @ r3<- &vCC
     VREG_INDEX_TO_ADDR(r2, r2)          @ r2<- &vBB
-    fldd    d1, [r3]                    @ d1<- vCC
-    fldd    d0, [r2]                    @ d0<- vBB
-
-    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
-    fdivd   d2, d0, d1                              @ s2<- op
-    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    VREG_INDEX_TO_ADDR(r9, r9)          @ r9<- &vAA
-    fstd    d2, [r9]                    @ vAA<- d2
-    GOTO_OPCODE(ip)                     @ jump to next instruction
+// begin WITH_TAINT_TRACKING
+//    fldd    d1, [r3]                    @ d1<- vCC
+//    fldd    d0, [r2]                    @ d0<- vBB
+    flds    s2, [r3]
+    flds    s3, [r3, #8]
+    flds    s0, [r2]
+    flds    s1, [r2, #8]
+    ldr     r0, [r3, #4]
+    ldr     r1, [r2, #4]
+    orr     r0, r0, r1
+// end WITH_TAINT_TRACKING
+    b     .LOP_DIV_DOUBLE_finish
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_REM_DOUBLE: /* 0xaf */
-/* File: armv5te/OP_REM_DOUBLE.S */
+/* File: armv5te_taint/OP_REM_DOUBLE.S */
 /* EABI doesn't define a double remainder function, but libm does */
-/* File: armv5te/binopWide.S */
+/* File: armv5te_taint/binopWide.S */
     /*
      * Generic 64-bit binary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = r0-r1 op r2-r3".
@@ -5125,11 +5648,9 @@ dalvik_inst:
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r2, r0, #255                @ r2<- BB
     mov     r3, r0, lsr #8              @ r3<- CC
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[AA]
-    add     r2, rFP, r2, lsl #2         @ r2<- &fp[BB]
-    add     r3, rFP, r3, lsl #2         @ r3<- &fp[CC]
-    ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
-    ldmia   r3, {r2-r3}                 @ r2/r3<- vCC/vCC+1
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_REM_DOUBLE_taint_prop
+// end WITH_TAINT_TRACKING
     .if 0
     orrs    ip, r2, r3                  @ second arg (r2-r3) is zero?
     beq     common_errDivideByZero
@@ -5139,16 +5660,23 @@ dalvik_inst:
                                @ optional op; may set condition codes
     bl      fmod                              @ result<- op, r0-r3 changed
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r9, {r0,r1}     @ vAA/vAA+1<- r0/r1
+// begin WITH_TAINT_TRACKING
+//    stmia   r9, {r0,r1}     @ vAA/vAA+1<- r0/r1
+    str     r0, [r9, #0]
+    str     r10, [r9, #4]
+    str     r1, [r9, #8]
+    str     r10, [r9, #12]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
     /* 14-17 instructions */
+
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_ADD_INT_2ADDR: /* 0xb0 */
-/* File: armv6t2/OP_ADD_INT_2ADDR.S */
-/* File: armv6t2/binop2addr.S */
+/* File: armv6t2_taint/OP_ADD_INT_2ADDR.S */
+/* File: armv6t2_taint/binop2addr.S */
     /*
      * Generic 32-bit "/2addr" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0 op r1".
@@ -5172,6 +5700,10 @@ dalvik_inst:
     cmp     r1, #0                      @ is second operand zero?
     beq     common_errDivideByZero
     .endif
+
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_ADD_INT_2ADDR_taint_prop
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
 
                                @ optional op; may set condition codes
@@ -5182,11 +5714,12 @@ dalvik_inst:
     /* 10-13 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_SUB_INT_2ADDR: /* 0xb1 */
-/* File: armv6t2/OP_SUB_INT_2ADDR.S */
-/* File: armv6t2/binop2addr.S */
+/* File: armv6t2_taint/OP_SUB_INT_2ADDR.S */
+/* File: armv6t2_taint/binop2addr.S */
     /*
      * Generic 32-bit "/2addr" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0 op r1".
@@ -5210,6 +5743,10 @@ dalvik_inst:
     cmp     r1, #0                      @ is second operand zero?
     beq     common_errDivideByZero
     .endif
+
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_SUB_INT_2ADDR_taint_prop
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
 
                                @ optional op; may set condition codes
@@ -5220,12 +5757,13 @@ dalvik_inst:
     /* 10-13 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_MUL_INT_2ADDR: /* 0xb2 */
-/* File: armv6t2/OP_MUL_INT_2ADDR.S */
+/* File: armv6t2_taint/OP_MUL_INT_2ADDR.S */
 /* must be "mul r0, r1, r0" -- "r0, r0, r1" is illegal */
-/* File: armv6t2/binop2addr.S */
+/* File: armv6t2_taint/binop2addr.S */
     /*
      * Generic 32-bit "/2addr" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0 op r1".
@@ -5249,6 +5787,10 @@ dalvik_inst:
     cmp     r1, #0                      @ is second operand zero?
     beq     common_errDivideByZero
     .endif
+
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_MUL_INT_2ADDR_taint_prop
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
 
                                @ optional op; may set condition codes
@@ -5259,11 +5801,12 @@ dalvik_inst:
     /* 10-13 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_DIV_INT_2ADDR: /* 0xb3 */
-/* File: armv6t2/OP_DIV_INT_2ADDR.S */
-/* File: armv6t2/binop2addr.S */
+/* File: armv6t2_taint/OP_DIV_INT_2ADDR.S */
+/* File: armv6t2_taint/binop2addr.S */
     /*
      * Generic 32-bit "/2addr" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0 op r1".
@@ -5287,6 +5830,10 @@ dalvik_inst:
     cmp     r1, #0                      @ is second operand zero?
     beq     common_errDivideByZero
     .endif
+
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_DIV_INT_2ADDR_taint_prop
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
 
                                @ optional op; may set condition codes
@@ -5297,12 +5844,13 @@ dalvik_inst:
     /* 10-13 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_REM_INT_2ADDR: /* 0xb4 */
-/* File: armv6t2/OP_REM_INT_2ADDR.S */
+/* File: armv6t2_taint/OP_REM_INT_2ADDR.S */
 /* idivmod returns quotient in r0 and remainder in r1 */
-/* File: armv6t2/binop2addr.S */
+/* File: armv6t2_taint/binop2addr.S */
     /*
      * Generic 32-bit "/2addr" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0 op r1".
@@ -5326,6 +5874,10 @@ dalvik_inst:
     cmp     r1, #0                      @ is second operand zero?
     beq     common_errDivideByZero
     .endif
+
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_REM_INT_2ADDR_taint_prop
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
 
                                @ optional op; may set condition codes
@@ -5336,11 +5888,12 @@ dalvik_inst:
     /* 10-13 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_AND_INT_2ADDR: /* 0xb5 */
-/* File: armv6t2/OP_AND_INT_2ADDR.S */
-/* File: armv6t2/binop2addr.S */
+/* File: armv6t2_taint/OP_AND_INT_2ADDR.S */
+/* File: armv6t2_taint/binop2addr.S */
     /*
      * Generic 32-bit "/2addr" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0 op r1".
@@ -5364,6 +5917,10 @@ dalvik_inst:
     cmp     r1, #0                      @ is second operand zero?
     beq     common_errDivideByZero
     .endif
+
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_AND_INT_2ADDR_taint_prop
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
 
                                @ optional op; may set condition codes
@@ -5374,11 +5931,12 @@ dalvik_inst:
     /* 10-13 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_OR_INT_2ADDR: /* 0xb6 */
-/* File: armv6t2/OP_OR_INT_2ADDR.S */
-/* File: armv6t2/binop2addr.S */
+/* File: armv6t2_taint/OP_OR_INT_2ADDR.S */
+/* File: armv6t2_taint/binop2addr.S */
     /*
      * Generic 32-bit "/2addr" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0 op r1".
@@ -5402,6 +5960,10 @@ dalvik_inst:
     cmp     r1, #0                      @ is second operand zero?
     beq     common_errDivideByZero
     .endif
+
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_OR_INT_2ADDR_taint_prop
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
 
                                @ optional op; may set condition codes
@@ -5412,11 +5974,12 @@ dalvik_inst:
     /* 10-13 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_XOR_INT_2ADDR: /* 0xb7 */
-/* File: armv6t2/OP_XOR_INT_2ADDR.S */
-/* File: armv6t2/binop2addr.S */
+/* File: armv6t2_taint/OP_XOR_INT_2ADDR.S */
+/* File: armv6t2_taint/binop2addr.S */
     /*
      * Generic 32-bit "/2addr" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0 op r1".
@@ -5440,6 +6003,10 @@ dalvik_inst:
     cmp     r1, #0                      @ is second operand zero?
     beq     common_errDivideByZero
     .endif
+
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_XOR_INT_2ADDR_taint_prop
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
 
                                @ optional op; may set condition codes
@@ -5450,11 +6017,12 @@ dalvik_inst:
     /* 10-13 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_SHL_INT_2ADDR: /* 0xb8 */
-/* File: armv6t2/OP_SHL_INT_2ADDR.S */
-/* File: armv6t2/binop2addr.S */
+/* File: armv6t2_taint/OP_SHL_INT_2ADDR.S */
+/* File: armv6t2_taint/binop2addr.S */
     /*
      * Generic 32-bit "/2addr" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0 op r1".
@@ -5478,6 +6046,10 @@ dalvik_inst:
     cmp     r1, #0                      @ is second operand zero?
     beq     common_errDivideByZero
     .endif
+
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_SHL_INT_2ADDR_taint_prop
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
 
     and     r1, r1, #31                           @ optional op; may set condition codes
@@ -5488,11 +6060,12 @@ dalvik_inst:
     /* 10-13 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_SHR_INT_2ADDR: /* 0xb9 */
-/* File: armv6t2/OP_SHR_INT_2ADDR.S */
-/* File: armv6t2/binop2addr.S */
+/* File: armv6t2_taint/OP_SHR_INT_2ADDR.S */
+/* File: armv6t2_taint/binop2addr.S */
     /*
      * Generic 32-bit "/2addr" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0 op r1".
@@ -5516,6 +6089,10 @@ dalvik_inst:
     cmp     r1, #0                      @ is second operand zero?
     beq     common_errDivideByZero
     .endif
+
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_SHR_INT_2ADDR_taint_prop
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
 
     and     r1, r1, #31                           @ optional op; may set condition codes
@@ -5526,11 +6103,12 @@ dalvik_inst:
     /* 10-13 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_USHR_INT_2ADDR: /* 0xba */
-/* File: armv6t2/OP_USHR_INT_2ADDR.S */
-/* File: armv6t2/binop2addr.S */
+/* File: armv6t2_taint/OP_USHR_INT_2ADDR.S */
+/* File: armv6t2_taint/binop2addr.S */
     /*
      * Generic 32-bit "/2addr" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0 op r1".
@@ -5554,6 +6132,10 @@ dalvik_inst:
     cmp     r1, #0                      @ is second operand zero?
     beq     common_errDivideByZero
     .endif
+
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_USHR_INT_2ADDR_taint_prop
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
 
     and     r1, r1, #31                           @ optional op; may set condition codes
@@ -5564,11 +6146,12 @@ dalvik_inst:
     /* 10-13 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_ADD_LONG_2ADDR: /* 0xbb */
-/* File: armv6t2/OP_ADD_LONG_2ADDR.S */
-/* File: armv6t2/binopWide2addr.S */
+/* File: armv6t2_taint/OP_ADD_LONG_2ADDR.S */
+/* File: armv6t2_taint/binopWide2addr.S */
     /*
      * Generic 64-bit "/2addr" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0-r1 op r2-r3".
@@ -5586,10 +6169,9 @@ dalvik_inst:
     /* binop/2addr vA, vB */
     mov     r1, rINST, lsr #12          @ r1<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
-    add     r1, rFP, r1, lsl #2         @ r1<- &fp[B]
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[A]
-    ldmia   r1, {r2-r3}                 @ r2/r3<- vBB/vBB+1
-    ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
+// begin WITH_TAINT_TRACKING
+    bl     .LOP_ADD_LONG_2ADDR_taint_prop
+// end WITH_TAINT_TRACKING
     .if 0
     orrs    ip, r2, r3                  @ second arg (r2-r3) is zero?
     beq     common_errDivideByZero
@@ -5599,16 +6181,23 @@ dalvik_inst:
     adds    r0, r0, r2                           @ optional op; may set condition codes
     adc     r1, r1, r3                              @ result<- op, r0-r3 changed
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r9, {r0,r1}     @ vAA/vAA+1<- r0/r1
+// begin WITH_TAINT_TRACKING
+//    stmia   r9, {r0,r1}     @ vAA/vAA+1<- r0/r1
+    str     r0, [r9, #0]
+    str     r10, [r9, #4]
+    str     r1, [r9, #8]
+    str     r10, [r9, #12]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
     /* 12-15 instructions */
+
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_SUB_LONG_2ADDR: /* 0xbc */
-/* File: armv6t2/OP_SUB_LONG_2ADDR.S */
-/* File: armv6t2/binopWide2addr.S */
+/* File: armv6t2_taint/OP_SUB_LONG_2ADDR.S */
+/* File: armv6t2_taint/binopWide2addr.S */
     /*
      * Generic 64-bit "/2addr" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0-r1 op r2-r3".
@@ -5626,10 +6215,9 @@ dalvik_inst:
     /* binop/2addr vA, vB */
     mov     r1, rINST, lsr #12          @ r1<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
-    add     r1, rFP, r1, lsl #2         @ r1<- &fp[B]
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[A]
-    ldmia   r1, {r2-r3}                 @ r2/r3<- vBB/vBB+1
-    ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
+// begin WITH_TAINT_TRACKING
+    bl     .LOP_SUB_LONG_2ADDR_taint_prop
+// end WITH_TAINT_TRACKING
     .if 0
     orrs    ip, r2, r3                  @ second arg (r2-r3) is zero?
     beq     common_errDivideByZero
@@ -5639,15 +6227,22 @@ dalvik_inst:
     subs    r0, r0, r2                           @ optional op; may set condition codes
     sbc     r1, r1, r3                              @ result<- op, r0-r3 changed
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r9, {r0,r1}     @ vAA/vAA+1<- r0/r1
+// begin WITH_TAINT_TRACKING
+//    stmia   r9, {r0,r1}     @ vAA/vAA+1<- r0/r1
+    str     r0, [r9, #0]
+    str     r10, [r9, #4]
+    str     r1, [r9, #8]
+    str     r10, [r9, #12]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
     /* 12-15 instructions */
+
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_MUL_LONG_2ADDR: /* 0xbd */
-/* File: armv6t2/OP_MUL_LONG_2ADDR.S */
+/* File: armv6t2_taint/OP_MUL_LONG_2ADDR.S */
     /*
      * Signed 64-bit integer multiply, "/2addr" version.
      *
@@ -5658,26 +6253,31 @@ dalvik_inst:
      */
     /* mul-long/2addr vA, vB */
     mov     r1, rINST, lsr #12          @ r1<- B
-    ubfx    r9, rINST, #8, #4           @ r9<- A
-    add     r1, rFP, r1, lsl #2         @ r1<- &fp[B]
-    add     rINST, rFP, r9, lsl #2      @ rINST<- &fp[A]
-    ldmia   r1, {r2-r3}                 @ r2/r3<- vBB/vBB+1
-    ldmia   rINST, {r0-r1}              @ r0/r1<- vAA/vAA+1
-    mul     ip, r2, r1                  @  ip<- ZxW
+// begin WITH_TAINT_TRACKING
+    bl      mul_long_2addr_taint_prop
+// end WITH_TAINT_TRACKING
     umull   r9, r10, r2, r0             @  r9/r10 <- ZxX
     mla     r2, r0, r3, ip              @  r2<- YxX + (ZxW)
     mov     r0, rINST                   @ r0<- &fp[A] (free up rINST)
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
     add     r10, r2, r10                @  r10<- r10 + low(ZxW + (YxX))
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r0, {r9-r10}                @ vAA/vAA+1<- r9/r10
+// begin WITH_TAINT_TRACKING
+//    stmia   r0, {r9-r10}                @ vAA/vAA+1<- r9/r10
+    str     r9, [r0, #0]
+    str     r10, [r0, #8]
+    str     r10, [r0, #12]
+    ldmfd   sp!, {r10}
+    str     r10, [r0, #4]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
 
 /* ------------------------------ */
     .balign 64
 .L_OP_DIV_LONG_2ADDR: /* 0xbe */
-/* File: armv6t2/OP_DIV_LONG_2ADDR.S */
-/* File: armv6t2/binopWide2addr.S */
+/* File: armv6t2_taint/OP_DIV_LONG_2ADDR.S */
+/* File: armv6t2_taint/binopWide2addr.S */
     /*
      * Generic 64-bit "/2addr" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0-r1 op r2-r3".
@@ -5695,10 +6295,9 @@ dalvik_inst:
     /* binop/2addr vA, vB */
     mov     r1, rINST, lsr #12          @ r1<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
-    add     r1, rFP, r1, lsl #2         @ r1<- &fp[B]
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[A]
-    ldmia   r1, {r2-r3}                 @ r2/r3<- vBB/vBB+1
-    ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
+// begin WITH_TAINT_TRACKING
+    bl     .LOP_DIV_LONG_2ADDR_taint_prop
+// end WITH_TAINT_TRACKING
     .if 1
     orrs    ip, r2, r3                  @ second arg (r2-r3) is zero?
     beq     common_errDivideByZero
@@ -5708,17 +6307,24 @@ dalvik_inst:
                                @ optional op; may set condition codes
     bl      __aeabi_ldivmod                              @ result<- op, r0-r3 changed
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r9, {r0,r1}     @ vAA/vAA+1<- r0/r1
+// begin WITH_TAINT_TRACKING
+//    stmia   r9, {r0,r1}     @ vAA/vAA+1<- r0/r1
+    str     r0, [r9, #0]
+    str     r10, [r9, #4]
+    str     r1, [r9, #8]
+    str     r10, [r9, #12]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
     /* 12-15 instructions */
+
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_REM_LONG_2ADDR: /* 0xbf */
-/* File: armv6t2/OP_REM_LONG_2ADDR.S */
+/* File: armv6t2_taint/OP_REM_LONG_2ADDR.S */
 /* ldivmod returns quotient in r0/r1 and remainder in r2/r3 */
-/* File: armv6t2/binopWide2addr.S */
+/* File: armv6t2_taint/binopWide2addr.S */
     /*
      * Generic 64-bit "/2addr" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0-r1 op r2-r3".
@@ -5736,10 +6342,9 @@ dalvik_inst:
     /* binop/2addr vA, vB */
     mov     r1, rINST, lsr #12          @ r1<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
-    add     r1, rFP, r1, lsl #2         @ r1<- &fp[B]
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[A]
-    ldmia   r1, {r2-r3}                 @ r2/r3<- vBB/vBB+1
-    ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
+// begin WITH_TAINT_TRACKING
+    bl     .LOP_REM_LONG_2ADDR_taint_prop
+// end WITH_TAINT_TRACKING
     .if 1
     orrs    ip, r2, r3                  @ second arg (r2-r3) is zero?
     beq     common_errDivideByZero
@@ -5749,16 +6354,23 @@ dalvik_inst:
                                @ optional op; may set condition codes
     bl      __aeabi_ldivmod                              @ result<- op, r0-r3 changed
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r9, {r2,r3}     @ vAA/vAA+1<- r2/r3
+// begin WITH_TAINT_TRACKING
+//    stmia   r9, {r2,r3}     @ vAA/vAA+1<- r2/r3
+    str     r2, [r9, #0]
+    str     r10, [r9, #4]
+    str     r3, [r9, #8]
+    str     r10, [r9, #12]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
     /* 12-15 instructions */
+
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_AND_LONG_2ADDR: /* 0xc0 */
-/* File: armv6t2/OP_AND_LONG_2ADDR.S */
-/* File: armv6t2/binopWide2addr.S */
+/* File: armv6t2_taint/OP_AND_LONG_2ADDR.S */
+/* File: armv6t2_taint/binopWide2addr.S */
     /*
      * Generic 64-bit "/2addr" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0-r1 op r2-r3".
@@ -5776,10 +6388,9 @@ dalvik_inst:
     /* binop/2addr vA, vB */
     mov     r1, rINST, lsr #12          @ r1<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
-    add     r1, rFP, r1, lsl #2         @ r1<- &fp[B]
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[A]
-    ldmia   r1, {r2-r3}                 @ r2/r3<- vBB/vBB+1
-    ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
+// begin WITH_TAINT_TRACKING
+    bl     .LOP_AND_LONG_2ADDR_taint_prop
+// end WITH_TAINT_TRACKING
     .if 0
     orrs    ip, r2, r3                  @ second arg (r2-r3) is zero?
     beq     common_errDivideByZero
@@ -5789,16 +6400,23 @@ dalvik_inst:
     and     r0, r0, r2                           @ optional op; may set condition codes
     and     r1, r1, r3                              @ result<- op, r0-r3 changed
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r9, {r0,r1}     @ vAA/vAA+1<- r0/r1
+// begin WITH_TAINT_TRACKING
+//    stmia   r9, {r0,r1}     @ vAA/vAA+1<- r0/r1
+    str     r0, [r9, #0]
+    str     r10, [r9, #4]
+    str     r1, [r9, #8]
+    str     r10, [r9, #12]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
     /* 12-15 instructions */
+
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_OR_LONG_2ADDR: /* 0xc1 */
-/* File: armv6t2/OP_OR_LONG_2ADDR.S */
-/* File: armv6t2/binopWide2addr.S */
+/* File: armv6t2_taint/OP_OR_LONG_2ADDR.S */
+/* File: armv6t2_taint/binopWide2addr.S */
     /*
      * Generic 64-bit "/2addr" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0-r1 op r2-r3".
@@ -5816,10 +6434,9 @@ dalvik_inst:
     /* binop/2addr vA, vB */
     mov     r1, rINST, lsr #12          @ r1<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
-    add     r1, rFP, r1, lsl #2         @ r1<- &fp[B]
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[A]
-    ldmia   r1, {r2-r3}                 @ r2/r3<- vBB/vBB+1
-    ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
+// begin WITH_TAINT_TRACKING
+    bl     .LOP_OR_LONG_2ADDR_taint_prop
+// end WITH_TAINT_TRACKING
     .if 0
     orrs    ip, r2, r3                  @ second arg (r2-r3) is zero?
     beq     common_errDivideByZero
@@ -5829,16 +6446,23 @@ dalvik_inst:
     orr     r0, r0, r2                           @ optional op; may set condition codes
     orr     r1, r1, r3                              @ result<- op, r0-r3 changed
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r9, {r0,r1}     @ vAA/vAA+1<- r0/r1
+// begin WITH_TAINT_TRACKING
+//    stmia   r9, {r0,r1}     @ vAA/vAA+1<- r0/r1
+    str     r0, [r9, #0]
+    str     r10, [r9, #4]
+    str     r1, [r9, #8]
+    str     r10, [r9, #12]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
     /* 12-15 instructions */
+
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_XOR_LONG_2ADDR: /* 0xc2 */
-/* File: armv6t2/OP_XOR_LONG_2ADDR.S */
-/* File: armv6t2/binopWide2addr.S */
+/* File: armv6t2_taint/OP_XOR_LONG_2ADDR.S */
+/* File: armv6t2_taint/binopWide2addr.S */
     /*
      * Generic 64-bit "/2addr" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0-r1 op r2-r3".
@@ -5856,10 +6480,9 @@ dalvik_inst:
     /* binop/2addr vA, vB */
     mov     r1, rINST, lsr #12          @ r1<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
-    add     r1, rFP, r1, lsl #2         @ r1<- &fp[B]
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[A]
-    ldmia   r1, {r2-r3}                 @ r2/r3<- vBB/vBB+1
-    ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
+// begin WITH_TAINT_TRACKING
+    bl     .LOP_XOR_LONG_2ADDR_taint_prop
+// end WITH_TAINT_TRACKING
     .if 0
     orrs    ip, r2, r3                  @ second arg (r2-r3) is zero?
     beq     common_errDivideByZero
@@ -5869,15 +6492,22 @@ dalvik_inst:
     eor     r0, r0, r2                           @ optional op; may set condition codes
     eor     r1, r1, r3                              @ result<- op, r0-r3 changed
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r9, {r0,r1}     @ vAA/vAA+1<- r0/r1
+// begin WITH_TAINT_TRACKING
+//    stmia   r9, {r0,r1}     @ vAA/vAA+1<- r0/r1
+    str     r0, [r9, #0]
+    str     r10, [r9, #4]
+    str     r1, [r9, #8]
+    str     r10, [r9, #12]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
     /* 12-15 instructions */
+
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_SHL_LONG_2ADDR: /* 0xc3 */
-/* File: armv6t2/OP_SHL_LONG_2ADDR.S */
+/* File: armv6t2_taint/OP_SHL_LONG_2ADDR.S */
     /*
      * Long integer shift, 2addr version.  vA is 64-bit value/result, vB is
      * 32-bit shift distance.
@@ -5886,9 +6516,9 @@ dalvik_inst:
     mov     r3, rINST, lsr #12          @ r3<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
     GET_VREG(r2, r3)                    @ r2<- vB
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[A]
-    and     r2, r2, #63                 @ r2<- r2 & 0x3f
-    ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
+// begin WITH_TAINT_TRACKING
+    bl      shl_long_2addr_taint_prop
+// end WITH_TAINT_TRACKING
 
     mov     r1, r1, asl r2              @  r1<- r1 << r2
     rsb     r3, r2, #32                 @  r3<- 32 - r2
@@ -5902,7 +6532,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_SHR_LONG_2ADDR: /* 0xc4 */
-/* File: armv6t2/OP_SHR_LONG_2ADDR.S */
+/* File: armv6t2_taint/OP_SHR_LONG_2ADDR.S */
     /*
      * Long integer shift, 2addr version.  vA is 64-bit value/result, vB is
      * 32-bit shift distance.
@@ -5911,9 +6541,9 @@ dalvik_inst:
     mov     r3, rINST, lsr #12          @ r3<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
     GET_VREG(r2, r3)                    @ r2<- vB
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[A]
-    and     r2, r2, #63                 @ r2<- r2 & 0x3f
-    ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
+// begin WITH_TAINT_TRACKING
+    bl      shr_long_2addr_taint_prop
+// end WITH_TAINT_TRACKING
 
     mov     r0, r0, lsr r2              @  r0<- r2 >> r2
     rsb     r3, r2, #32                 @  r3<- 32 - r2
@@ -5927,7 +6557,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_USHR_LONG_2ADDR: /* 0xc5 */
-/* File: armv6t2/OP_USHR_LONG_2ADDR.S */
+/* File: armv6t2_taint/OP_USHR_LONG_2ADDR.S */
     /*
      * Long integer shift, 2addr version.  vA is 64-bit value/result, vB is
      * 32-bit shift distance.
@@ -5936,9 +6566,9 @@ dalvik_inst:
     mov     r3, rINST, lsr #12          @ r3<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
     GET_VREG(r2, r3)                    @ r2<- vB
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[A]
-    and     r2, r2, #63                 @ r2<- r2 & 0x3f
-    ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
+// begin WITH_TAINT_TRACKING
+    bl      ushr_long_2addr_taint_prop
+// end WITH_TAINT_TRACKING
 
     mov     r0, r0, lsr r2              @  r0<- r2 >> r2
     rsb     r3, r2, #32                 @  r3<- 32 - r2
@@ -5952,8 +6582,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_ADD_FLOAT_2ADDR: /* 0xc6 */
-/* File: arm-vfp/OP_ADD_FLOAT_2ADDR.S */
-/* File: arm-vfp/fbinop2addr.S */
+/* File: arm-vfp_taint/OP_ADD_FLOAT_2ADDR.S */
+/* File: arm-vfp_taint/fbinop2addr.S */
     /*
      * Generic 32-bit floating point "/2addr" binary operation.  Provide
      * an "instr" line that specifies an instruction that performs
@@ -5967,21 +6597,24 @@ dalvik_inst:
     VREG_INDEX_TO_ADDR(r3, r3)          @ r3<- &vB
     and     r9, r9, #15                 @ r9<- A
     flds    s1, [r3]                    @ s1<- vB
+// begin WITH_TAINT_TRACKING
+    ldr     r0, [r3, #4]
+// end WITH_TAINT_TRACKING
     VREG_INDEX_TO_ADDR(r9, r9)          @ r9<- &vA
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
     flds    s0, [r9]                    @ s0<- vA
-
-    fadds   s2, s0, s1                              @ s2<- op
-    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    fsts    s2, [r9]                    @ vAA<- s2
-    GOTO_OPCODE(ip)                     @ jump to next instruction
+// begin WITH_TAINT_TRACKING
+    ldr     r1, [r9, #4]
+    orr     r0, r0, r1
+// end WITH_TAINT_TRACKING
+    b       .LOP_ADD_FLOAT_2ADDR_finish
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_SUB_FLOAT_2ADDR: /* 0xc7 */
-/* File: arm-vfp/OP_SUB_FLOAT_2ADDR.S */
-/* File: arm-vfp/fbinop2addr.S */
+/* File: arm-vfp_taint/OP_SUB_FLOAT_2ADDR.S */
+/* File: arm-vfp_taint/fbinop2addr.S */
     /*
      * Generic 32-bit floating point "/2addr" binary operation.  Provide
      * an "instr" line that specifies an instruction that performs
@@ -5995,21 +6628,24 @@ dalvik_inst:
     VREG_INDEX_TO_ADDR(r3, r3)          @ r3<- &vB
     and     r9, r9, #15                 @ r9<- A
     flds    s1, [r3]                    @ s1<- vB
+// begin WITH_TAINT_TRACKING
+    ldr     r0, [r3, #4]
+// end WITH_TAINT_TRACKING
     VREG_INDEX_TO_ADDR(r9, r9)          @ r9<- &vA
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
     flds    s0, [r9]                    @ s0<- vA
-
-    fsubs   s2, s0, s1                              @ s2<- op
-    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    fsts    s2, [r9]                    @ vAA<- s2
-    GOTO_OPCODE(ip)                     @ jump to next instruction
+// begin WITH_TAINT_TRACKING
+    ldr     r1, [r9, #4]
+    orr     r0, r0, r1
+// end WITH_TAINT_TRACKING
+    b       .LOP_SUB_FLOAT_2ADDR_finish
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_MUL_FLOAT_2ADDR: /* 0xc8 */
-/* File: arm-vfp/OP_MUL_FLOAT_2ADDR.S */
-/* File: arm-vfp/fbinop2addr.S */
+/* File: arm-vfp_taint/OP_MUL_FLOAT_2ADDR.S */
+/* File: arm-vfp_taint/fbinop2addr.S */
     /*
      * Generic 32-bit floating point "/2addr" binary operation.  Provide
      * an "instr" line that specifies an instruction that performs
@@ -6023,21 +6659,24 @@ dalvik_inst:
     VREG_INDEX_TO_ADDR(r3, r3)          @ r3<- &vB
     and     r9, r9, #15                 @ r9<- A
     flds    s1, [r3]                    @ s1<- vB
+// begin WITH_TAINT_TRACKING
+    ldr     r0, [r3, #4]
+// end WITH_TAINT_TRACKING
     VREG_INDEX_TO_ADDR(r9, r9)          @ r9<- &vA
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
     flds    s0, [r9]                    @ s0<- vA
-
-    fmuls   s2, s0, s1                              @ s2<- op
-    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    fsts    s2, [r9]                    @ vAA<- s2
-    GOTO_OPCODE(ip)                     @ jump to next instruction
+// begin WITH_TAINT_TRACKING
+    ldr     r1, [r9, #4]
+    orr     r0, r0, r1
+// end WITH_TAINT_TRACKING
+    b       .LOP_MUL_FLOAT_2ADDR_finish
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_DIV_FLOAT_2ADDR: /* 0xc9 */
-/* File: arm-vfp/OP_DIV_FLOAT_2ADDR.S */
-/* File: arm-vfp/fbinop2addr.S */
+/* File: arm-vfp_taint/OP_DIV_FLOAT_2ADDR.S */
+/* File: arm-vfp_taint/fbinop2addr.S */
     /*
      * Generic 32-bit floating point "/2addr" binary operation.  Provide
      * an "instr" line that specifies an instruction that performs
@@ -6051,22 +6690,25 @@ dalvik_inst:
     VREG_INDEX_TO_ADDR(r3, r3)          @ r3<- &vB
     and     r9, r9, #15                 @ r9<- A
     flds    s1, [r3]                    @ s1<- vB
+// begin WITH_TAINT_TRACKING
+    ldr     r0, [r3, #4]
+// end WITH_TAINT_TRACKING
     VREG_INDEX_TO_ADDR(r9, r9)          @ r9<- &vA
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
     flds    s0, [r9]                    @ s0<- vA
-
-    fdivs   s2, s0, s1                              @ s2<- op
-    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    fsts    s2, [r9]                    @ vAA<- s2
-    GOTO_OPCODE(ip)                     @ jump to next instruction
+// begin WITH_TAINT_TRACKING
+    ldr     r1, [r9, #4]
+    orr     r0, r0, r1
+// end WITH_TAINT_TRACKING
+    b       .LOP_DIV_FLOAT_2ADDR_finish
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_REM_FLOAT_2ADDR: /* 0xca */
-/* File: armv6t2/OP_REM_FLOAT_2ADDR.S */
+/* File: armv6t2_taint/OP_REM_FLOAT_2ADDR.S */
 /* EABI doesn't define a float remainder function, but libm does */
-/* File: armv6t2/binop2addr.S */
+/* File: armv6t2_taint/binop2addr.S */
     /*
      * Generic 32-bit "/2addr" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0 op r1".
@@ -6090,6 +6732,10 @@ dalvik_inst:
     cmp     r1, #0                      @ is second operand zero?
     beq     common_errDivideByZero
     .endif
+
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_REM_FLOAT_2ADDR_taint_prop
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
 
                                @ optional op; may set condition codes
@@ -6100,11 +6746,12 @@ dalvik_inst:
     /* 10-13 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_ADD_DOUBLE_2ADDR: /* 0xcb */
-/* File: arm-vfp/OP_ADD_DOUBLE_2ADDR.S */
-/* File: arm-vfp/fbinopWide2addr.S */
+/* File: arm-vfp_taint/OP_ADD_DOUBLE_2ADDR.S */
+/* File: arm-vfp_taint/fbinopWide2addr.S */
     /*
      * Generic 64-bit floating point "/2addr" binary operation.  Provide
      * an "instr" line that specifies an instruction that performs
@@ -6118,22 +6765,28 @@ dalvik_inst:
     mov     r9, rINST, lsr #8           @ r9<- A+
     VREG_INDEX_TO_ADDR(r3, r3)          @ r3<- &vB
     and     r9, r9, #15                 @ r9<- A
-    fldd    d1, [r3]                    @ d1<- vB
+// begin WITH_TAINT_TRACKING
+//    fldd    d1, [r3]                    @ d1<- vB
+    flds    s2, [r3]
+    flds    s3, [r3, #8]
+    ldr     r0, [r3, #4]
+// end WITH_TAINT_TRACKING
     VREG_INDEX_TO_ADDR(r9, r9)          @ r9<- &vA
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
-    fldd    d0, [r9]                    @ d0<- vA
-
-    faddd   d2, d0, d1                              @ d2<- op
-    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    fstd    d2, [r9]                    @ vAA<- d2
-    GOTO_OPCODE(ip)                     @ jump to next instruction
+// begin WITH_TAINT_TRACKING
+//    fldd    d0, [r9]                    @ d0<- vA
+    flds    s0, [r9]
+    flds    s1, [r9, #8]
+    ldr     r1, [r9, #4]
+// end WITH_TAINT_TRACKING
+    b     .LOP_ADD_DOUBLE_2ADDR_finish
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_SUB_DOUBLE_2ADDR: /* 0xcc */
-/* File: arm-vfp/OP_SUB_DOUBLE_2ADDR.S */
-/* File: arm-vfp/fbinopWide2addr.S */
+/* File: arm-vfp_taint/OP_SUB_DOUBLE_2ADDR.S */
+/* File: arm-vfp_taint/fbinopWide2addr.S */
     /*
      * Generic 64-bit floating point "/2addr" binary operation.  Provide
      * an "instr" line that specifies an instruction that performs
@@ -6147,22 +6800,28 @@ dalvik_inst:
     mov     r9, rINST, lsr #8           @ r9<- A+
     VREG_INDEX_TO_ADDR(r3, r3)          @ r3<- &vB
     and     r9, r9, #15                 @ r9<- A
-    fldd    d1, [r3]                    @ d1<- vB
+// begin WITH_TAINT_TRACKING
+//    fldd    d1, [r3]                    @ d1<- vB
+    flds    s2, [r3]
+    flds    s3, [r3, #8]
+    ldr     r0, [r3, #4]
+// end WITH_TAINT_TRACKING
     VREG_INDEX_TO_ADDR(r9, r9)          @ r9<- &vA
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
-    fldd    d0, [r9]                    @ d0<- vA
-
-    fsubd   d2, d0, d1                              @ d2<- op
-    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    fstd    d2, [r9]                    @ vAA<- d2
-    GOTO_OPCODE(ip)                     @ jump to next instruction
+// begin WITH_TAINT_TRACKING
+//    fldd    d0, [r9]                    @ d0<- vA
+    flds    s0, [r9]
+    flds    s1, [r9, #8]
+    ldr     r1, [r9, #4]
+// end WITH_TAINT_TRACKING
+    b     .LOP_SUB_DOUBLE_2ADDR_finish
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_MUL_DOUBLE_2ADDR: /* 0xcd */
-/* File: arm-vfp/OP_MUL_DOUBLE_2ADDR.S */
-/* File: arm-vfp/fbinopWide2addr.S */
+/* File: arm-vfp_taint/OP_MUL_DOUBLE_2ADDR.S */
+/* File: arm-vfp_taint/fbinopWide2addr.S */
     /*
      * Generic 64-bit floating point "/2addr" binary operation.  Provide
      * an "instr" line that specifies an instruction that performs
@@ -6176,22 +6835,28 @@ dalvik_inst:
     mov     r9, rINST, lsr #8           @ r9<- A+
     VREG_INDEX_TO_ADDR(r3, r3)          @ r3<- &vB
     and     r9, r9, #15                 @ r9<- A
-    fldd    d1, [r3]                    @ d1<- vB
+// begin WITH_TAINT_TRACKING
+//    fldd    d1, [r3]                    @ d1<- vB
+    flds    s2, [r3]
+    flds    s3, [r3, #8]
+    ldr     r0, [r3, #4]
+// end WITH_TAINT_TRACKING
     VREG_INDEX_TO_ADDR(r9, r9)          @ r9<- &vA
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
-    fldd    d0, [r9]                    @ d0<- vA
-
-    fmuld   d2, d0, d1                              @ d2<- op
-    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    fstd    d2, [r9]                    @ vAA<- d2
-    GOTO_OPCODE(ip)                     @ jump to next instruction
+// begin WITH_TAINT_TRACKING
+//    fldd    d0, [r9]                    @ d0<- vA
+    flds    s0, [r9]
+    flds    s1, [r9, #8]
+    ldr     r1, [r9, #4]
+// end WITH_TAINT_TRACKING
+    b     .LOP_MUL_DOUBLE_2ADDR_finish
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_DIV_DOUBLE_2ADDR: /* 0xce */
-/* File: arm-vfp/OP_DIV_DOUBLE_2ADDR.S */
-/* File: arm-vfp/fbinopWide2addr.S */
+/* File: arm-vfp_taint/OP_DIV_DOUBLE_2ADDR.S */
+/* File: arm-vfp_taint/fbinopWide2addr.S */
     /*
      * Generic 64-bit floating point "/2addr" binary operation.  Provide
      * an "instr" line that specifies an instruction that performs
@@ -6205,23 +6870,29 @@ dalvik_inst:
     mov     r9, rINST, lsr #8           @ r9<- A+
     VREG_INDEX_TO_ADDR(r3, r3)          @ r3<- &vB
     and     r9, r9, #15                 @ r9<- A
-    fldd    d1, [r3]                    @ d1<- vB
+// begin WITH_TAINT_TRACKING
+//    fldd    d1, [r3]                    @ d1<- vB
+    flds    s2, [r3]
+    flds    s3, [r3, #8]
+    ldr     r0, [r3, #4]
+// end WITH_TAINT_TRACKING
     VREG_INDEX_TO_ADDR(r9, r9)          @ r9<- &vA
     FETCH_ADVANCE_INST(1)               @ advance rPC, load rINST
-    fldd    d0, [r9]                    @ d0<- vA
-
-    fdivd   d2, d0, d1                              @ d2<- op
-    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    fstd    d2, [r9]                    @ vAA<- d2
-    GOTO_OPCODE(ip)                     @ jump to next instruction
+// begin WITH_TAINT_TRACKING
+//    fldd    d0, [r9]                    @ d0<- vA
+    flds    s0, [r9]
+    flds    s1, [r9, #8]
+    ldr     r1, [r9, #4]
+// end WITH_TAINT_TRACKING
+    b     .LOP_DIV_DOUBLE_2ADDR_finish
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_REM_DOUBLE_2ADDR: /* 0xcf */
-/* File: armv6t2/OP_REM_DOUBLE_2ADDR.S */
+/* File: armv6t2_taint/OP_REM_DOUBLE_2ADDR.S */
 /* EABI doesn't define a double remainder function, but libm does */
-/* File: armv6t2/binopWide2addr.S */
+/* File: armv6t2_taint/binopWide2addr.S */
     /*
      * Generic 64-bit "/2addr" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0-r1 op r2-r3".
@@ -6239,10 +6910,9 @@ dalvik_inst:
     /* binop/2addr vA, vB */
     mov     r1, rINST, lsr #12          @ r1<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
-    add     r1, rFP, r1, lsl #2         @ r1<- &fp[B]
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[A]
-    ldmia   r1, {r2-r3}                 @ r2/r3<- vBB/vBB+1
-    ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
+// begin WITH_TAINT_TRACKING
+    bl     .LOP_REM_DOUBLE_2ADDR_taint_prop
+// end WITH_TAINT_TRACKING
     .if 0
     orrs    ip, r2, r3                  @ second arg (r2-r3) is zero?
     beq     common_errDivideByZero
@@ -6252,16 +6922,23 @@ dalvik_inst:
                                @ optional op; may set condition codes
     bl      fmod                              @ result<- op, r0-r3 changed
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r9, {r0,r1}     @ vAA/vAA+1<- r0/r1
+// begin WITH_TAINT_TRACKING
+//    stmia   r9, {r0,r1}     @ vAA/vAA+1<- r0/r1
+    str     r0, [r9, #0]
+    str     r10, [r9, #4]
+    str     r1, [r9, #8]
+    str     r10, [r9, #12]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
     /* 12-15 instructions */
+
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_ADD_INT_LIT16: /* 0xd0 */
-/* File: armv6t2/OP_ADD_INT_LIT16.S */
-/* File: armv6t2/binopLit16.S */
+/* File: armv6t2_taint/OP_ADD_INT_LIT16.S */
+/* File: armv6t2_taint/binopLit16.S */
     /*
      * Generic 32-bit "lit16" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0 op r1".
@@ -6279,6 +6956,11 @@ dalvik_inst:
     mov     r2, rINST, lsr #12          @ r2<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
     GET_VREG(r0, r2)                    @ r0<- vB
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r3)                    @ r3<- rFP+4
+    GET_VREG_TAINT(r2, r2, r3)          @ r2<- vB.taint
+    SET_VREG_TAINT(r2, r9, r3)
+// end WITH_TAINT_TRACKING
     .if 0
     cmp     r1, #0                      @ is second operand zero?
     beq     common_errDivideByZero
@@ -6290,14 +6972,15 @@ dalvik_inst:
     SET_VREG(r0, r9)               @ vAA<- r0
     GOTO_OPCODE(ip)                     @ jump to next instruction
     /* 10-13 instructions */
+
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_RSUB_INT: /* 0xd1 */
-/* File: armv6t2/OP_RSUB_INT.S */
+/* File: armv6t2_taint/OP_RSUB_INT.S */
 /* this op is "rsub-int", but can be thought of as "rsub-int/lit16" */
-/* File: armv6t2/binopLit16.S */
+/* File: armv6t2_taint/binopLit16.S */
     /*
      * Generic 32-bit "lit16" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0 op r1".
@@ -6315,6 +6998,11 @@ dalvik_inst:
     mov     r2, rINST, lsr #12          @ r2<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
     GET_VREG(r0, r2)                    @ r0<- vB
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r3)                    @ r3<- rFP+4
+    GET_VREG_TAINT(r2, r2, r3)          @ r2<- vB.taint
+    SET_VREG_TAINT(r2, r9, r3)
+// end WITH_TAINT_TRACKING
     .if 0
     cmp     r1, #0                      @ is second operand zero?
     beq     common_errDivideByZero
@@ -6328,12 +7016,13 @@ dalvik_inst:
     /* 10-13 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_MUL_INT_LIT16: /* 0xd2 */
-/* File: armv6t2/OP_MUL_INT_LIT16.S */
+/* File: armv6t2_taint/OP_MUL_INT_LIT16.S */
 /* must be "mul r0, r1, r0" -- "r0, r0, r1" is illegal */
-/* File: armv6t2/binopLit16.S */
+/* File: armv6t2_taint/binopLit16.S */
     /*
      * Generic 32-bit "lit16" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0 op r1".
@@ -6351,6 +7040,11 @@ dalvik_inst:
     mov     r2, rINST, lsr #12          @ r2<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
     GET_VREG(r0, r2)                    @ r0<- vB
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r3)                    @ r3<- rFP+4
+    GET_VREG_TAINT(r2, r2, r3)          @ r2<- vB.taint
+    SET_VREG_TAINT(r2, r9, r3)
+// end WITH_TAINT_TRACKING
     .if 0
     cmp     r1, #0                      @ is second operand zero?
     beq     common_errDivideByZero
@@ -6364,11 +7058,12 @@ dalvik_inst:
     /* 10-13 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_DIV_INT_LIT16: /* 0xd3 */
-/* File: armv6t2/OP_DIV_INT_LIT16.S */
-/* File: armv6t2/binopLit16.S */
+/* File: armv6t2_taint/OP_DIV_INT_LIT16.S */
+/* File: armv6t2_taint/binopLit16.S */
     /*
      * Generic 32-bit "lit16" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0 op r1".
@@ -6386,6 +7081,11 @@ dalvik_inst:
     mov     r2, rINST, lsr #12          @ r2<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
     GET_VREG(r0, r2)                    @ r0<- vB
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r3)                    @ r3<- rFP+4
+    GET_VREG_TAINT(r2, r2, r3)          @ r2<- vB.taint
+    SET_VREG_TAINT(r2, r9, r3)
+// end WITH_TAINT_TRACKING
     .if 1
     cmp     r1, #0                      @ is second operand zero?
     beq     common_errDivideByZero
@@ -6399,12 +7099,13 @@ dalvik_inst:
     /* 10-13 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_REM_INT_LIT16: /* 0xd4 */
-/* File: armv6t2/OP_REM_INT_LIT16.S */
+/* File: armv6t2_taint/OP_REM_INT_LIT16.S */
 /* idivmod returns quotient in r0 and remainder in r1 */
-/* File: armv6t2/binopLit16.S */
+/* File: armv6t2_taint/binopLit16.S */
     /*
      * Generic 32-bit "lit16" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0 op r1".
@@ -6422,6 +7123,11 @@ dalvik_inst:
     mov     r2, rINST, lsr #12          @ r2<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
     GET_VREG(r0, r2)                    @ r0<- vB
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r3)                    @ r3<- rFP+4
+    GET_VREG_TAINT(r2, r2, r3)          @ r2<- vB.taint
+    SET_VREG_TAINT(r2, r9, r3)
+// end WITH_TAINT_TRACKING
     .if 1
     cmp     r1, #0                      @ is second operand zero?
     beq     common_errDivideByZero
@@ -6435,11 +7141,12 @@ dalvik_inst:
     /* 10-13 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_AND_INT_LIT16: /* 0xd5 */
-/* File: armv6t2/OP_AND_INT_LIT16.S */
-/* File: armv6t2/binopLit16.S */
+/* File: armv6t2_taint/OP_AND_INT_LIT16.S */
+/* File: armv6t2_taint/binopLit16.S */
     /*
      * Generic 32-bit "lit16" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0 op r1".
@@ -6457,6 +7164,11 @@ dalvik_inst:
     mov     r2, rINST, lsr #12          @ r2<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
     GET_VREG(r0, r2)                    @ r0<- vB
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r3)                    @ r3<- rFP+4
+    GET_VREG_TAINT(r2, r2, r3)          @ r2<- vB.taint
+    SET_VREG_TAINT(r2, r9, r3)
+// end WITH_TAINT_TRACKING
     .if 0
     cmp     r1, #0                      @ is second operand zero?
     beq     common_errDivideByZero
@@ -6470,11 +7182,12 @@ dalvik_inst:
     /* 10-13 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_OR_INT_LIT16: /* 0xd6 */
-/* File: armv6t2/OP_OR_INT_LIT16.S */
-/* File: armv6t2/binopLit16.S */
+/* File: armv6t2_taint/OP_OR_INT_LIT16.S */
+/* File: armv6t2_taint/binopLit16.S */
     /*
      * Generic 32-bit "lit16" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0 op r1".
@@ -6492,6 +7205,11 @@ dalvik_inst:
     mov     r2, rINST, lsr #12          @ r2<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
     GET_VREG(r0, r2)                    @ r0<- vB
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r3)                    @ r3<- rFP+4
+    GET_VREG_TAINT(r2, r2, r3)          @ r2<- vB.taint
+    SET_VREG_TAINT(r2, r9, r3)
+// end WITH_TAINT_TRACKING
     .if 0
     cmp     r1, #0                      @ is second operand zero?
     beq     common_errDivideByZero
@@ -6505,11 +7223,12 @@ dalvik_inst:
     /* 10-13 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_XOR_INT_LIT16: /* 0xd7 */
-/* File: armv6t2/OP_XOR_INT_LIT16.S */
-/* File: armv6t2/binopLit16.S */
+/* File: armv6t2_taint/OP_XOR_INT_LIT16.S */
+/* File: armv6t2_taint/binopLit16.S */
     /*
      * Generic 32-bit "lit16" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0 op r1".
@@ -6527,6 +7246,11 @@ dalvik_inst:
     mov     r2, rINST, lsr #12          @ r2<- B
     ubfx    r9, rINST, #8, #4           @ r9<- A
     GET_VREG(r0, r2)                    @ r0<- vB
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r3)                    @ r3<- rFP+4
+    GET_VREG_TAINT(r2, r2, r3)          @ r2<- vB.taint
+    SET_VREG_TAINT(r2, r9, r3)
+// end WITH_TAINT_TRACKING
     .if 0
     cmp     r1, #0                      @ is second operand zero?
     beq     common_errDivideByZero
@@ -6540,11 +7264,12 @@ dalvik_inst:
     /* 10-13 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_ADD_INT_LIT8: /* 0xd8 */
-/* File: armv5te/OP_ADD_INT_LIT8.S */
-/* File: armv5te/binopLit8.S */
+/* File: armv5te_taint/OP_ADD_INT_LIT8.S */
+/* File: armv5te_taint/binopLit8.S */
     /*
      * Generic 32-bit "lit8" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0 op r1".
@@ -6568,6 +7293,11 @@ dalvik_inst:
     @cmp     r1, #0                      @ is second operand zero?
     beq     common_errDivideByZero
     .endif
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r10)                   @ r3<- rFP+4
+    GET_VREG_TAINT(r2, r2, r10)         @ r2<- vB.taint
+    SET_VREG_TAINT(r2, r9, r10)
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
 
                                @ optional op; may set condition codes
@@ -6578,11 +7308,12 @@ dalvik_inst:
     /* 10-12 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_RSUB_INT_LIT8: /* 0xd9 */
-/* File: armv5te/OP_RSUB_INT_LIT8.S */
-/* File: armv5te/binopLit8.S */
+/* File: armv5te_taint/OP_RSUB_INT_LIT8.S */
+/* File: armv5te_taint/binopLit8.S */
     /*
      * Generic 32-bit "lit8" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0 op r1".
@@ -6606,6 +7337,11 @@ dalvik_inst:
     @cmp     r1, #0                      @ is second operand zero?
     beq     common_errDivideByZero
     .endif
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r10)                   @ r3<- rFP+4
+    GET_VREG_TAINT(r2, r2, r10)         @ r2<- vB.taint
+    SET_VREG_TAINT(r2, r9, r10)
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
 
                                @ optional op; may set condition codes
@@ -6616,12 +7352,13 @@ dalvik_inst:
     /* 10-12 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_MUL_INT_LIT8: /* 0xda */
-/* File: armv5te/OP_MUL_INT_LIT8.S */
+/* File: armv5te_taint/OP_MUL_INT_LIT8.S */
 /* must be "mul r0, r1, r0" -- "r0, r0, r1" is illegal */
-/* File: armv5te/binopLit8.S */
+/* File: armv5te_taint/binopLit8.S */
     /*
      * Generic 32-bit "lit8" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0 op r1".
@@ -6645,6 +7382,11 @@ dalvik_inst:
     @cmp     r1, #0                      @ is second operand zero?
     beq     common_errDivideByZero
     .endif
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r10)                   @ r3<- rFP+4
+    GET_VREG_TAINT(r2, r2, r10)         @ r2<- vB.taint
+    SET_VREG_TAINT(r2, r9, r10)
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
 
                                @ optional op; may set condition codes
@@ -6655,11 +7397,12 @@ dalvik_inst:
     /* 10-12 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_DIV_INT_LIT8: /* 0xdb */
-/* File: armv5te/OP_DIV_INT_LIT8.S */
-/* File: armv5te/binopLit8.S */
+/* File: armv5te_taint/OP_DIV_INT_LIT8.S */
+/* File: armv5te_taint/binopLit8.S */
     /*
      * Generic 32-bit "lit8" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0 op r1".
@@ -6683,6 +7426,11 @@ dalvik_inst:
     @cmp     r1, #0                      @ is second operand zero?
     beq     common_errDivideByZero
     .endif
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r10)                   @ r3<- rFP+4
+    GET_VREG_TAINT(r2, r2, r10)         @ r2<- vB.taint
+    SET_VREG_TAINT(r2, r9, r10)
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
 
                                @ optional op; may set condition codes
@@ -6693,12 +7441,13 @@ dalvik_inst:
     /* 10-12 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_REM_INT_LIT8: /* 0xdc */
-/* File: armv5te/OP_REM_INT_LIT8.S */
+/* File: armv5te_taint/OP_REM_INT_LIT8.S */
 /* idivmod returns quotient in r0 and remainder in r1 */
-/* File: armv5te/binopLit8.S */
+/* File: armv5te_taint/binopLit8.S */
     /*
      * Generic 32-bit "lit8" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0 op r1".
@@ -6722,6 +7471,11 @@ dalvik_inst:
     @cmp     r1, #0                      @ is second operand zero?
     beq     common_errDivideByZero
     .endif
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r10)                   @ r3<- rFP+4
+    GET_VREG_TAINT(r2, r2, r10)         @ r2<- vB.taint
+    SET_VREG_TAINT(r2, r9, r10)
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
 
                                @ optional op; may set condition codes
@@ -6732,11 +7486,12 @@ dalvik_inst:
     /* 10-12 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_AND_INT_LIT8: /* 0xdd */
-/* File: armv5te/OP_AND_INT_LIT8.S */
-/* File: armv5te/binopLit8.S */
+/* File: armv5te_taint/OP_AND_INT_LIT8.S */
+/* File: armv5te_taint/binopLit8.S */
     /*
      * Generic 32-bit "lit8" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0 op r1".
@@ -6760,6 +7515,11 @@ dalvik_inst:
     @cmp     r1, #0                      @ is second operand zero?
     beq     common_errDivideByZero
     .endif
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r10)                   @ r3<- rFP+4
+    GET_VREG_TAINT(r2, r2, r10)         @ r2<- vB.taint
+    SET_VREG_TAINT(r2, r9, r10)
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
 
                                @ optional op; may set condition codes
@@ -6770,11 +7530,12 @@ dalvik_inst:
     /* 10-12 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_OR_INT_LIT8: /* 0xde */
-/* File: armv5te/OP_OR_INT_LIT8.S */
-/* File: armv5te/binopLit8.S */
+/* File: armv5te_taint/OP_OR_INT_LIT8.S */
+/* File: armv5te_taint/binopLit8.S */
     /*
      * Generic 32-bit "lit8" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0 op r1".
@@ -6798,6 +7559,11 @@ dalvik_inst:
     @cmp     r1, #0                      @ is second operand zero?
     beq     common_errDivideByZero
     .endif
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r10)                   @ r3<- rFP+4
+    GET_VREG_TAINT(r2, r2, r10)         @ r2<- vB.taint
+    SET_VREG_TAINT(r2, r9, r10)
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
 
                                @ optional op; may set condition codes
@@ -6808,11 +7574,12 @@ dalvik_inst:
     /* 10-12 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_XOR_INT_LIT8: /* 0xdf */
-/* File: armv5te/OP_XOR_INT_LIT8.S */
-/* File: armv5te/binopLit8.S */
+/* File: armv5te_taint/OP_XOR_INT_LIT8.S */
+/* File: armv5te_taint/binopLit8.S */
     /*
      * Generic 32-bit "lit8" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0 op r1".
@@ -6836,6 +7603,11 @@ dalvik_inst:
     @cmp     r1, #0                      @ is second operand zero?
     beq     common_errDivideByZero
     .endif
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r10)                   @ r3<- rFP+4
+    GET_VREG_TAINT(r2, r2, r10)         @ r2<- vB.taint
+    SET_VREG_TAINT(r2, r9, r10)
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
 
                                @ optional op; may set condition codes
@@ -6846,11 +7618,12 @@ dalvik_inst:
     /* 10-12 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_SHL_INT_LIT8: /* 0xe0 */
-/* File: armv5te/OP_SHL_INT_LIT8.S */
-/* File: armv5te/binopLit8.S */
+/* File: armv5te_taint/OP_SHL_INT_LIT8.S */
+/* File: armv5te_taint/binopLit8.S */
     /*
      * Generic 32-bit "lit8" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0 op r1".
@@ -6874,6 +7647,11 @@ dalvik_inst:
     @cmp     r1, #0                      @ is second operand zero?
     beq     common_errDivideByZero
     .endif
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r10)                   @ r3<- rFP+4
+    GET_VREG_TAINT(r2, r2, r10)         @ r2<- vB.taint
+    SET_VREG_TAINT(r2, r9, r10)
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
 
     and     r1, r1, #31                           @ optional op; may set condition codes
@@ -6884,11 +7662,12 @@ dalvik_inst:
     /* 10-12 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_SHR_INT_LIT8: /* 0xe1 */
-/* File: armv5te/OP_SHR_INT_LIT8.S */
-/* File: armv5te/binopLit8.S */
+/* File: armv5te_taint/OP_SHR_INT_LIT8.S */
+/* File: armv5te_taint/binopLit8.S */
     /*
      * Generic 32-bit "lit8" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0 op r1".
@@ -6912,6 +7691,11 @@ dalvik_inst:
     @cmp     r1, #0                      @ is second operand zero?
     beq     common_errDivideByZero
     .endif
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r10)                   @ r3<- rFP+4
+    GET_VREG_TAINT(r2, r2, r10)         @ r2<- vB.taint
+    SET_VREG_TAINT(r2, r9, r10)
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
 
     and     r1, r1, #31                           @ optional op; may set condition codes
@@ -6922,11 +7706,12 @@ dalvik_inst:
     /* 10-12 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_USHR_INT_LIT8: /* 0xe2 */
-/* File: armv5te/OP_USHR_INT_LIT8.S */
-/* File: armv5te/binopLit8.S */
+/* File: armv5te_taint/OP_USHR_INT_LIT8.S */
+/* File: armv5te_taint/binopLit8.S */
     /*
      * Generic 32-bit "lit8" binary operation.  Provide an "instr" line
      * that specifies an instruction that performs "result = r0 op r1".
@@ -6950,6 +7735,11 @@ dalvik_inst:
     @cmp     r1, #0                      @ is second operand zero?
     beq     common_errDivideByZero
     .endif
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r10)                   @ r3<- rFP+4
+    GET_VREG_TAINT(r2, r2, r10)         @ r2<- vB.taint
+    SET_VREG_TAINT(r2, r9, r10)
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
 
     and     r1, r1, #31                           @ optional op; may set condition codes
@@ -6960,11 +7750,14 @@ dalvik_inst:
     /* 10-12 instructions */
 
 
+
 /* ------------------------------ */
     .balign 64
 .L_OP_IGET_VOLATILE: /* 0xe3 */
-/* File: armv5te/OP_IGET_VOLATILE.S */
-/* File: armv5te/OP_IGET.S */
+/* File: armv5te_taint/OP_IGET_VOLATILE.S */
+/* File: armv5te_taint/OP_IGET.S */
+// begin WITH_TAINT_TRACKING
+// end WITH_TAINT_TRACKING
     /*
      * General 32-bit instance field get.
      *
@@ -6975,8 +7768,9 @@ dalvik_inst:
     ldr     r3, [rSELF, #offThread_methodClassDex]    @ r3<- DvmDex
     FETCH(r1, 1)                        @ r1<- field ref CCCC
     ldr     r2, [r3, #offDvmDex_pResFields] @ r2<- pDvmDex->pResFields
-    GET_VREG(r9, r0)                    @ r9<- fp[B], the object pointer
-    ldr     r0, [r2, r1, lsl #2]        @ r0<- resolved InstField ptr
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_IGET_VOLATILE_taint_prop
+// end WITH_TAINT_TRACKING
     cmp     r0, #0                      @ is resolved entry null?
     bne     .LOP_IGET_VOLATILE_finish          @ no, already resolved
 8:  ldr     r2, [rSELF, #offThread_method]    @ r2<- current method
@@ -6991,8 +7785,10 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_IPUT_VOLATILE: /* 0xe4 */
-/* File: armv5te/OP_IPUT_VOLATILE.S */
-/* File: armv5te/OP_IPUT.S */
+/* File: armv5te_taint/OP_IPUT_VOLATILE.S */
+/* File: armv5te_taint/OP_IPUT.S */
+// begin WITH_TAINT_TRACKING
+// end WITH_TAINT_TRACKING
     /*
      * General 32-bit instance field put.
      *
@@ -7019,8 +7815,10 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_SGET_VOLATILE: /* 0xe5 */
-/* File: armv5te/OP_SGET_VOLATILE.S */
-/* File: armv5te/OP_SGET.S */
+/* File: armv5te_taint/OP_SGET_VOLATILE.S */
+/* File: armv5te_taint/OP_SGET.S */
+// begin WITH_TAINT_TRACKING
+// end WITH_TAINT_TRACKING
     /*
      * General 32-bit SGET handler.
      *
@@ -7034,11 +7832,11 @@ dalvik_inst:
     cmp     r0, #0                      @ is resolved entry null?
     beq     .LOP_SGET_VOLATILE_resolve         @ yes, do resolve
 .LOP_SGET_VOLATILE_finish: @ field ptr in r0
-    ldr     r1, [r0, #offStaticField_value] @ r1<- field value
-    SMP_DMB                            @ acquiring load
-    mov     r2, rINST, lsr #8           @ r2<- AA
+// begin WITH_TAINT_TRACKING
+    bl		.LOP_SGET_VOLATILE_taint_prop
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
-    SET_VREG(r1, r2)                    @ fp[AA]<- r1
+    SET_VREG(r0, r2)                    @ fp[AA]<- r0
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
@@ -7046,8 +7844,10 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_SPUT_VOLATILE: /* 0xe6 */
-/* File: armv5te/OP_SPUT_VOLATILE.S */
-/* File: armv5te/OP_SPUT.S */
+/* File: armv5te_taint/OP_SPUT_VOLATILE.S */
+/* File: armv5te_taint/OP_SPUT.S */
+// begin WITH_TAINT_TRACKING
+// end WITH_TAINT_TRACKING
     /*
      * General 32-bit SPUT handler.
      *
@@ -7065,17 +7865,19 @@ dalvik_inst:
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     GET_VREG(r1, r2)                    @ r1<- fp[AA]
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    SMP_DMB_ST                        @ releasing store
-    str     r1, [r0, #offStaticField_value] @ field<- vAA
-    SMP_DMB
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_SPUT_VOLATILE_taint_prop
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_IGET_OBJECT_VOLATILE: /* 0xe7 */
-/* File: armv5te/OP_IGET_OBJECT_VOLATILE.S */
-/* File: armv5te/OP_IGET.S */
+/* File: armv5te_taint/OP_IGET_OBJECT_VOLATILE.S */
+/* File: armv5te_taint/OP_IGET.S */
+// begin WITH_TAINT_TRACKING
+// end WITH_TAINT_TRACKING
     /*
      * General 32-bit instance field get.
      *
@@ -7086,8 +7888,9 @@ dalvik_inst:
     ldr     r3, [rSELF, #offThread_methodClassDex]    @ r3<- DvmDex
     FETCH(r1, 1)                        @ r1<- field ref CCCC
     ldr     r2, [r3, #offDvmDex_pResFields] @ r2<- pDvmDex->pResFields
-    GET_VREG(r9, r0)                    @ r9<- fp[B], the object pointer
-    ldr     r0, [r2, r1, lsl #2]        @ r0<- resolved InstField ptr
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_IGET_OBJECT_VOLATILE_taint_prop
+// end WITH_TAINT_TRACKING
     cmp     r0, #0                      @ is resolved entry null?
     bne     .LOP_IGET_OBJECT_VOLATILE_finish          @ no, already resolved
 8:  ldr     r2, [rSELF, #offThread_method]    @ r2<- current method
@@ -7102,8 +7905,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_IGET_WIDE_VOLATILE: /* 0xe8 */
-/* File: armv5te/OP_IGET_WIDE_VOLATILE.S */
-/* File: armv5te/OP_IGET_WIDE.S */
+/* File: armv5te_taint/OP_IGET_WIDE_VOLATILE.S */
+/* File: armv5te_taint/OP_IGET_WIDE.S */
     /*
      * Wide 32-bit instance field get.
      */
@@ -7112,8 +7915,9 @@ dalvik_inst:
     ldr     r3, [rSELF, #offThread_methodClassDex]    @ r3<- DvmDex
     FETCH(r1, 1)                        @ r1<- field ref CCCC
     ldr     r2, [r3, #offDvmDex_pResFields] @ r2<- pResFields
-    GET_VREG(r9, r0)                    @ r9<- fp[B], the object pointer
-    ldr     r0, [r2, r1, lsl #2]        @ r0<- resolved InstField ptr
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_IGET_WIDE_VOLATILE_taint_prop
+// end WITH_TAINT_TRACKING
     cmp     r0, #0                      @ is resolved entry null?
     bne     .LOP_IGET_WIDE_VOLATILE_finish          @ no, already resolved
 8:  ldr     r2, [rSELF, #offThread_method] @ r2<- current method
@@ -7128,8 +7932,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_IPUT_WIDE_VOLATILE: /* 0xe9 */
-/* File: armv5te/OP_IPUT_WIDE_VOLATILE.S */
-/* File: armv5te/OP_IPUT_WIDE.S */
+/* File: armv5te_taint/OP_IPUT_WIDE_VOLATILE.S */
+/* File: armv5te_taint/OP_IPUT_WIDE.S */
     /* iput-wide vA, vB, field@CCCC */
     mov     r0, rINST, lsr #12          @ r0<- B
     ldr     r3, [rSELF, #offThread_methodClassDex]    @ r3<- DvmDex
@@ -7151,8 +7955,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_SGET_WIDE_VOLATILE: /* 0xea */
-/* File: armv5te/OP_SGET_WIDE_VOLATILE.S */
-/* File: armv5te/OP_SGET_WIDE.S */
+/* File: armv5te_taint/OP_SGET_WIDE_VOLATILE.S */
+/* File: armv5te_taint/OP_SGET_WIDE.S */
     /*
      * 64-bit SGET handler.
      */
@@ -7163,26 +7967,15 @@ dalvik_inst:
     ldr     r0, [r10, r1, lsl #2]       @ r0<- resolved StaticField ptr
     cmp     r0, #0                      @ is resolved entry null?
     beq     .LOP_SGET_WIDE_VOLATILE_resolve         @ yes, do resolve
-.LOP_SGET_WIDE_VOLATILE_finish:
-    mov     r9, rINST, lsr #8           @ r9<- AA
-    .if 1
-    add     r0, r0, #offStaticField_value @ r0<- pointer to data
-    bl      dvmQuasiAtomicRead64        @ r0/r1<- contents of field
-    .else
-    ldrd    r0, [r0, #offStaticField_value] @ r0/r1<- field value (aligned)
-    .endif
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[AA]
-    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
-    stmia   r9, {r0-r1}                 @ vAA/vAA+1<- r0/r1
-    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    GOTO_OPCODE(ip)                     @ jump to next instruction
+    b		.LOP_SGET_WIDE_VOLATILE_finish
+
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_SPUT_WIDE_VOLATILE: /* 0xeb */
-/* File: armv5te/OP_SPUT_WIDE_VOLATILE.S */
-/* File: armv5te/OP_SPUT_WIDE.S */
+/* File: armv5te_taint/OP_SPUT_WIDE_VOLATILE.S */
+/* File: armv5te_taint/OP_SPUT_WIDE.S */
     /*
      * 64-bit SPUT handler.
      */
@@ -7192,13 +7985,20 @@ dalvik_inst:
     ldr     r10, [r0, #offDvmDex_pResFields] @ r10<- dvmDex->pResFields
     mov     r9, rINST, lsr #8           @ r9<- AA
     ldr     r2, [r10, r1, lsl #2]        @ r2<- resolved StaticField ptr
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[AA]
+// begin WITH_TAINT_TRACKING
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[AA]
+// end WITH_TAINT_TRACKING
     cmp     r2, #0                      @ is resolved entry null?
     beq     .LOP_SPUT_WIDE_VOLATILE_resolve         @ yes, do resolve
 .LOP_SPUT_WIDE_VOLATILE_finish: @ field ptr in r2, AA in r9
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
-    ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
+// begin WITH_TAINT_TRACKING
+    bl		.LOP_SPUT_WIDE_VOLATILE_taint_prop
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(r10)                @ extract opcode from rINST
+// begin WITH_TAINT_TRACKING
+    str	    r3, [r2, #offStaticField_taint]
+// end WITH_TAINT_TRACKING
     .if 1
     add     r2, r2, #offStaticField_value @ r2<- pointer to data
     bl      dvmQuasiAtomicSwap64Sync    @ stores r0/r1 into addr r2
@@ -7211,7 +8011,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_BREAKPOINT: /* 0xec */
-/* File: armv5te/OP_BREAKPOINT.S */
+/* File: armv5te_taint/OP_BREAKPOINT.S */
     /*
      * Breakpoint handler.
      *
@@ -7230,7 +8030,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_THROW_VERIFICATION_ERROR: /* 0xed */
-/* File: armv5te/OP_THROW_VERIFICATION_ERROR.S */
+/* File: armv5te_taint/OP_THROW_VERIFICATION_ERROR.S */
     /*
      * Handle a throw-verification-error instruction.  This throws an
      * exception for an error discovered during verification.  The
@@ -7247,7 +8047,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_EXECUTE_INLINE: /* 0xee */
-/* File: armv5te/OP_EXECUTE_INLINE.S */
+/* File: armv5te_taint/OP_EXECUTE_INLINE.S */
     /*
      * Execute a "native inline" instruction.
      *
@@ -7267,23 +8067,13 @@ dalvik_inst:
     EXPORT_PC()                         @ can throw
     ands    r2, #kSubModeDebugProfile   @ Any going on?
     bne     .LOP_EXECUTE_INLINE_debugmode       @ yes - take slow path
-.LOP_EXECUTE_INLINE_resume:
-    add     r1, rSELF, #offThread_retval  @ r1<- &self->retval
-    sub     sp, sp, #8                  @ make room for arg, +64 bit align
-    mov     r0, rINST, lsr #12          @ r0<- B
-    str     r1, [sp]                    @ push &self->retval
-    bl      .LOP_EXECUTE_INLINE_continue        @ make call; will return after
-    add     sp, sp, #8                  @ pop stack
-    cmp     r0, #0                      @ test boolean result of inline
-    beq     common_exceptionThrown      @ returned false, handle exception
-    FETCH_ADVANCE_INST(3)               @ advance rPC, load rINST
-    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    GOTO_OPCODE(ip)                     @ jump to next instruction
+// begin WITH_TAINT_TRACKING
+    b       .LOP_EXECUTE_INLINE_resume
 
 /* ------------------------------ */
     .balign 64
 .L_OP_EXECUTE_INLINE_RANGE: /* 0xef */
-/* File: armv5te/OP_EXECUTE_INLINE_RANGE.S */
+/* File: armv5te_taint/OP_EXECUTE_INLINE_RANGE.S */
     /*
      * Execute a "native inline" instruction, using "/range" semantics.
      * Same idea as execute-inline, but we get the args differently.
@@ -7301,23 +8091,13 @@ dalvik_inst:
     EXPORT_PC()                         @ can throw
     ands    r2, #kSubModeDebugProfile   @ Any going on?
     bne     .LOP_EXECUTE_INLINE_RANGE_debugmode       @ yes - take slow path
-.LOP_EXECUTE_INLINE_RANGE_resume:
-    add     r1, rSELF, #offThread_retval  @ r1<- &self->retval
-    sub     sp, sp, #8                  @ make room for arg, +64 bit align
-    mov     r0, rINST, lsr #8           @ r0<- AA
-    str     r1, [sp]                    @ push &self->retval
-    bl      .LOP_EXECUTE_INLINE_RANGE_continue        @ make call; will return after
-    add     sp, sp, #8                  @ pop stack
-    cmp     r0, #0                      @ test boolean result of inline
-    beq     common_exceptionThrown      @ returned false, handle exception
-    FETCH_ADVANCE_INST(3)               @ advance rPC, load rINST
-    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    GOTO_OPCODE(ip)                     @ jump to next instruction
+// begin WITH_TAINT_TRACKING
+    b       .LOP_EXECUTE_INLINE_RANGE_resume
 
 /* ------------------------------ */
     .balign 64
 .L_OP_INVOKE_OBJECT_INIT_RANGE: /* 0xf0 */
-/* File: armv5te/OP_INVOKE_OBJECT_INIT_RANGE.S */
+/* File: armv5te_taint/OP_INVOKE_OBJECT_INIT_RANGE.S */
     /*
      * Invoke Object.<init> on an object.  In practice we know that
      * Object's nullary constructor doesn't do anything, so we just
@@ -7342,71 +8122,107 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_RETURN_VOID_BARRIER: /* 0xf1 */
-/* File: armv5te/OP_RETURN_VOID_BARRIER.S */
+/* File: armv5te_taint/OP_RETURN_VOID_BARRIER.S */
     SMP_DMB_ST
+    SET_TAINT_CLEAR(r1)
+    str     r1, [rSELF, #offThread_rtaint]
     b       common_returnFromMethod
 
 /* ------------------------------ */
     .balign 64
 .L_OP_IGET_QUICK: /* 0xf2 */
-/* File: armv6t2/OP_IGET_QUICK.S */
+/* File: armv6t2_taint/OP_IGET_QUICK.S */
     /* For: iget-quick, iget-object-quick */
     /* op vA, vB, offset@CCCC */
     mov     r2, rINST, lsr #12          @ r2<- B
     FETCH(r1, 1)                        @ r1<- field byte offset
     GET_VREG(r3, r2)                    @ r3<- object we're operating on
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r0)
+    GET_VREG_TAINT(r9, r2, r0)
+// end WITH_TAINT_TRACKING
     ubfx    r2, rINST, #8, #4           @ r2<- A
     cmp     r3, #0                      @ check object for null
     beq     common_errNullObject        @ object was null
     ldr     r0, [r3, r1]                @ r0<- obj.field (always 32 bits)
-    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+// begin WITH_TAINT_TRACKING
+    bl      .LOP_IGET_QUICK_taint_prop
+//    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST // in subroutine
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     SET_VREG(r0, r2)                    @ fp[A]<- r0
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r0)
+    SET_VREG_TAINT(r10, r2, r0)
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
 
 /* ------------------------------ */
     .balign 64
 .L_OP_IGET_WIDE_QUICK: /* 0xf3 */
-/* File: armv6t2/OP_IGET_WIDE_QUICK.S */
+/* File: armv6t2_taint/OP_IGET_WIDE_QUICK.S */
     /* iget-wide-quick vA, vB, offset@CCCC */
     mov     r2, rINST, lsr #12          @ r2<- B
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r0)
+    GET_VREG_TAINT(r9, r2, r0)
+// end WITH_TAINT_TRACKING
     FETCH(ip, 1)                        @ ip<- field byte offset
     GET_VREG(r3, r2)                    @ r3<- object we're operating on
     ubfx    r2, rINST, #8, #4           @ r2<- A
     cmp     r3, #0                      @ check object for null
     beq     common_errNullObject        @ object was null
+// begin WITH_TAINT_TRACKING
+    add     r10, ip, #8
     ldrd    r0, [r3, ip]                @ r0<- obj.field (64 bits, aligned)
+    ldr     r10, [r3, r10]
+    orr     r10, r9, r10
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
-    add     r3, rFP, r2, lsl #2         @ r3<- &fp[A]
-    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r3, {r0-r1}                 @ fp[A]<- r0/r1
+// begin WITH_TAINT_TRACKING
+    bl      iget_wide_quick_taint_prop
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
 
 /* ------------------------------ */
     .balign 64
 .L_OP_IGET_OBJECT_QUICK: /* 0xf4 */
-/* File: armv5te/OP_IGET_OBJECT_QUICK.S */
-/* File: armv5te/OP_IGET_QUICK.S */
+/* File: armv5te_taint/OP_IGET_OBJECT_QUICK.S */
+/* File: armv5te_taint/OP_IGET_QUICK.S */
     /* For: iget-quick, iget-object-quick */
     /* op vA, vB, offset@CCCC */
     mov     r2, rINST, lsr #12          @ r2<- B
     GET_VREG(r3, r2)                    @ r3<- object we're operating on
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r0)
+    GET_VREG_TAINT(r9, r2, r0)
+// end WITH_TAINT_TRACKING
     FETCH(r1, 1)                        @ r1<- field byte offset
     cmp     r3, #0                      @ check object for null
     mov     r2, rINST, lsr #8           @ r2<- A(+)
     beq     common_errNullObject        @ object was null
     ldr     r0, [r3, r1]                @ r0<- obj.field (always 32 bits)
-    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+// begin WITH_TAINT_TRACKING
+	bl		.LOP_IGET_OBJECT_QUICK_taint_prop
+//    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST // in subroutine
+// end WITH_TAINT_TRACKING
     and     r2, r2, #15
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     SET_VREG(r0, r2)                    @ fp[A]<- r0
+// begin WITH_TAINT_TRACKING
+	SET_TAINT_FP(r0)
+	SET_VREG_TAINT(r10, r2, r0)
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_IPUT_QUICK: /* 0xf5 */
-/* File: armv6t2/OP_IPUT_QUICK.S */
+/* File: armv6t2_taint/OP_IPUT_QUICK.S */
     /* For: iput-quick, iput-object-quick */
     /* op vA, vB, offset@CCCC */
     mov     r2, rINST, lsr #12          @ r2<- B
@@ -7416,33 +8232,47 @@ dalvik_inst:
     cmp     r3, #0                      @ check object for null
     beq     common_errNullObject        @ object was null
     GET_VREG(r0, r2)                    @ r0<- fp[A]
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r9)
+    GET_VREG_TAINT(r10, r2, r9)
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     str     r0, [r3, r1]                @ obj.field (always 32 bits)<- r0
+// begin WITH_TAINT_TRACKING
+    add	    r1, r1, #4
+    str     r10, [r3, r1]
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
 
 /* ------------------------------ */
     .balign 64
 .L_OP_IPUT_WIDE_QUICK: /* 0xf6 */
-/* File: armv6t2/OP_IPUT_WIDE_QUICK.S */
+/* File: armv6t2_taint/OP_IPUT_WIDE_QUICK.S */
     /* iput-wide-quick vA, vB, offset@CCCC */
     mov     r1, rINST, lsr #12          @ r1<- B
     ubfx    r0, rINST, #8, #4           @ r0<- A
     GET_VREG(r2, r1)                    @ r2<- fp[B], the object pointer
-    add     r3, rFP, r0, lsl #2         @ r3<- &fp[A]
-    cmp     r2, #0                      @ check object for null
-    ldmia   r3, {r0-r1}                 @ r0/r1<- fp[A]
+// begin WITH_TAINT_TRACKING
+    bl iput_wide_quick_taint_prop
+// end WITH_TAINT_TRACKING
     beq     common_errNullObject        @ object was null
     FETCH(r3, 1)                        @ r3<- field byte offset
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     strd    r0, [r2, r3]                @ obj.field (64 bits, aligned)<- r0/r1
+// begin WITH_TAINT_TRACKING
+    add     r3, r3, #8
+    str     r9, [r2, r3]
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
 
 /* ------------------------------ */
     .balign 64
 .L_OP_IPUT_OBJECT_QUICK: /* 0xf7 */
-/* File: armv5te/OP_IPUT_OBJECT_QUICK.S */
+/* File: armv5te_taint/OP_IPUT_OBJECT_QUICK.S */
     /* For: iput-object-quick */
     /* op vA, vB, offset@CCCC */
     mov     r2, rINST, lsr #12          @ r2<- B
@@ -7453,9 +8283,9 @@ dalvik_inst:
     beq     common_errNullObject        @ object was null
     and     r2, r2, #15
     GET_VREG(r0, r2)                    @ r0<- fp[A]
-    ldr     r2, [rSELF, #offThread_cardTable]  @ r2<- card table base
-    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
-    str     r0, [r3, r1]                @ obj.field (always 32 bits)<- r0
+// begin WITH_TAINT_TRACKING
+    bl    .LOP_IPUT_OBJECT_QUICK_taint_prop
+// end WITH_TAINT_TRACKING
     cmp     r0, #0
     strneb  r2, [r2, r3, lsr #GC_CARD_SHIFT] @ mark card based on obj head
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
@@ -7464,7 +8294,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_INVOKE_VIRTUAL_QUICK: /* 0xf8 */
-/* File: armv5te/OP_INVOKE_VIRTUAL_QUICK.S */
+/* File: armv5te_taint/OP_INVOKE_VIRTUAL_QUICK.S */
     /*
      * Handle an optimized virtual method call.
      *
@@ -7489,8 +8319,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_INVOKE_VIRTUAL_QUICK_RANGE: /* 0xf9 */
-/* File: armv5te/OP_INVOKE_VIRTUAL_QUICK_RANGE.S */
-/* File: armv5te/OP_INVOKE_VIRTUAL_QUICK.S */
+/* File: armv5te_taint/OP_INVOKE_VIRTUAL_QUICK_RANGE.S */
+/* File: armv5te_taint/OP_INVOKE_VIRTUAL_QUICK.S */
     /*
      * Handle an optimized virtual method call.
      *
@@ -7516,7 +8346,7 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_INVOKE_SUPER_QUICK: /* 0xfa */
-/* File: armv5te/OP_INVOKE_SUPER_QUICK.S */
+/* File: armv5te_taint/OP_INVOKE_SUPER_QUICK.S */
     /*
      * Handle an optimized "super" method call.
      *
@@ -7543,8 +8373,8 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_INVOKE_SUPER_QUICK_RANGE: /* 0xfb */
-/* File: armv5te/OP_INVOKE_SUPER_QUICK_RANGE.S */
-/* File: armv5te/OP_INVOKE_SUPER_QUICK.S */
+/* File: armv5te_taint/OP_INVOKE_SUPER_QUICK_RANGE.S */
+/* File: armv5te_taint/OP_INVOKE_SUPER_QUICK.S */
     /*
      * Handle an optimized "super" method call.
      *
@@ -7572,8 +8402,10 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_IPUT_OBJECT_VOLATILE: /* 0xfc */
-/* File: armv5te/OP_IPUT_OBJECT_VOLATILE.S */
-/* File: armv5te/OP_IPUT_OBJECT.S */
+/* File: armv5te_taint/OP_IPUT_OBJECT_VOLATILE.S */
+/* File: armv5te_taint/OP_IPUT_OBJECT.S */
+// begin WITH_TAINT_TRACKING
+// end WITH_TAINT_TRACKING
     /*
      * 32-bit instance field put.
      *
@@ -7600,8 +8432,10 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_SGET_OBJECT_VOLATILE: /* 0xfd */
-/* File: armv5te/OP_SGET_OBJECT_VOLATILE.S */
-/* File: armv5te/OP_SGET.S */
+/* File: armv5te_taint/OP_SGET_OBJECT_VOLATILE.S */
+/* File: armv5te_taint/OP_SGET.S */
+// begin WITH_TAINT_TRACKING
+// end WITH_TAINT_TRACKING
     /*
      * General 32-bit SGET handler.
      *
@@ -7615,11 +8449,11 @@ dalvik_inst:
     cmp     r0, #0                      @ is resolved entry null?
     beq     .LOP_SGET_OBJECT_VOLATILE_resolve         @ yes, do resolve
 .LOP_SGET_OBJECT_VOLATILE_finish: @ field ptr in r0
-    ldr     r1, [r0, #offStaticField_value] @ r1<- field value
-    SMP_DMB                            @ acquiring load
-    mov     r2, rINST, lsr #8           @ r2<- AA
+// begin WITH_TAINT_TRACKING
+    bl		.LOP_SGET_OBJECT_VOLATILE_taint_prop
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
-    SET_VREG(r1, r2)                    @ fp[AA]<- r1
+    SET_VREG(r0, r2)                    @ fp[AA]<- r0
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
@@ -7627,8 +8461,10 @@ dalvik_inst:
 /* ------------------------------ */
     .balign 64
 .L_OP_SPUT_OBJECT_VOLATILE: /* 0xfe */
-/* File: armv5te/OP_SPUT_OBJECT_VOLATILE.S */
-/* File: armv5te/OP_SPUT_OBJECT.S */
+/* File: armv5te_taint/OP_SPUT_OBJECT_VOLATILE.S */
+/* File: armv5te_taint/OP_SPUT_OBJECT.S */
+// begin WITH_TAINT_TRACKING
+// end WITH_TAINT_TRACKING
     /*
      * 32-bit SPUT handler for objects
      *
@@ -7645,19 +8481,25 @@ dalvik_inst:
     mov     r2, rINST, lsr #8           @ r2<- AA
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     GET_VREG(r1, r2)                    @ r1<- fp[AA]
-    ldr     r2, [rSELF, #offThread_cardTable]  @ r2<- card table base
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r3)
+    GET_VREG_TAINT(r3, r2, r3)          @ r3<- taint
+//    ldr     r2, [rSELF, #offThread_cardTable]  @ r2<- card table base
+    ldr     r10, [rSELF, #offThread_cardTable]  @ r10<- card table base
+// end WITH_TAINT_TRACKING
     ldr     r9, [r0, #offField_clazz]   @ r9<- field->clazz
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    SMP_DMB_ST                        @ releasing store
+    @ no-op                         @ releasing store
     b       .LOP_SPUT_OBJECT_VOLATILE_end
 
 
 /* ------------------------------ */
     .balign 64
 .L_OP_UNUSED_FF: /* 0xff */
-/* File: armv5te/OP_UNUSED_FF.S */
-/* File: armv5te/unused.S */
+/* File: armv5te_taint/OP_UNUSED_FF.S */
+/* File: armv5te_taint/unused.S */
     bl      common_abort
+
 
 
     .balign 64
@@ -7690,6 +8532,11 @@ dvmAsmSisterStart:
     bl      dvmResolveString            @ r0<- String reference
     cmp     r0, #0                      @ failed?
     beq     common_exceptionThrown      @ yup, handle the exception
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r2)
+    SET_TAINT_CLEAR(r3)
+    SET_VREG_TAINT(r3, r9, r2)
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     SET_VREG(r0, r9)                    @ vAA<- r0
@@ -7709,6 +8556,11 @@ dvmAsmSisterStart:
     bl      dvmResolveString            @ r0<- String reference
     cmp     r0, #0                      @ failed?
     beq     common_exceptionThrown      @ yup, handle the exception
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r2)
+    SET_TAINT_CLEAR(r3)
+    SET_VREG_TAINT(r3, r9, r2)
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(3)               @ advance rPC, load rINST
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     SET_VREG(r0, r9)                    @ vAA<- r0
@@ -7729,6 +8581,11 @@ dvmAsmSisterStart:
     bl      dvmResolveClass             @ r0<- Class reference
     cmp     r0, #0                      @ failed?
     beq     common_exceptionThrown      @ yup, handle the exception
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r2)
+    SET_TAINT_CLEAR(r3)
+    SET_VREG_TAINT(r3, r9, r2)
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     SET_VREG(r0, r9)                    @ vAA<- r0
@@ -7792,6 +8649,11 @@ dvmAsmSisterStart:
      */
 .LOP_INSTANCE_OF_store:
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r2)
+    SET_TAINT_CLEAR(r3)
+    SET_VREG_TAINT(r3, r9, r2)
+// end WITH_TAINT_TRACKING
     SET_VREG(r0, r9)                    @ vA<- r0
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     GOTO_OPCODE(ip)                     @ jump to next instruction
@@ -7804,6 +8666,11 @@ dvmAsmSisterStart:
     mov     r0, #1                      @ indicate success
     @ could b OP_INSTANCE_OF_store, but copying is faster and cheaper
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r2)
+    SET_TAINT_CLEAR(r3)
+    SET_VREG_TAINT(r3, r9, r2)
+// end WITH_TAINT_TRACKING
     SET_VREG(r0, r9)                    @ vA<- r0
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     GOTO_OPCODE(ip)                     @ jump to next instruction
@@ -7848,6 +8715,11 @@ dvmAsmSisterStart:
     beq     common_exceptionThrown      @ yes, handle the exception
 #endif
 .LOP_NEW_INSTANCE_end:
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r2)
+    SET_TAINT_CLEAR(r1)
+    SET_VREG_TAINT(r1, r3, r2)
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     SET_VREG(r0, r3)                    @ vAA<- r0
@@ -7868,6 +8740,11 @@ dvmAsmSisterStart:
     mov     r0, rSELF
     mov     r1, rPC
     bl      dvmJitEndTraceSelect        @ (self, pc)
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r2)
+    SET_TAINT_CLEAR(r1)
+    SET_VREG_TAINT(r1, r10, r2)
+// end WITH_TAINT_TRACKING
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     SET_VREG(r9, r10)                   @ vAA<- new object
@@ -7936,6 +8813,11 @@ dvmAsmSisterStart:
     beq     common_exceptionThrown      @ yes, handle the exception
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     and     r2, r2, #15                 @ r2<- A
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r1)
+    SET_TAINT_CLEAR(r3)
+    SET_VREG_TAINT(r3, r2, r1)
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     SET_VREG(r0, r2)                    @ vA<- r0
     GOTO_OPCODE(ip)                     @ jump to next instruction
@@ -7968,6 +8850,9 @@ dvmAsmSisterStart:
     FETCH(r1, 2)                        @ r1<- FEDC or CCCC
     str     r0, [rSELF, #offThread_retval]      @ retval.l <- new array
     str     rINST, [rSELF, #offThread_retval+4] @ retval.h <- type
+// begin WITH_TAINT_TRACKING
+    add     r2, r0, #offArrayObject_taint
+// end WITH_TAINT_TRACKING
     add     r0, r0, #offArrayObject_contents @ r0<- newArray->contents
     subs    r9, r9, #1                  @ length--, check for neg
     FETCH_ADVANCE_INST(3)               @ advance to next instr, load rINST
@@ -7975,6 +8860,11 @@ dvmAsmSisterStart:
 
     @ copy values from registers into the array
     @ r0=array, r1=CCCC/FEDC, r9=length (from AA or B), r10=AA/BA
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_CLEAR(r3)
+    str     r3, [rSELF, #offThread_rtaint]    @ rtaint <- clear
+    str     r3, [r2]
+// end WITH_TAINT_TRACKING
     .if     0
     add     r2, rFP, r1, lsl #2         @ r2<- &fp[CCCC]
 1:  ldr     r3, [r2], #4                @ r3<- *r2++
@@ -8052,6 +8942,9 @@ dvmAsmSisterStart:
     FETCH(r1, 2)                        @ r1<- FEDC or CCCC
     str     r0, [rSELF, #offThread_retval]      @ retval.l <- new array
     str     rINST, [rSELF, #offThread_retval+4] @ retval.h <- type
+// begin WITH_TAINT_TRACKING
+    add     r2, r0, #offArrayObject_taint
+// end WITH_TAINT_TRACKING
     add     r0, r0, #offArrayObject_contents @ r0<- newArray->contents
     subs    r9, r9, #1                  @ length--, check for neg
     FETCH_ADVANCE_INST(3)               @ advance to next instr, load rINST
@@ -8059,6 +8952,11 @@ dvmAsmSisterStart:
 
     @ copy values from registers into the array
     @ r0=array, r1=CCCC/FEDC, r9=length (from AA or B), r10=AA/BA
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_CLEAR(r3)
+    str     r3, [rSELF, #offThread_rtaint]    @ rtaint <- clear
+    str     r3, [r2]
+// end WITH_TAINT_TRACKING
     .if     1
     add     r2, rFP, r1, lsl #2         @ r2<- &fp[CCCC]
 1:  ldr     r3, [r2], #4                @ r3<- *r2++
@@ -8111,22 +9009,52 @@ dvmAsmSisterStart:
 /* continuation for OP_CMPL_FLOAT */
 .LOP_CMPL_FLOAT_finish:
     SET_VREG(r0, r9)                    @ vAA<- r0
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r1)
+    SET_TAINT_CLEAR(r0)
+    SET_VREG_TAINT(r0, r9, r1)
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
 
 /* continuation for OP_CMPG_FLOAT */
 .LOP_CMPG_FLOAT_finish:
     SET_VREG(r0, r9)                    @ vAA<- r0
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r1)
+    SET_TAINT_CLEAR(r0)
+    SET_VREG_TAINT(r0, r9, r1)
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
 
 /* continuation for OP_CMPL_DOUBLE */
 .LOP_CMPL_DOUBLE_finish:
+    fmstat                              @ export status flags
+    movgt   r0, #1                      @ (greater than) r1<- 1
+    moveq   r0, #0                      @ (equal) r1<- 0
     SET_VREG(r0, r9)                    @ vAA<- r0
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r1)
+    SET_TAINT_CLEAR(r0)
+    SET_VREG_TAINT(r0, r9, r1)
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
 
 /* continuation for OP_CMPG_DOUBLE */
 .LOP_CMPG_DOUBLE_finish:
+    fmstat                              @ export status flags
+    mvnmi   r0, #0                      @ (less than) r1<- -1
+    moveq   r0, #0                      @ (equal) r1<- 0
     SET_VREG(r0, r9)                    @ vAA<- r0
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r1)
+    SET_TAINT_CLEAR(r0)
+    SET_VREG_TAINT(r0, r9, r1)
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
 
 /* continuation for OP_CMP_LONG */
 
@@ -8136,6 +9064,11 @@ dvmAsmSisterStart:
     @ instead, we just replicate the tail end.
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     SET_VREG(r1, r9)                    @ vAA<- r1
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r0)
+    SET_TAINT_CLEAR(r1)
+    SET_VREG_TAINT(r1, r9, r0)
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
@@ -8146,27 +9079,176 @@ dvmAsmSisterStart:
 .LOP_CMP_LONG_finish:
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     SET_VREG(r1, r9)                    @ vAA<- r1
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r0)
+    SET_TAINT_CLEAR(r1)
+    SET_VREG_TAINT(r1, r9, r0)
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
+cmp_long_taint_prop:
+    add     r2, rFP, r2, lsl #3         @ r2<- &fp[BB]
+    add     r3, rFP, r3, lsl #3         @ r3<- &fp[CC]
+//    ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
+    ldr     r0, [r2, #0]
+    ldr     r1, [r2, #8]
+//    ldmia   r3, {r2-r3}                 @ r2/r3<- vCC/vCC+1
+    ldr     r2, [r3, #0]
+    ldr     r3, [r3, #8]
+    bx      lr
+
+/* continuation for OP_AGET */
+
+.LOP_AGET_taint_prop_1:
+    ldr	    r2, [r0, #offArrayObject_taint]
+    SET_TAINT_FP(r10)
+    GET_VREG_TAINT(r3, r3, r10)
+    orr	    r2, r3, r2                  @ r2<- r2 | r1
+    bx	    lr
+
+.LOP_AGET_taint_prop_2:
+    bcs     common_errArrayIndex        @ index >= length, bail
+    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+    SET_TAINT_FP(r3)
+    SET_VREG_TAINT(r2, r9, r3)
+    bx      lr
 
 /* continuation for OP_AGET_WIDE */
 
 .LOP_AGET_WIDE_finish:
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
-    ldrd    r2, [r0, #offArrayObject_contents]  @ r2/r3<- vBB[vCC]
-    add     r9, rFP, r9, lsl #2         @ r9<- &fp[AA]
+// begin WITH_TAINT_TRACKING
+    ldrd    r0, [r0, #offArrayObject_contents]  @ r0/r1<- vBB[vCC]
+    mov     r2, r1
+    mov     r1, r10
+    mov     r3, r10
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[AA]
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r9, {r2-r3}                 @ vAA/vAA+1<- r2/r3
+// begin WITH_TAINT_TRACKING
+    stmia   r9, {r0-r3}                 @ vAA/vAA+1<- r2/r3
+// begin WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
+.LOP_AGET_WIDE_taint_prop:
+    ldr     r2, [r0, #offArrayObject_taint]
+    SET_TAINT_FP(r10)
+    GET_VREG_TAINT(r10, r3, r10)
+    orr     r10, r10, r2                @ r10<- r10 | r1
+    bx      lr
+
+/* continuation for OP_AGET_OBJECT */
+
+.LOP_AGET_OBJECT_taint_prop_1:
+    ldr	    r2, [r0, #offArrayObject_taint]
+    SET_TAINT_FP(r10)
+    GET_VREG_TAINT(r3, r3, r10)
+    orr	    r2, r3, r2                  @ r2<- r2 | r1
+    bx	    lr
+
+.LOP_AGET_OBJECT_taint_prop_2:
+    bcs     common_errArrayIndex        @ index >= length, bail
+    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+    SET_TAINT_FP(r3)
+    SET_VREG_TAINT(r2, r9, r3)
+    bx      lr
+
+/* continuation for OP_AGET_BOOLEAN */
+
+.LOP_AGET_BOOLEAN_taint_prop_1:
+    ldr	    r2, [r0, #offArrayObject_taint]
+    SET_TAINT_FP(r10)
+    GET_VREG_TAINT(r3, r3, r10)
+    orr	    r2, r3, r2                  @ r2<- r2 | r1
+    bx	    lr
+
+.LOP_AGET_BOOLEAN_taint_prop_2:
+    bcs     common_errArrayIndex        @ index >= length, bail
+    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+    SET_TAINT_FP(r3)
+    SET_VREG_TAINT(r2, r9, r3)
+    bx      lr
+
+/* continuation for OP_AGET_BYTE */
+
+.LOP_AGET_BYTE_taint_prop_1:
+    ldr	    r2, [r0, #offArrayObject_taint]
+    SET_TAINT_FP(r10)
+    GET_VREG_TAINT(r3, r3, r10)
+    orr	    r2, r3, r2                  @ r2<- r2 | r1
+    bx	    lr
+
+.LOP_AGET_BYTE_taint_prop_2:
+    bcs     common_errArrayIndex        @ index >= length, bail
+    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+    SET_TAINT_FP(r3)
+    SET_VREG_TAINT(r2, r9, r3)
+    bx      lr
+
+/* continuation for OP_AGET_CHAR */
+
+.LOP_AGET_CHAR_taint_prop_1:
+    ldr	    r2, [r0, #offArrayObject_taint]
+    SET_TAINT_FP(r10)
+    GET_VREG_TAINT(r3, r3, r10)
+    orr	    r2, r3, r2                  @ r2<- r2 | r1
+    bx	    lr
+
+.LOP_AGET_CHAR_taint_prop_2:
+    bcs     common_errArrayIndex        @ index >= length, bail
+    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+    SET_TAINT_FP(r3)
+    SET_VREG_TAINT(r2, r9, r3)
+    bx      lr
+
+/* continuation for OP_AGET_SHORT */
+
+.LOP_AGET_SHORT_taint_prop_1:
+    ldr	    r2, [r0, #offArrayObject_taint]
+    SET_TAINT_FP(r10)
+    GET_VREG_TAINT(r3, r3, r10)
+    orr	    r2, r3, r2                  @ r2<- r2 | r1
+    bx	    lr
+
+.LOP_AGET_SHORT_taint_prop_2:
+    bcs     common_errArrayIndex        @ index >= length, bail
+    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+    SET_TAINT_FP(r3)
+    SET_VREG_TAINT(r2, r9, r3)
+    bx      lr
+
+/* continuation for OP_APUT */
+
+.LOP_APUT_taint_prop:
+    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+    GET_VREG(r1, r2)                    @ r1<- vBB (array object)
+    ldr     r2, [r1, #offArrayObject_taint]
+    SET_TAINT_FP(r3)
+    GET_VREG_TAINT(r3, r9, r3)
+    orr     r2, r2, r3                  @ r2<- r2 | r3
+    str     r2, [r1, #offArrayObject_taint]
+    bx      lr
 
 /* continuation for OP_APUT_WIDE */
 
 .LOP_APUT_WIDE_finish:
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
-    ldmia   r9, {r2-r3}                 @ r2/r3<- vAA/vAA+1
+// begin WITH_TAINT_TRACKING
+//    ldmia   r9, {r2-r3}                 @ r2/r3<- vAA/vAA+1
+    ldr     r2, [r9, #0]
+    ldr     r3, [r9, #8]
+    ldr     r1, [r9, #4]                      @ r1<- array taint
+    ldr     r9, [r10, #offArrayObject_taint]
+    orr     r1, r1, r9                        @ r1<- r1 | r9
+    str     r1, [r10, #offArrayObject_taint]
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
+// begin WITH_TAINT_TRACKING
     strd    r2, [r0, #offArrayObject_contents]  @ r2/r3<- vBB[vCC]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
 
 /* continuation for OP_APUT_OBJECT */
     /*
@@ -8176,6 +9258,9 @@ dvmAsmSisterStart:
      *  r10 = offset into array (vBB + vCC * width)
      */
 .LOP_APUT_OBJECT_finish:
+// begin WITH_TAINT_TRACKING
+    str     r2, [rINST, #offArrayObject_taint]
+// end WITH_TAINT_TRACKING
     cmp     r9, #0                      @ storing null reference?
     beq     .LOP_APUT_OBJECT_skip_check      @ yes, skip type checks
     ldr     r0, [r9, #offObject_clazz]  @ r0<- obj->clazz
@@ -8204,6 +9289,65 @@ dvmAsmSisterStart:
     bl      dvmThrowArrayStoreExceptionIncompatibleElement
     b       common_exceptionThrown
 
+.LOP_APUT_OBJECT_taint_prop_1:
+    SET_TAINT_FP(r3)
+    GET_VREG_TAINT(r2, r9, r3)
+    bx      lr
+
+.LOP_APUT_OBJECT_taint_prop_2:
+    ldr     r3, [rINST, #offArrayObject_taint]
+    orr     r2, r2, r3                  @ r2<- r2 | r3
+    bx      lr
+
+
+/* continuation for OP_APUT_BOOLEAN */
+
+.LOP_APUT_BOOLEAN_taint_prop:
+    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+    GET_VREG(r1, r2)                    @ r1<- vBB (array object)
+    ldr     r2, [r1, #offArrayObject_taint]
+    SET_TAINT_FP(r3)
+    GET_VREG_TAINT(r3, r9, r3)
+    orr     r2, r2, r3                  @ r2<- r2 | r3
+    str     r2, [r1, #offArrayObject_taint]
+    bx      lr
+
+/* continuation for OP_APUT_BYTE */
+
+.LOP_APUT_BYTE_taint_prop:
+    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+    GET_VREG(r1, r2)                    @ r1<- vBB (array object)
+    ldr     r2, [r1, #offArrayObject_taint]
+    SET_TAINT_FP(r3)
+    GET_VREG_TAINT(r3, r9, r3)
+    orr     r2, r2, r3                  @ r2<- r2 | r3
+    str     r2, [r1, #offArrayObject_taint]
+    bx      lr
+
+/* continuation for OP_APUT_CHAR */
+
+.LOP_APUT_CHAR_taint_prop:
+    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+    GET_VREG(r1, r2)                    @ r1<- vBB (array object)
+    ldr     r2, [r1, #offArrayObject_taint]
+    SET_TAINT_FP(r3)
+    GET_VREG_TAINT(r3, r9, r3)
+    orr     r2, r2, r3                  @ r2<- r2 | r3
+    str     r2, [r1, #offArrayObject_taint]
+    bx      lr
+
+/* continuation for OP_APUT_SHORT */
+
+.LOP_APUT_SHORT_taint_prop:
+    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+    GET_VREG(r1, r2)                    @ r1<- vBB (array object)
+    ldr     r2, [r1, #offArrayObject_taint]
+    SET_TAINT_FP(r3)
+    GET_VREG_TAINT(r3, r9, r3)
+    orr     r2, r2, r3                  @ r2<- r2 | r3
+    str     r2, [r1, #offArrayObject_taint]
+    bx      lr
+
 /* continuation for OP_IGET */
 
     /*
@@ -8216,12 +9360,28 @@ dvmAsmSisterStart:
     cmp     r9, #0                      @ check object for null
     ldr     r3, [r0, #offInstField_byteOffset]  @ r3<- byte offset of field
     beq     common_errNullObject        @ object was null
+// begin WITH_TAINT_TRACKING
     ldr   r0, [r9, r3]                @ r0<- obj.field (8/16/32 bits)
+    add     r3, r3, #4
+    ldr	    r3, [r9, r3]
+    orr     r3, r3, r10
+// end WITH_TAINT_TRACKING
     ubfx    r2, rINST, #8, #4           @ r2<- A
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     SET_VREG(r0, r2)                    @ fp[A]<- r0
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r1)
+    SET_VREG_TAINT(r3, r2, r1)
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
+.LOP_IGET_taint_prop:
+    GET_VREG(r9, r0)                    @ r9<- fp[B], the object pointer
+    SET_TAINT_FP(r3)
+    GET_VREG_TAINT(r10, r0, r3)
+    ldr     r0, [r2, r1, lsl #2]        @ r0<- resolved InstField ptr
+    bx      lr
 
 /* continuation for OP_IGET_WIDE */
 
@@ -8234,13 +9394,31 @@ dvmAsmSisterStart:
     cmp     r9, #0                      @ check object for null
     ldr     r3, [r0, #offInstField_byteOffset]  @ r3<- byte offset of field
     beq     common_errNullObject        @ object was null
+// begin WITH_TAINT_TRACKING
     ldrd    r0, [r9, r3]                @ r0/r1<- obj.field (64-bit align ok)
+    add     r3, r3, #8
+    ldr     r3, [r9, r3]
+    orr	    r10, r3, r10
     ubfx    r2, rINST, #8, #4           @ r2<- A
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
-    add     r3, rFP, r2, lsl #2         @ r3<- &fp[A]
+    add     r3, rFP, r2, lsl #3         @ r3<- &fp[A]
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r3, {r0-r1}                 @ fp[A]<- r0/r1
+// begin WITH_TAINT_TRACKING
+//    stmia   r3, {r0-r1}                 @ fp[A]<- r0/r1
+    str    r0, [r3, #0]
+    str    r10, [r3, #4]
+    str    r1, [r3, #8]
+    str    r10, [r3, #12]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
+.LOP_IGET_WIDE_taint_prop:
+    GET_VREG(r9, r0)                    @ r9<- fp[B], the object pointer
+    SET_TAINT_FP(r3)
+    GET_VREG_TAINT(r10, r0, r3)
+    ldr     r0, [r2, r1, lsl #2]        @ r0<- resolved InstField ptr
+    bx      lr
 
 /* continuation for OP_IGET_OBJECT */
 
@@ -8254,14 +9432,36 @@ dvmAsmSisterStart:
     cmp     r9, #0                      @ check object for null
     ldr     r3, [r0, #offInstField_byteOffset]  @ r3<- byte offset of field
     beq     common_errNullObject        @ object was null
+// begin WITH_TAINT_TRACKING
+//    .if     0
+//    add     r0, r9, r3                  @ r0<- address of field
+//    bl      dvmQuasiAtomicRead64        @ r0/r1<- value/taint
+//    orr	    r3, r1, r10
+//    .else
     ldr   r0, [r9, r3]                @ r0<- obj.field (8/16/32 bits)
     @ no-op                             @ acquiring load
+    add     r3, r3, #4
+    ldr	    r3, [r9, r3]
+    orr     r3, r3, r10
+//    .endif
+// end WITH_TAINT_TRACKING
     mov     r2, rINST, lsr #8           @ r2<- A+
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     and     r2, r2, #15                 @ r2<- A
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     SET_VREG(r0, r2)                    @ fp[A]<- r0
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r1)
+    SET_VREG_TAINT(r3, r2, r1)
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
+.LOP_IGET_OBJECT_taint_prop:
+    GET_VREG(r9, r0)                    @ r9<- fp[B], the object pointer
+    SET_TAINT_FP(r3)
+    GET_VREG_TAINT(r10, r0, r3)
+    ldr     r0, [r2, r1, lsl #2]        @ r0<- resolved InstField ptr
+    bx      lr
 
 /* continuation for OP_IGET_BOOLEAN */
 
@@ -8275,14 +9475,36 @@ dvmAsmSisterStart:
     cmp     r9, #0                      @ check object for null
     ldr     r3, [r0, #offInstField_byteOffset]  @ r3<- byte offset of field
     beq     common_errNullObject        @ object was null
+// begin WITH_TAINT_TRACKING
+//    .if     0
+//    add     r0, r9, r3                  @ r0<- address of field
+//    bl      dvmQuasiAtomicRead64        @ r0/r1<- value/taint
+//    orr	    r3, r1, r10
+//    .else
     ldr   r0, [r9, r3]                @ r0<- obj.field (8/16/32 bits)
     @ no-op                             @ acquiring load
+    add     r3, r3, #4
+    ldr	    r3, [r9, r3]
+    orr     r3, r3, r10
+//    .endif
+// end WITH_TAINT_TRACKING
     mov     r2, rINST, lsr #8           @ r2<- A+
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     and     r2, r2, #15                 @ r2<- A
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     SET_VREG(r0, r2)                    @ fp[A]<- r0
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r1)
+    SET_VREG_TAINT(r3, r2, r1)
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
+.LOP_IGET_BOOLEAN_taint_prop:
+    GET_VREG(r9, r0)                    @ r9<- fp[B], the object pointer
+    SET_TAINT_FP(r3)
+    GET_VREG_TAINT(r10, r0, r3)
+    ldr     r0, [r2, r1, lsl #2]        @ r0<- resolved InstField ptr
+    bx      lr
 
 /* continuation for OP_IGET_BYTE */
 
@@ -8296,14 +9518,36 @@ dvmAsmSisterStart:
     cmp     r9, #0                      @ check object for null
     ldr     r3, [r0, #offInstField_byteOffset]  @ r3<- byte offset of field
     beq     common_errNullObject        @ object was null
+// begin WITH_TAINT_TRACKING
+//    .if     0
+//    add     r0, r9, r3                  @ r0<- address of field
+//    bl      dvmQuasiAtomicRead64        @ r0/r1<- value/taint
+//    orr	    r3, r1, r10
+//    .else
     ldr   r0, [r9, r3]                @ r0<- obj.field (8/16/32 bits)
     @ no-op                             @ acquiring load
+    add     r3, r3, #4
+    ldr	    r3, [r9, r3]
+    orr     r3, r3, r10
+//    .endif
+// end WITH_TAINT_TRACKING
     mov     r2, rINST, lsr #8           @ r2<- A+
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     and     r2, r2, #15                 @ r2<- A
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     SET_VREG(r0, r2)                    @ fp[A]<- r0
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r1)
+    SET_VREG_TAINT(r3, r2, r1)
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
+.LOP_IGET_BYTE_taint_prop:
+    GET_VREG(r9, r0)                    @ r9<- fp[B], the object pointer
+    SET_TAINT_FP(r3)
+    GET_VREG_TAINT(r10, r0, r3)
+    ldr     r0, [r2, r1, lsl #2]        @ r0<- resolved InstField ptr
+    bx      lr
 
 /* continuation for OP_IGET_CHAR */
 
@@ -8317,14 +9561,36 @@ dvmAsmSisterStart:
     cmp     r9, #0                      @ check object for null
     ldr     r3, [r0, #offInstField_byteOffset]  @ r3<- byte offset of field
     beq     common_errNullObject        @ object was null
+// begin WITH_TAINT_TRACKING
+//    .if     0
+//    add     r0, r9, r3                  @ r0<- address of field
+//    bl      dvmQuasiAtomicRead64        @ r0/r1<- value/taint
+//    orr	    r3, r1, r10
+//    .else
     ldr   r0, [r9, r3]                @ r0<- obj.field (8/16/32 bits)
     @ no-op                             @ acquiring load
+    add     r3, r3, #4
+    ldr	    r3, [r9, r3]
+    orr     r3, r3, r10
+//    .endif
+// end WITH_TAINT_TRACKING
     mov     r2, rINST, lsr #8           @ r2<- A+
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     and     r2, r2, #15                 @ r2<- A
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     SET_VREG(r0, r2)                    @ fp[A]<- r0
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r1)
+    SET_VREG_TAINT(r3, r2, r1)
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
+.LOP_IGET_CHAR_taint_prop:
+    GET_VREG(r9, r0)                    @ r9<- fp[B], the object pointer
+    SET_TAINT_FP(r3)
+    GET_VREG_TAINT(r10, r0, r3)
+    ldr     r0, [r2, r1, lsl #2]        @ r0<- resolved InstField ptr
+    bx      lr
 
 /* continuation for OP_IGET_SHORT */
 
@@ -8338,14 +9604,36 @@ dvmAsmSisterStart:
     cmp     r9, #0                      @ check object for null
     ldr     r3, [r0, #offInstField_byteOffset]  @ r3<- byte offset of field
     beq     common_errNullObject        @ object was null
+// begin WITH_TAINT_TRACKING
+//    .if     0
+//    add     r0, r9, r3                  @ r0<- address of field
+//    bl      dvmQuasiAtomicRead64        @ r0/r1<- value/taint
+//    orr	    r3, r1, r10
+//    .else
     ldr   r0, [r9, r3]                @ r0<- obj.field (8/16/32 bits)
     @ no-op                             @ acquiring load
+    add     r3, r3, #4
+    ldr	    r3, [r9, r3]
+    orr     r3, r3, r10
+//    .endif
+// end WITH_TAINT_TRACKING
     mov     r2, rINST, lsr #8           @ r2<- A+
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     and     r2, r2, #15                 @ r2<- A
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     SET_VREG(r0, r2)                    @ fp[A]<- r0
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r1)
+    SET_VREG_TAINT(r3, r2, r1)
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
+.LOP_IGET_SHORT_taint_prop:
+    GET_VREG(r9, r0)                    @ r9<- fp[B], the object pointer
+    SET_TAINT_FP(r3)
+    GET_VREG_TAINT(r10, r0, r3)
+    ldr     r0, [r2, r1, lsl #2]        @ r0<- resolved InstField ptr
+    bx      lr
 
 /* continuation for OP_IPUT */
 
@@ -8360,11 +9648,20 @@ dvmAsmSisterStart:
     ubfx    r1, rINST, #8, #4           @ r1<- A
     cmp     r9, #0                      @ check object for null
     GET_VREG(r0, r1)                    @ r0<- fp[A]
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r2)
+    GET_VREG_TAINT(r10, r1, r2)
+// end WITH_TAINT_TRACKING
     beq     common_errNullObject        @ object was null
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     str  r0, [r9, r3]                @ obj.field (8/16/32 bits)<- r0
+// begin WITH_TAINT_TRACKING
+    add	    r3, r3, #4
+    str	    r10, [r9, r3]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
 
 /* continuation for OP_IPUT_WIDE */
 
@@ -8377,13 +9674,25 @@ dvmAsmSisterStart:
     ubfx    r2, rINST, #8, #4           @ r2<- A
     cmp     r9, #0                      @ check object for null
     ldr     r3, [r0, #offInstField_byteOffset]  @ r3<- byte offset of field
-    add     r2, rFP, r2, lsl #2         @ r3<- &fp[A]
+// begin WITH_TAINT_TRACKING
+    add     r2, rFP, r2, lsl #3         @ r3<- &fp[A]
+// end WITH_TAINT_TRACKING
     beq     common_errNullObject        @ object was null
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
-    ldmia   r2, {r0-r1}                 @ r0/r1<- fp[A]
+// begin WITH_TAINT_TRACKING
+//    ldmia   r2, {r0-r1}                 @ r0/r1<- fp[A]
+    ldr	    r0, [r2, #0]
+    ldr     r1, [r2, #8]
+    ldr	    r10, [r2, #4]
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    strd    r0, [r9, r3]                @ obj.field (64 bits, aligned)<- r0
+    strd    r0, [r9, r3]                @ obj.field (64 bits, aligned)<- r0/r1
+// begin WITH_TAINT_TRACKING
+    add	    r3, r3, #8
+    str	    r10, [r9, r3]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
 
 /* continuation for OP_IPUT_OBJECT */
 
@@ -8399,15 +9708,29 @@ dvmAsmSisterStart:
     and     r1, r1, #15                 @ r1<- A
     cmp     r9, #0                      @ check object for null
     GET_VREG(r0, r1)                    @ r0<- fp[A]
-    ldr     r2, [rSELF, #offThread_cardTable]  @ r2<- card table base
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r2)
+    GET_VREG_TAINT(r10, r1, r2)
+    ldr     r11, [rSELF, #offThread_cardTable]  @ r11<- card table base
+// end WITH_TAINT_TRACKING
     beq     common_errNullObject        @ object was null
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     @ no-op                         @ releasing store
+// begin WITH_TAINT_TRACKING
+//    .if     0
+//    add     r2, r9, r3                  @ r2<- target address
+//    mov     r1, r10                     @ r1<-taint
+//    bl      dvmQuasiAtomicSwap64        @ stores r0/r1 into addr r2
+//    .else
     str     r0, [r9, r3]                @ obj.field (32 bits)<- r0
+    add     r3, r3, #4
+    str     r10, [r9, r3]
+//    .endif
     @ no-op 
     cmp     r0, #0                      @ stored a null reference?
-    strneb  r2, [r2, r9, lsr #GC_CARD_SHIFT]  @ mark card if not
+    strneb  r11, [r11, r9, lsr #GC_CARD_SHIFT]  @ mark card if not
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
 /* continuation for OP_IPUT_BOOLEAN */
@@ -8424,13 +9747,28 @@ dvmAsmSisterStart:
     and     r1, r1, #15                 @ r1<- A
     cmp     r9, #0                      @ check object for null
     GET_VREG(r0, r1)                    @ r0<- fp[A]
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r2)
+    GET_VREG_TAINT(r10, r1, r2)
+// end WITH_TAINT_TRACKING
     beq     common_errNullObject        @ object was null
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    @ no-op                         @ releasing store
+    @ no-op                          @ releasing store
+// begin WITH_TAINT_TRACKING
+//    .if     0
+//    add     r2, r9, r3                  @ r2<- target address
+//    mov	    r1, r10                     @ r1<-taint
+//    bl      dvmQuasiAtomicSwap64        @ stores r0/r1 into addr r2
+//    .else
     str  r0, [r9, r3]                @ obj.field (8/16/32 bits)<- r0
+    add	    r3, r3, #4
+    str	    r10, [r9, r3]
+//    .endif
+// end WITH_TAINT_TRACKING
     @ no-op 
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
 
 /* continuation for OP_IPUT_BYTE */
 
@@ -8446,13 +9784,28 @@ dvmAsmSisterStart:
     and     r1, r1, #15                 @ r1<- A
     cmp     r9, #0                      @ check object for null
     GET_VREG(r0, r1)                    @ r0<- fp[A]
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r2)
+    GET_VREG_TAINT(r10, r1, r2)
+// end WITH_TAINT_TRACKING
     beq     common_errNullObject        @ object was null
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    @ no-op                         @ releasing store
+    @ no-op                          @ releasing store
+// begin WITH_TAINT_TRACKING
+//    .if     0
+//    add     r2, r9, r3                  @ r2<- target address
+//    mov	    r1, r10                     @ r1<-taint
+//    bl      dvmQuasiAtomicSwap64        @ stores r0/r1 into addr r2
+//    .else
     str  r0, [r9, r3]                @ obj.field (8/16/32 bits)<- r0
+    add	    r3, r3, #4
+    str	    r10, [r9, r3]
+//    .endif
+// end WITH_TAINT_TRACKING
     @ no-op 
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
 
 /* continuation for OP_IPUT_CHAR */
 
@@ -8468,13 +9821,28 @@ dvmAsmSisterStart:
     and     r1, r1, #15                 @ r1<- A
     cmp     r9, #0                      @ check object for null
     GET_VREG(r0, r1)                    @ r0<- fp[A]
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r2)
+    GET_VREG_TAINT(r10, r1, r2)
+// end WITH_TAINT_TRACKING
     beq     common_errNullObject        @ object was null
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    @ no-op                         @ releasing store
+    @ no-op                          @ releasing store
+// begin WITH_TAINT_TRACKING
+//    .if     0
+//    add     r2, r9, r3                  @ r2<- target address
+//    mov	    r1, r10                     @ r1<-taint
+//    bl      dvmQuasiAtomicSwap64        @ stores r0/r1 into addr r2
+//    .else
     str  r0, [r9, r3]                @ obj.field (8/16/32 bits)<- r0
+    add	    r3, r3, #4
+    str	    r10, [r9, r3]
+//    .endif
+// end WITH_TAINT_TRACKING
     @ no-op 
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
 
 /* continuation for OP_IPUT_SHORT */
 
@@ -8490,13 +9858,28 @@ dvmAsmSisterStart:
     and     r1, r1, #15                 @ r1<- A
     cmp     r9, #0                      @ check object for null
     GET_VREG(r0, r1)                    @ r0<- fp[A]
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r2)
+    GET_VREG_TAINT(r10, r1, r2)
+// end WITH_TAINT_TRACKING
     beq     common_errNullObject        @ object was null
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    @ no-op                         @ releasing store
+    @ no-op                          @ releasing store
+// begin WITH_TAINT_TRACKING
+//    .if     0
+//    add     r2, r9, r3                  @ r2<- target address
+//    mov	    r1, r10                     @ r1<-taint
+//    bl      dvmQuasiAtomicSwap64        @ stores r0/r1 into addr r2
+//    .else
     str  r0, [r9, r3]                @ obj.field (8/16/32 bits)<- r0
+    add	    r3, r3, #4
+    str	    r10, [r9, r3]
+//    .endif
+// end WITH_TAINT_TRACKING
     @ no-op 
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
 
 /* continuation for OP_SGET */
 
@@ -8524,7 +9907,46 @@ dvmAsmSisterStart:
 #endif
     b       .LOP_SGET_finish
 
+.LOP_SGET_taint_prop:
+//    .if     0
+//    add     r0, r0, #offStaticField_value		@ r0<- address of field
+//    bl      dvmQuasiAtomicRead32SfieldTaint		@ r0/r1<- value/taint
+//    .else
+    ldr	    r1, [r0, #offStaticField_taint] @ r1<- taint value
+    ldr     r0, [r0, #offStaticField_value] @ r0<- field value
+    @ no-op                             @ acquiring load
+//    .endif
+    mov     r2, rINST, lsr #8           @ r2<- AA
+    SET_TAINT_FP(r3)
+    SET_VREG_TAINT(r1, r2, r3)
+    bx      lr
+
+
 /* continuation for OP_SGET_WIDE */
+
+.LOP_SGET_WIDE_finish:
+    mov     r9, rINST, lsr #8           @ r9<- AA
+// begin WITH_TAINT_TRACKING
+    ldr	    r3, [r0, #offStaticField_taint] @ r3<- taint value
+    .if 0
+    stmfd   sp!, {r3}    
+    add     r0, r0, #offStaticField_value @ r0<- pointer to data
+    bl      dvmQuasiAtomicRead64        @ r0/r1<- contents of field
+    ldmfd   sp!, {r3}
+    .else
+    ldrd    r0, [r0, #offStaticField_value] @ r0/r1<- field value (aligned)
+    .endif
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[AA]
+    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+//    stmia   r9, {r2-r3}                 @ vAA/vAA+1<- r2/r3
+    str	    r0, [r9, #0]
+    str	    r3, [r9, #4]
+    str	    r1, [r9, #8]
+    str	    r3, [r9, #12]
+// end WITH_TAINT_TRACKING
+
+    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
+    GOTO_OPCODE(ip)                     @ jump to next instruction
 
     /*
      * Continuation if the field has not yet been resolved.
@@ -8578,6 +10000,21 @@ dvmAsmSisterStart:
 #endif
     b       .LOP_SGET_OBJECT_finish
 
+.LOP_SGET_OBJECT_taint_prop:
+//    .if     0
+//    add     r0, r0, #offStaticField_value		@ r0<- address of field
+//    bl      dvmQuasiAtomicRead32SfieldTaint		@ r0/r1<- value/taint
+//    .else
+    ldr	    r1, [r0, #offStaticField_taint] @ r1<- taint value
+    ldr     r0, [r0, #offStaticField_value] @ r0<- field value
+    @ no-op                             @ acquiring load
+//    .endif
+    mov     r2, rINST, lsr #8           @ r2<- AA
+    SET_TAINT_FP(r3)
+    SET_VREG_TAINT(r1, r2, r3)
+    bx      lr
+
+
 /* continuation for OP_SGET_BOOLEAN */
 
     /*
@@ -8603,6 +10040,21 @@ dvmAsmSisterStart:
     bl      common_verifyField
 #endif
     b       .LOP_SGET_BOOLEAN_finish
+
+.LOP_SGET_BOOLEAN_taint_prop:
+//    .if     0
+//    add     r0, r0, #offStaticField_value		@ r0<- address of field
+//    bl      dvmQuasiAtomicRead32SfieldTaint		@ r0/r1<- value/taint
+//    .else
+    ldr	    r1, [r0, #offStaticField_taint] @ r1<- taint value
+    ldr     r0, [r0, #offStaticField_value] @ r0<- field value
+    @ no-op                             @ acquiring load
+//    .endif
+    mov     r2, rINST, lsr #8           @ r2<- AA
+    SET_TAINT_FP(r3)
+    SET_VREG_TAINT(r1, r2, r3)
+    bx      lr
+
 
 /* continuation for OP_SGET_BYTE */
 
@@ -8630,6 +10082,21 @@ dvmAsmSisterStart:
 #endif
     b       .LOP_SGET_BYTE_finish
 
+.LOP_SGET_BYTE_taint_prop:
+//    .if     0
+//    add     r0, r0, #offStaticField_value		@ r0<- address of field
+//    bl      dvmQuasiAtomicRead32SfieldTaint		@ r0/r1<- value/taint
+//    .else
+    ldr	    r1, [r0, #offStaticField_taint] @ r1<- taint value
+    ldr     r0, [r0, #offStaticField_value] @ r0<- field value
+    @ no-op                             @ acquiring load
+//    .endif
+    mov     r2, rINST, lsr #8           @ r2<- AA
+    SET_TAINT_FP(r3)
+    SET_VREG_TAINT(r1, r2, r3)
+    bx      lr
+
+
 /* continuation for OP_SGET_CHAR */
 
     /*
@@ -8655,6 +10122,21 @@ dvmAsmSisterStart:
     bl      common_verifyField
 #endif
     b       .LOP_SGET_CHAR_finish
+
+.LOP_SGET_CHAR_taint_prop:
+//    .if     0
+//    add     r0, r0, #offStaticField_value		@ r0<- address of field
+//    bl      dvmQuasiAtomicRead32SfieldTaint		@ r0/r1<- value/taint
+//    .else
+    ldr	    r1, [r0, #offStaticField_taint] @ r1<- taint value
+    ldr     r0, [r0, #offStaticField_value] @ r0<- field value
+    @ no-op                             @ acquiring load
+//    .endif
+    mov     r2, rINST, lsr #8           @ r2<- AA
+    SET_TAINT_FP(r3)
+    SET_VREG_TAINT(r1, r2, r3)
+    bx      lr
+
 
 /* continuation for OP_SGET_SHORT */
 
@@ -8682,6 +10164,21 @@ dvmAsmSisterStart:
 #endif
     b       .LOP_SGET_SHORT_finish
 
+.LOP_SGET_SHORT_taint_prop:
+//    .if     0
+//    add     r0, r0, #offStaticField_value		@ r0<- address of field
+//    bl      dvmQuasiAtomicRead32SfieldTaint		@ r0/r1<- value/taint
+//    .else
+    ldr	    r1, [r0, #offStaticField_taint] @ r1<- taint value
+    ldr     r0, [r0, #offStaticField_value] @ r0<- field value
+    @ no-op                             @ acquiring load
+//    .endif
+    mov     r2, rINST, lsr #8           @ r2<- AA
+    SET_TAINT_FP(r3)
+    SET_VREG_TAINT(r1, r2, r3)
+    bx      lr
+
+
 /* continuation for OP_SPUT */
 
     /*
@@ -8707,6 +10204,25 @@ dvmAsmSisterStart:
     bl      common_verifyField
 #endif
     b       .LOP_SPUT_finish          @ resume
+
+.LOP_SPUT_taint_prop:
+//    .if     0
+//    add     r3, r0, #offStaticField_value   @ r3<- addr
+//    mov     r0, r1                          @ r0<- val
+//    mov     r1, r3                          @ r1<- addr
+//    SET_TAINT_FP(r3)
+//    GET_VREG_TAINT(r2, r2, r3)              @ r2<- taint
+//    bl      dvmQuasiAtomicSwap32SfieldTaint
+//    .else
+    @ no-op                        	    @ releasing store
+    str     r1, [r0, #offStaticField_value] @ field<- vAA
+    SET_TAINT_FP(r3)
+    GET_VREG_TAINT(r1, r2, r3)
+    str	    r1, [r0, #offStaticField_taint]
+    @ no-op 
+//    .endif
+    bx      lr
+
 
 /* continuation for OP_SPUT_WIDE */
 
@@ -8738,14 +10254,35 @@ dvmAsmSisterStart:
 #endif
     b       .LOP_SPUT_WIDE_finish          @ resume
 
+.LOP_SPUT_WIDE_taint_prop:
+//    ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
+    ldr r3, [r9, #4]
+    ldr r0, [r9, #0]
+    ldr r1, [r9, #8]
+    bx      lr
+
+
 /* continuation for OP_SPUT_OBJECT */
 
 
 .LOP_SPUT_OBJECT_end:
-    str     r1, [r0, #offStaticField_value]  @ field<- vAA
-    @ no-op 
-    cmp     r1, #0                      @ stored a null object?
-    strneb  r2, [r2, r9, lsr #GC_CARD_SHIFT]  @ mark card based on obj head
+// begin WITH_TAINT_TRACKING
+//    .if     0
+//    add	    r2, r0, #offStaticField_value       @ r2<- addr
+//    mov	    r0, r1                              @ r0<- val
+//    mov	    r1, r2                              @ r1<- addr
+//    mov	    r2, r3                              @ r2<- taint
+//    bl      dvmQuasiAtomicSwap32SfieldTaint
+//    cmp     r0, #0                    	        @ stored a null object?
+//    .else
+    str     r1, [r0, #offStaticField_value] @ field<- vAA
+    str	    r3, [r0, #offStaticField_taint]
+//    @ no-op 
+    cmp     r1, #0                              @ stored a null object?
+//    .endif
+//    strneb  r2, [r2, r9, lsr #GC_CARD_SHIFT]  @ mark card based on obj head
+    strneb  r10, [r10, r9, lsr #GC_CARD_SHIFT]  @ mark card based on obj head
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
     /* Continuation if the field has not yet been resolved.
@@ -8798,6 +10335,25 @@ dvmAsmSisterStart:
 #endif
     b       .LOP_SPUT_BOOLEAN_finish          @ resume
 
+.LOP_SPUT_BOOLEAN_taint_prop:
+//    .if     0
+//    add     r3, r0, #offStaticField_value   @ r3<- addr
+//    mov     r0, r1                          @ r0<- val
+//    mov     r1, r3                          @ r1<- addr
+//    SET_TAINT_FP(r3)
+//    GET_VREG_TAINT(r2, r2, r3)              @ r2<- taint
+//    bl      dvmQuasiAtomicSwap32SfieldTaint
+//    .else
+    @ no-op                        	    @ releasing store
+    str     r1, [r0, #offStaticField_value] @ field<- vAA
+    SET_TAINT_FP(r3)
+    GET_VREG_TAINT(r1, r2, r3)
+    str	    r1, [r0, #offStaticField_taint]
+    @ no-op 
+//    .endif
+    bx      lr
+
+
 /* continuation for OP_SPUT_BYTE */
 
     /*
@@ -8823,6 +10379,25 @@ dvmAsmSisterStart:
     bl      common_verifyField
 #endif
     b       .LOP_SPUT_BYTE_finish          @ resume
+
+.LOP_SPUT_BYTE_taint_prop:
+//    .if     0
+//    add     r3, r0, #offStaticField_value   @ r3<- addr
+//    mov     r0, r1                          @ r0<- val
+//    mov     r1, r3                          @ r1<- addr
+//    SET_TAINT_FP(r3)
+//    GET_VREG_TAINT(r2, r2, r3)              @ r2<- taint
+//    bl      dvmQuasiAtomicSwap32SfieldTaint
+//    .else
+    @ no-op                        	    @ releasing store
+    str     r1, [r0, #offStaticField_value] @ field<- vAA
+    SET_TAINT_FP(r3)
+    GET_VREG_TAINT(r1, r2, r3)
+    str	    r1, [r0, #offStaticField_taint]
+    @ no-op 
+//    .endif
+    bx      lr
+
 
 /* continuation for OP_SPUT_CHAR */
 
@@ -8850,6 +10425,25 @@ dvmAsmSisterStart:
 #endif
     b       .LOP_SPUT_CHAR_finish          @ resume
 
+.LOP_SPUT_CHAR_taint_prop:
+//    .if     0
+//    add     r3, r0, #offStaticField_value   @ r3<- addr
+//    mov     r0, r1                          @ r0<- val
+//    mov     r1, r3                          @ r1<- addr
+//    SET_TAINT_FP(r3)
+//    GET_VREG_TAINT(r2, r2, r3)              @ r2<- taint
+//    bl      dvmQuasiAtomicSwap32SfieldTaint
+//    .else
+    @ no-op                        	    @ releasing store
+    str     r1, [r0, #offStaticField_value] @ field<- vAA
+    SET_TAINT_FP(r3)
+    GET_VREG_TAINT(r1, r2, r3)
+    str	    r1, [r0, #offStaticField_taint]
+    @ no-op 
+//    .endif
+    bx      lr
+
+
 /* continuation for OP_SPUT_SHORT */
 
     /*
@@ -8875,6 +10469,25 @@ dvmAsmSisterStart:
     bl      common_verifyField
 #endif
     b       .LOP_SPUT_SHORT_finish          @ resume
+
+.LOP_SPUT_SHORT_taint_prop:
+//    .if     0
+//    add     r3, r0, #offStaticField_value   @ r3<- addr
+//    mov     r0, r1                          @ r0<- val
+//    mov     r1, r3                          @ r1<- addr
+//    SET_TAINT_FP(r3)
+//    GET_VREG_TAINT(r2, r2, r3)              @ r2<- taint
+//    bl      dvmQuasiAtomicSwap32SfieldTaint
+//    .else
+    @ no-op                        	    @ releasing store
+    str     r1, [r0, #offStaticField_value] @ field<- vAA
+    SET_TAINT_FP(r3)
+    GET_VREG_TAINT(r1, r2, r3)
+    str	    r1, [r0, #offStaticField_taint]
+    @ no-op 
+//    .endif
+    bx      lr
+
 
 /* continuation for OP_INVOKE_VIRTUAL */
 
@@ -9076,6 +10689,84 @@ dvmAsmSisterStart:
     b       common_exceptionThrown            @ yes, handle exception
 #endif
 
+/* continuation for OP_NEG_LONG */
+
+.LOP_NEG_LONG_finish:
+// begin WITH_TAINT_TRACKING
+//    stmia   r9, {r0-r1}                 @ vAA<- r0/r1
+    str     r0, [r9, #0]
+    str     r10, [r9, #4]
+    str     r1, [r9, #8]
+    str     r10, [r9, #12]
+// end WITH_TAINT_TRACKING
+    GOTO_OPCODE(ip)                     @ jump to next instruction
+    /* 10-11 instructions */
+
+/* continuation for OP_NOT_LONG */
+
+.LOP_NOT_LONG_finish:
+// begin WITH_TAINT_TRACKING
+//    stmia   r9, {r0-r1}                 @ vAA<- r0/r1
+    str     r0, [r9, #0]
+    str     r10, [r9, #4]
+    str     r1, [r9, #8]
+    str     r10, [r9, #12]
+// end WITH_TAINT_TRACKING
+    GOTO_OPCODE(ip)                     @ jump to next instruction
+    /* 10-11 instructions */
+
+/* continuation for OP_NEG_DOUBLE */
+
+.LOP_NEG_DOUBLE_finish:
+// begin WITH_TAINT_TRACKING
+//    stmia   r9, {r0-r1}                 @ vAA<- r0/r1
+    str     r0, [r9, #0]
+    str     r10, [r9, #4]
+    str     r1, [r9, #8]
+    str     r10, [r9, #12]
+// end WITH_TAINT_TRACKING
+    GOTO_OPCODE(ip)                     @ jump to next instruction
+    /* 10-11 instructions */
+
+/* continuation for OP_INT_TO_LONG */
+
+.LOP_INT_TO_LONG_finish:
+// begin WITH_TAINT_TRACKING
+//    stmia   r9, {r0-r1}                 @ vA/vA+1<- r0/r1
+    str     r0, [r9, #0]
+    str     r10, [r9, #4]
+    str     r1, [r9, #8]
+    str     r10, [r9, #12]
+// end WITH_TAINT_TRACKING
+    GOTO_OPCODE(ip)                     @ jump to next instruction
+    /* 9-10 instructions */
+
+/* continuation for OP_LONG_TO_DOUBLE */
+
+.LOP_LONG_TO_DOUBLE_finish:
+// begin WITH_TAINT_TRACKING
+//    stmia   r9, {r0-r1}                 @ vAA<- r0/r1
+    str     r0, [r9, #0]
+    str     r10, [r9, #4]
+    str     r1, [r9, #8]
+    str     r10, [r9, #12]
+// end WITH_TAINT_TRACKING
+    GOTO_OPCODE(ip)                     @ jump to next instruction
+    /* 10-11 instructions */
+
+/* continuation for OP_FLOAT_TO_LONG */
+
+.LOP_FLOAT_TO_LONG_finish:
+// begin WITH_TAINT_TRACKING
+//    stmia   r9, {r0-r1}                 @ vA/vA+1<- r0/r1
+    str     r0, [r9, #0]
+    str     r10, [r9, #4]
+    str     r1, [r9, #8]
+    str     r10, [r9, #12]
+// end WITH_TAINT_TRACKING
+    GOTO_OPCODE(ip)                     @ jump to next instruction
+    /* 9-10 instructions */
+
 /* continuation for OP_FLOAT_TO_LONG */
 /*
  * Convert the float in r0 to a long in r0/r1.
@@ -9112,6 +10803,20 @@ f2l_doconv:
     mov     r0, r4                      @ recover arg
     bl      __aeabi_f2lz                @ convert float to long
     ldmfd   sp!, {r4, pc}
+
+
+/* continuation for OP_DOUBLE_TO_LONG */
+
+.LOP_DOUBLE_TO_LONG_finish:
+// begin WITH_TAINT_TRACKING
+//    stmia   r9, {r0-r1}                 @ vAA<- r0/r1
+    str     r0, [r9, #0]
+    str     r10, [r9, #4]
+    str     r1, [r9, #8]
+    str     r10, [r9, #12]
+// end WITH_TAINT_TRACKING
+    GOTO_OPCODE(ip)                     @ jump to next instruction
+    /* 10-11 instructions */
 
 /* continuation for OP_DOUBLE_TO_LONG */
 /*
@@ -9163,57 +10868,974 @@ d2l_doconv:
     add     sp, sp, #4
     ldmfd   sp!, {r4, r5, pc}
 
+
+/* continuation for OP_ADD_INT */
+
+.LOP_ADD_INT_taint_prop:
+    SET_TAINT_FP(r10)
+    GET_VREG_TAINT(r3, r3, r10)
+    GET_VREG_TAINT(r2, r2, r10)
+    orr     r2, r3, r2
+    SET_VREG_TAINT(r2, r9, r10)
+    bx      lr
+
+/* continuation for OP_SUB_INT */
+
+.LOP_SUB_INT_taint_prop:
+    SET_TAINT_FP(r10)
+    GET_VREG_TAINT(r3, r3, r10)
+    GET_VREG_TAINT(r2, r2, r10)
+    orr     r2, r3, r2
+    SET_VREG_TAINT(r2, r9, r10)
+    bx      lr
+
+/* continuation for OP_MUL_INT */
+
+.LOP_MUL_INT_taint_prop:
+    SET_TAINT_FP(r10)
+    GET_VREG_TAINT(r3, r3, r10)
+    GET_VREG_TAINT(r2, r2, r10)
+    orr     r2, r3, r2
+    SET_VREG_TAINT(r2, r9, r10)
+    bx      lr
+
+/* continuation for OP_DIV_INT */
+
+.LOP_DIV_INT_taint_prop:
+    SET_TAINT_FP(r10)
+    GET_VREG_TAINT(r3, r3, r10)
+    GET_VREG_TAINT(r2, r2, r10)
+    orr     r2, r3, r2
+    SET_VREG_TAINT(r2, r9, r10)
+    bx      lr
+
+/* continuation for OP_REM_INT */
+
+.LOP_REM_INT_taint_prop:
+    SET_TAINT_FP(r10)
+    GET_VREG_TAINT(r3, r3, r10)
+    GET_VREG_TAINT(r2, r2, r10)
+    orr     r2, r3, r2
+    SET_VREG_TAINT(r2, r9, r10)
+    bx      lr
+
+/* continuation for OP_AND_INT */
+
+.LOP_AND_INT_taint_prop:
+    SET_TAINT_FP(r10)
+    GET_VREG_TAINT(r3, r3, r10)
+    GET_VREG_TAINT(r2, r2, r10)
+    orr     r2, r3, r2
+    SET_VREG_TAINT(r2, r9, r10)
+    bx      lr
+
+/* continuation for OP_OR_INT */
+
+.LOP_OR_INT_taint_prop:
+    SET_TAINT_FP(r10)
+    GET_VREG_TAINT(r3, r3, r10)
+    GET_VREG_TAINT(r2, r2, r10)
+    orr     r2, r3, r2
+    SET_VREG_TAINT(r2, r9, r10)
+    bx      lr
+
+/* continuation for OP_XOR_INT */
+
+.LOP_XOR_INT_taint_prop:
+    SET_TAINT_FP(r10)
+    GET_VREG_TAINT(r3, r3, r10)
+    GET_VREG_TAINT(r2, r2, r10)
+    orr     r2, r3, r2
+    SET_VREG_TAINT(r2, r9, r10)
+    bx      lr
+
+/* continuation for OP_SHL_INT */
+
+.LOP_SHL_INT_taint_prop:
+    SET_TAINT_FP(r10)
+    GET_VREG_TAINT(r3, r3, r10)
+    GET_VREG_TAINT(r2, r2, r10)
+    orr     r2, r3, r2
+    SET_VREG_TAINT(r2, r9, r10)
+    bx      lr
+
+/* continuation for OP_SHR_INT */
+
+.LOP_SHR_INT_taint_prop:
+    SET_TAINT_FP(r10)
+    GET_VREG_TAINT(r3, r3, r10)
+    GET_VREG_TAINT(r2, r2, r10)
+    orr     r2, r3, r2
+    SET_VREG_TAINT(r2, r9, r10)
+    bx      lr
+
+/* continuation for OP_USHR_INT */
+
+.LOP_USHR_INT_taint_prop:
+    SET_TAINT_FP(r10)
+    GET_VREG_TAINT(r3, r3, r10)
+    GET_VREG_TAINT(r2, r2, r10)
+    orr     r2, r3, r2
+    SET_VREG_TAINT(r2, r9, r10)
+    bx      lr
+
+/* continuation for OP_ADD_LONG */
+
+.LOP_ADD_LONG_taint_prop:
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[AA]
+    stmfd   sp!, {r9}
+    add     r2, rFP, r2, lsl #3         @ r2<- &fp[BB]
+    add     r3, rFP, r3, lsl #3         @ r3<- &fp[CC]
+//    ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
+    ldr     r0, [r2, #0]
+    ldr     r9, [r2, #4]
+    ldr     r1, [r2, #8]
+//    ldmia   r3, {r2-r3}                 @ r2/r3<- vCC/vCC+1
+    ldr     r2, [r3, #0]
+    ldr     r10, [r3, #4]
+    ldr     r3, [r3, #8]
+    orr     r10, r9, r10
+    ldmfd   sp!, {r9}
+    bx      lr
+
+/* continuation for OP_SUB_LONG */
+
+.LOP_SUB_LONG_taint_prop:
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[AA]
+    stmfd   sp!, {r9}
+    add     r2, rFP, r2, lsl #3         @ r2<- &fp[BB]
+    add     r3, rFP, r3, lsl #3         @ r3<- &fp[CC]
+//    ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
+    ldr     r0, [r2, #0]
+    ldr     r9, [r2, #4]
+    ldr     r1, [r2, #8]
+//    ldmia   r3, {r2-r3}                 @ r2/r3<- vCC/vCC+1
+    ldr     r2, [r3, #0]
+    ldr     r10, [r3, #4]
+    ldr     r3, [r3, #8]
+    orr     r10, r9, r10
+    ldmfd   sp!, {r9}
+    bx      lr
+
 /* continuation for OP_MUL_LONG */
 
 .LOP_MUL_LONG_finish:
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r0, {r9-r10}                @ vAA/vAA+1<- r9/r10
+// begin WITH_TAINT_TRACKING
+//    stmia   r0, {r9-r10}                @ vAA/vAA+1<- r9/r10
+    str     r9, [r0, #0]
+    str     r10, [r0, #8]
+    str     r10, [r0, #12]
+    ldmfd   sp!, {r10}
+    str     r10, [r0, #4]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
+mul_long_taint_prop:
+    add     r2, rFP, r2, lsl #3         @ r2<- &fp[BB]
+    add     r3, rFP, r3, lsl #3         @ r3<- &fp[CC]
+//    ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
+    ldr     r0, [r2, #0]
+    ldr     r9, [r2, #4]
+    ldr     r1, [r2, #8]
+//    ldmia   r3, {r2-r3}                 @ r2/r3<- vCC/vCC+1
+    ldr     r2, [r3, #0]
+    ldr     r10, [r3, #4]
+    ldr     r3, [r3, #8]
+    orr     r10, r9, r10
+    stmfd   sp!, {r10}
+    bx      lr
+
+/* continuation for OP_DIV_LONG */
+
+.LOP_DIV_LONG_taint_prop:
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[AA]
+    stmfd   sp!, {r9}
+    add     r2, rFP, r2, lsl #3         @ r2<- &fp[BB]
+    add     r3, rFP, r3, lsl #3         @ r3<- &fp[CC]
+//    ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
+    ldr     r0, [r2, #0]
+    ldr     r9, [r2, #4]
+    ldr     r1, [r2, #8]
+//    ldmia   r3, {r2-r3}                 @ r2/r3<- vCC/vCC+1
+    ldr     r2, [r3, #0]
+    ldr     r10, [r3, #4]
+    ldr     r3, [r3, #8]
+    orr     r10, r9, r10
+    ldmfd   sp!, {r9}
+    bx      lr
+
+/* continuation for OP_REM_LONG */
+
+.LOP_REM_LONG_taint_prop:
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[AA]
+    stmfd   sp!, {r9}
+    add     r2, rFP, r2, lsl #3         @ r2<- &fp[BB]
+    add     r3, rFP, r3, lsl #3         @ r3<- &fp[CC]
+//    ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
+    ldr     r0, [r2, #0]
+    ldr     r9, [r2, #4]
+    ldr     r1, [r2, #8]
+//    ldmia   r3, {r2-r3}                 @ r2/r3<- vCC/vCC+1
+    ldr     r2, [r3, #0]
+    ldr     r10, [r3, #4]
+    ldr     r3, [r3, #8]
+    orr     r10, r9, r10
+    ldmfd   sp!, {r9}
+    bx      lr
+
+/* continuation for OP_AND_LONG */
+
+.LOP_AND_LONG_taint_prop:
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[AA]
+    stmfd   sp!, {r9}
+    add     r2, rFP, r2, lsl #3         @ r2<- &fp[BB]
+    add     r3, rFP, r3, lsl #3         @ r3<- &fp[CC]
+//    ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
+    ldr     r0, [r2, #0]
+    ldr     r9, [r2, #4]
+    ldr     r1, [r2, #8]
+//    ldmia   r3, {r2-r3}                 @ r2/r3<- vCC/vCC+1
+    ldr     r2, [r3, #0]
+    ldr     r10, [r3, #4]
+    ldr     r3, [r3, #8]
+    orr     r10, r9, r10
+    ldmfd   sp!, {r9}
+    bx      lr
+
+/* continuation for OP_OR_LONG */
+
+.LOP_OR_LONG_taint_prop:
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[AA]
+    stmfd   sp!, {r9}
+    add     r2, rFP, r2, lsl #3         @ r2<- &fp[BB]
+    add     r3, rFP, r3, lsl #3         @ r3<- &fp[CC]
+//    ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
+    ldr     r0, [r2, #0]
+    ldr     r9, [r2, #4]
+    ldr     r1, [r2, #8]
+//    ldmia   r3, {r2-r3}                 @ r2/r3<- vCC/vCC+1
+    ldr     r2, [r3, #0]
+    ldr     r10, [r3, #4]
+    ldr     r3, [r3, #8]
+    orr     r10, r9, r10
+    ldmfd   sp!, {r9}
+    bx      lr
+
+/* continuation for OP_XOR_LONG */
+
+.LOP_XOR_LONG_taint_prop:
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[AA]
+    stmfd   sp!, {r9}
+    add     r2, rFP, r2, lsl #3         @ r2<- &fp[BB]
+    add     r3, rFP, r3, lsl #3         @ r3<- &fp[CC]
+//    ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
+    ldr     r0, [r2, #0]
+    ldr     r9, [r2, #4]
+    ldr     r1, [r2, #8]
+//    ldmia   r3, {r2-r3}                 @ r2/r3<- vCC/vCC+1
+    ldr     r2, [r3, #0]
+    ldr     r10, [r3, #4]
+    ldr     r3, [r3, #8]
+    orr     r10, r9, r10
+    ldmfd   sp!, {r9}
+    bx      lr
 
 /* continuation for OP_SHL_LONG */
 
 .LOP_SHL_LONG_finish:
     mov     r0, r0, asl r2              @  r0<- r0 << r2
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r9, {r0-r1}                 @ vAA/vAA+1<- r0/r1
+// begin WITH_TAINT_TRACKING
+//    stmia   r9, {r0-r1}                 @ vAA/vAA+1<- r0/r1
+    str     r0, [r9, #0]
+    str     r10, [r9, #4]
+    str     r1, [r9, #8]
+    str     r10, [r9, #12]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
+shl_long_taint_prop:
+    add     r3, rFP, r3, lsl #3         @ r3<- &fp[BB]
+    GET_VREG(r2, r0)                    @ r2<- vCC
+    SET_TAINT_FP(r1)
+    GET_VREG_TAINT(r0, r0, r1)
+//    ldmia   r3, {r0-r1}                 @ r0/r1<- vBB/vBB+1
+    ldr     r1, [r3, #4]
+    orr     r10, r0, r1
+    ldr     r0, [r3, #0]
+    ldr     r1, [r3, #8]
+    and     r2, r2, #63                 @ r2<- r2 & 0x3f
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[AA]
+    bx      lr
 
 /* continuation for OP_SHR_LONG */
 
 .LOP_SHR_LONG_finish:
     mov     r1, r1, asr r2              @  r1<- r1 >> r2
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r9, {r0-r1}                 @ vAA/vAA+1<- r0/r1
+// begin WITH_TAINT_TRACKING
+//    stmia   r9, {r0-r1}                 @ vAA/vAA+1<- r0/r1
+    str     r0, [r9, #0]
+    str     r10, [r9, #4]
+    str     r1, [r9, #8]
+    str     r10, [r9, #12]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
+shr_long_taint_prop:
+    add     r3, rFP, r3, lsl #3         @ r3<- &fp[BB]
+    GET_VREG(r2, r0)                    @ r2<- vCC
+    SET_TAINT_FP(r1)
+    GET_VREG_TAINT(r0, r0, r1)
+//    ldmia   r3, {r0-r1}                 @ r0/r1<- vBB/vBB+1
+    ldr     r1, [r3, #4]
+    orr     r10, r0, r1
+    ldr     r0, [r3, #0]
+    ldr     r1, [r3, #8]
+    and     r2, r2, #63                 @ r2<- r2 & 0x3f
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[AA]
+    bx      lr
 
 /* continuation for OP_USHR_LONG */
 
 .LOP_USHR_LONG_finish:
     mov     r1, r1, lsr r2              @  r1<- r1 >>> r2
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r9, {r0-r1}                 @ vAA/vAA+1<- r0/r1
+// begin WITH_TAINT_TRACKING
+//    stmia   r9, {r0-r1}                 @ vAA/vAA+1<- r0/r1
+    str     r0, [r9, #0]
+    str     r10, [r9, #4]
+    str     r1, [r9, #8]
+    str     r10, [r9, #12]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
+ushr_long_taint_prop:
+    add     r3, rFP, r3, lsl #3         @ r3<- &fp[BB]
+    GET_VREG(r2, r0)                    @ r2<- vCC
+    SET_TAINT_FP(r1)
+    GET_VREG_TAINT(r0, r0, r1)
+//    ldmia   r3, {r0-r1}                 @ r0/r1<- vBB/vBB+1
+    ldr     r1, [r3, #4]
+    orr     r10, r0, r1
+    ldr     r0, [r3, #0]
+    ldr     r1, [r3, #8]
+    and     r2, r2, #63                 @ r0<- r0 & 0x3f
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[AA]
+    bx      lr
+
+/* continuation for OP_ADD_FLOAT */
+
+.LOP_ADD_FLOAT_finish:
+    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+    fadds   s2, s0, s1                              @ s2<- op
+    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
+    VREG_INDEX_TO_ADDR(r9, r9)          @ r9<- &vAA
+    fsts    s2, [r9]                    @ vAA<- s2
+// begin WITH_TAINT_TRACKING
+    str     r0, [r9, #4]
+// end WITH_TAINT_TRACKING
+    GOTO_OPCODE(ip)                     @ jump to next instruction
+
+
+/* continuation for OP_SUB_FLOAT */
+
+.LOP_SUB_FLOAT_finish:
+    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+    fsubs   s2, s0, s1                              @ s2<- op
+    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
+    VREG_INDEX_TO_ADDR(r9, r9)          @ r9<- &vAA
+    fsts    s2, [r9]                    @ vAA<- s2
+// begin WITH_TAINT_TRACKING
+    str     r0, [r9, #4]
+// end WITH_TAINT_TRACKING
+    GOTO_OPCODE(ip)                     @ jump to next instruction
+
+
+/* continuation for OP_MUL_FLOAT */
+
+.LOP_MUL_FLOAT_finish:
+    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+    fmuls   s2, s0, s1                              @ s2<- op
+    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
+    VREG_INDEX_TO_ADDR(r9, r9)          @ r9<- &vAA
+    fsts    s2, [r9]                    @ vAA<- s2
+// begin WITH_TAINT_TRACKING
+    str     r0, [r9, #4]
+// end WITH_TAINT_TRACKING
+    GOTO_OPCODE(ip)                     @ jump to next instruction
+
+
+/* continuation for OP_DIV_FLOAT */
+
+.LOP_DIV_FLOAT_finish:
+    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+    fdivs   s2, s0, s1                              @ s2<- op
+    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
+    VREG_INDEX_TO_ADDR(r9, r9)          @ r9<- &vAA
+    fsts    s2, [r9]                    @ vAA<- s2
+// begin WITH_TAINT_TRACKING
+    str     r0, [r9, #4]
+// end WITH_TAINT_TRACKING
+    GOTO_OPCODE(ip)                     @ jump to next instruction
+
+
+/* continuation for OP_REM_FLOAT */
+
+.LOP_REM_FLOAT_taint_prop:
+    SET_TAINT_FP(r10)
+    GET_VREG_TAINT(r3, r3, r10)
+    GET_VREG_TAINT(r2, r2, r10)
+    orr     r2, r3, r2
+    SET_VREG_TAINT(r2, r9, r10)
+    bx      lr
+
+/* continuation for OP_ADD_DOUBLE */
+
+.LOP_ADD_DOUBLE_finish:
+    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+    faddd   d2, d0, d1                              @ s2<- op
+    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
+    VREG_INDEX_TO_ADDR(r9, r9)          @ r9<- &vAA
+// begin WITH_TAINT_TRACKING
+//    fstd    d2, [r9]                    @ vAA<- d2
+    fsts    s4, [r9]
+    fsts    s5, [r9, #8]
+    str     r0, [r9, #4]
+    str     r0, [r9, #12]
+// end WITH_TAINT_TRACKING
+    GOTO_OPCODE(ip)                     @ jump to next instruction
+
+/* continuation for OP_SUB_DOUBLE */
+
+.LOP_SUB_DOUBLE_finish:
+    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+    fsubd   d2, d0, d1                              @ s2<- op
+    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
+    VREG_INDEX_TO_ADDR(r9, r9)          @ r9<- &vAA
+// begin WITH_TAINT_TRACKING
+//    fstd    d2, [r9]                    @ vAA<- d2
+    fsts    s4, [r9]
+    fsts    s5, [r9, #8]
+    str     r0, [r9, #4]
+    str     r0, [r9, #12]
+// end WITH_TAINT_TRACKING
+    GOTO_OPCODE(ip)                     @ jump to next instruction
+
+/* continuation for OP_MUL_DOUBLE */
+
+.LOP_MUL_DOUBLE_finish:
+    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+    fmuld   d2, d0, d1                              @ s2<- op
+    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
+    VREG_INDEX_TO_ADDR(r9, r9)          @ r9<- &vAA
+// begin WITH_TAINT_TRACKING
+//    fstd    d2, [r9]                    @ vAA<- d2
+    fsts    s4, [r9]
+    fsts    s5, [r9, #8]
+    str     r0, [r9, #4]
+    str     r0, [r9, #12]
+// end WITH_TAINT_TRACKING
+    GOTO_OPCODE(ip)                     @ jump to next instruction
+
+/* continuation for OP_DIV_DOUBLE */
+
+.LOP_DIV_DOUBLE_finish:
+    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+    fdivd   d2, d0, d1                              @ s2<- op
+    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
+    VREG_INDEX_TO_ADDR(r9, r9)          @ r9<- &vAA
+// begin WITH_TAINT_TRACKING
+//    fstd    d2, [r9]                    @ vAA<- d2
+    fsts    s4, [r9]
+    fsts    s5, [r9, #8]
+    str     r0, [r9, #4]
+    str     r0, [r9, #12]
+// end WITH_TAINT_TRACKING
+    GOTO_OPCODE(ip)                     @ jump to next instruction
+
+/* continuation for OP_REM_DOUBLE */
+
+.LOP_REM_DOUBLE_taint_prop:
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[AA]
+    stmfd   sp!, {r9}
+    add     r2, rFP, r2, lsl #3         @ r2<- &fp[BB]
+    add     r3, rFP, r3, lsl #3         @ r3<- &fp[CC]
+//    ldmia   r2, {r0-r1}                 @ r0/r1<- vBB/vBB+1
+    ldr     r0, [r2, #0]
+    ldr     r9, [r2, #4]
+    ldr     r1, [r2, #8]
+//    ldmia   r3, {r2-r3}                 @ r2/r3<- vCC/vCC+1
+    ldr     r2, [r3, #0]
+    ldr     r10, [r3, #4]
+    ldr     r3, [r3, #8]
+    orr     r10, r9, r10
+    ldmfd   sp!, {r9}
+    bx      lr
+
+/* continuation for OP_ADD_INT_2ADDR */
+
+.LOP_ADD_INT_2ADDR_taint_prop:
+    SET_TAINT_FP(r2)
+    GET_VREG_TAINT(r3, r3, r2)
+    GET_VREG_TAINT(r10, r9, r2)
+    orr     r10, r3, r10
+    SET_VREG_TAINT(r10, r9, r2)
+    bx      lr
+
+/* continuation for OP_SUB_INT_2ADDR */
+
+.LOP_SUB_INT_2ADDR_taint_prop:
+    SET_TAINT_FP(r2)
+    GET_VREG_TAINT(r3, r3, r2)
+    GET_VREG_TAINT(r10, r9, r2)
+    orr     r10, r3, r10
+    SET_VREG_TAINT(r10, r9, r2)
+    bx      lr
+
+/* continuation for OP_MUL_INT_2ADDR */
+
+.LOP_MUL_INT_2ADDR_taint_prop:
+    SET_TAINT_FP(r2)
+    GET_VREG_TAINT(r3, r3, r2)
+    GET_VREG_TAINT(r10, r9, r2)
+    orr     r10, r3, r10
+    SET_VREG_TAINT(r10, r9, r2)
+    bx      lr
+
+/* continuation for OP_DIV_INT_2ADDR */
+
+.LOP_DIV_INT_2ADDR_taint_prop:
+    SET_TAINT_FP(r2)
+    GET_VREG_TAINT(r3, r3, r2)
+    GET_VREG_TAINT(r10, r9, r2)
+    orr     r10, r3, r10
+    SET_VREG_TAINT(r10, r9, r2)
+    bx      lr
+
+/* continuation for OP_REM_INT_2ADDR */
+
+.LOP_REM_INT_2ADDR_taint_prop:
+    SET_TAINT_FP(r2)
+    GET_VREG_TAINT(r3, r3, r2)
+    GET_VREG_TAINT(r10, r9, r2)
+    orr     r10, r3, r10
+    SET_VREG_TAINT(r10, r9, r2)
+    bx      lr
+
+/* continuation for OP_AND_INT_2ADDR */
+
+.LOP_AND_INT_2ADDR_taint_prop:
+    SET_TAINT_FP(r2)
+    GET_VREG_TAINT(r3, r3, r2)
+    GET_VREG_TAINT(r10, r9, r2)
+    orr     r10, r3, r10
+    SET_VREG_TAINT(r10, r9, r2)
+    bx      lr
+
+/* continuation for OP_OR_INT_2ADDR */
+
+.LOP_OR_INT_2ADDR_taint_prop:
+    SET_TAINT_FP(r2)
+    GET_VREG_TAINT(r3, r3, r2)
+    GET_VREG_TAINT(r10, r9, r2)
+    orr     r10, r3, r10
+    SET_VREG_TAINT(r10, r9, r2)
+    bx      lr
+
+/* continuation for OP_XOR_INT_2ADDR */
+
+.LOP_XOR_INT_2ADDR_taint_prop:
+    SET_TAINT_FP(r2)
+    GET_VREG_TAINT(r3, r3, r2)
+    GET_VREG_TAINT(r10, r9, r2)
+    orr     r10, r3, r10
+    SET_VREG_TAINT(r10, r9, r2)
+    bx      lr
+
+/* continuation for OP_SHL_INT_2ADDR */
+
+.LOP_SHL_INT_2ADDR_taint_prop:
+    SET_TAINT_FP(r2)
+    GET_VREG_TAINT(r3, r3, r2)
+    GET_VREG_TAINT(r10, r9, r2)
+    orr     r10, r3, r10
+    SET_VREG_TAINT(r10, r9, r2)
+    bx      lr
+
+/* continuation for OP_SHR_INT_2ADDR */
+
+.LOP_SHR_INT_2ADDR_taint_prop:
+    SET_TAINT_FP(r2)
+    GET_VREG_TAINT(r3, r3, r2)
+    GET_VREG_TAINT(r10, r9, r2)
+    orr     r10, r3, r10
+    SET_VREG_TAINT(r10, r9, r2)
+    bx      lr
+
+/* continuation for OP_USHR_INT_2ADDR */
+
+.LOP_USHR_INT_2ADDR_taint_prop:
+    SET_TAINT_FP(r2)
+    GET_VREG_TAINT(r3, r3, r2)
+    GET_VREG_TAINT(r10, r9, r2)
+    orr     r10, r3, r10
+    SET_VREG_TAINT(r10, r9, r2)
+    bx      lr
+
+/* continuation for OP_ADD_LONG_2ADDR */
+
+.LOP_ADD_LONG_2ADDR_taint_prop:
+    add     r1, rFP, r1, lsl #3         @ r1<- &fp[B]
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[A]
+//    ldmia   r1, {r2-r3}                 @ r2/r3<- vBB/vBB+1
+    ldr     r2, [r1, #0]
+    ldr     r10, [r1, #4]
+    ldr     r3, [r1, #8]
+//    ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
+    ldr     r0, [r9, #0]
+    ldr     r1, [r9, #8]
+    stmfd   sp!, {r9}
+    ldr     r9, [r9, #4]
+    orr     r10, r9, r10
+    ldmfd   sp!, {r9}
+    bx      lr
+
+/* continuation for OP_SUB_LONG_2ADDR */
+
+.LOP_SUB_LONG_2ADDR_taint_prop:
+    add     r1, rFP, r1, lsl #3         @ r1<- &fp[B]
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[A]
+//    ldmia   r1, {r2-r3}                 @ r2/r3<- vBB/vBB+1
+    ldr     r2, [r1, #0]
+    ldr     r10, [r1, #4]
+    ldr     r3, [r1, #8]
+//    ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
+    ldr     r0, [r9, #0]
+    ldr     r1, [r9, #8]
+    stmfd   sp!, {r9}
+    ldr     r9, [r9, #4]
+    orr     r10, r9, r10
+    ldmfd   sp!, {r9}
+    bx      lr
+
+/* continuation for OP_MUL_LONG_2ADDR */
+
+mul_long_2addr_taint_prop:
+    ubfx    r9, rINST, #8, #4           @ r9<- A
+    add     r1, rFP, r1, lsl #3         @ r1<- &fp[B]
+    add     rINST, rFP, r9, lsl #3      @ rINST<- &fp[A]
+//    ldmia   r1, {r2-r3}                 @ r2/r3<- vBB/vBB+1
+    ldr     r2, [r1, #0]
+    ldr     r9, [r1, #4]
+    ldr     r3, [r1, #8]
+//    ldmia   rINST, {r0-r1}              @ r0/r1<- vAA/vAA+1
+    ldr     r0, [rINST, #0]
+    ldr     r10, [rINST, #4]
+    ldr     r1, [rINST, #8]
+    orr     r10, r9, r10
+    stmfd   sp!, {r10}
+    mul     ip, r2, r1                  @  ip<- ZxW
+    bx      lr
+
+/* continuation for OP_DIV_LONG_2ADDR */
+
+.LOP_DIV_LONG_2ADDR_taint_prop:
+    add     r1, rFP, r1, lsl #3         @ r1<- &fp[B]
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[A]
+//    ldmia   r1, {r2-r3}                 @ r2/r3<- vBB/vBB+1
+    ldr     r2, [r1, #0]
+    ldr     r10, [r1, #4]
+    ldr     r3, [r1, #8]
+//    ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
+    ldr     r0, [r9, #0]
+    ldr     r1, [r9, #8]
+    stmfd   sp!, {r9}
+    ldr     r9, [r9, #4]
+    orr     r10, r9, r10
+    ldmfd   sp!, {r9}
+    bx      lr
+
+/* continuation for OP_REM_LONG_2ADDR */
+
+.LOP_REM_LONG_2ADDR_taint_prop:
+    add     r1, rFP, r1, lsl #3         @ r1<- &fp[B]
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[A]
+//    ldmia   r1, {r2-r3}                 @ r2/r3<- vBB/vBB+1
+    ldr     r2, [r1, #0]
+    ldr     r10, [r1, #4]
+    ldr     r3, [r1, #8]
+//    ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
+    ldr     r0, [r9, #0]
+    ldr     r1, [r9, #8]
+    stmfd   sp!, {r9}
+    ldr     r9, [r9, #4]
+    orr     r10, r9, r10
+    ldmfd   sp!, {r9}
+    bx      lr
+
+/* continuation for OP_AND_LONG_2ADDR */
+
+.LOP_AND_LONG_2ADDR_taint_prop:
+    add     r1, rFP, r1, lsl #3         @ r1<- &fp[B]
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[A]
+//    ldmia   r1, {r2-r3}                 @ r2/r3<- vBB/vBB+1
+    ldr     r2, [r1, #0]
+    ldr     r10, [r1, #4]
+    ldr     r3, [r1, #8]
+//    ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
+    ldr     r0, [r9, #0]
+    ldr     r1, [r9, #8]
+    stmfd   sp!, {r9}
+    ldr     r9, [r9, #4]
+    orr     r10, r9, r10
+    ldmfd   sp!, {r9}
+    bx      lr
+
+/* continuation for OP_OR_LONG_2ADDR */
+
+.LOP_OR_LONG_2ADDR_taint_prop:
+    add     r1, rFP, r1, lsl #3         @ r1<- &fp[B]
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[A]
+//    ldmia   r1, {r2-r3}                 @ r2/r3<- vBB/vBB+1
+    ldr     r2, [r1, #0]
+    ldr     r10, [r1, #4]
+    ldr     r3, [r1, #8]
+//    ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
+    ldr     r0, [r9, #0]
+    ldr     r1, [r9, #8]
+    stmfd   sp!, {r9}
+    ldr     r9, [r9, #4]
+    orr     r10, r9, r10
+    ldmfd   sp!, {r9}
+    bx      lr
+
+/* continuation for OP_XOR_LONG_2ADDR */
+
+.LOP_XOR_LONG_2ADDR_taint_prop:
+    add     r1, rFP, r1, lsl #3         @ r1<- &fp[B]
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[A]
+//    ldmia   r1, {r2-r3}                 @ r2/r3<- vBB/vBB+1
+    ldr     r2, [r1, #0]
+    ldr     r10, [r1, #4]
+    ldr     r3, [r1, #8]
+//    ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
+    ldr     r0, [r9, #0]
+    ldr     r1, [r9, #8]
+    stmfd   sp!, {r9}
+    ldr     r9, [r9, #4]
+    orr     r10, r9, r10
+    ldmfd   sp!, {r9}
+    bx      lr
 
 /* continuation for OP_SHL_LONG_2ADDR */
 
 .LOP_SHL_LONG_2ADDR_finish:
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r9, {r0-r1}                 @ vAA/vAA+1<- r0/r1
+// begin WITH_TAINT_TRACKING
+//    stmia   r9, {r0-r1}                 @ vAA/vAA+1<- r0/r1
+    str     r0, [r9, #0]
+    str     r10, [r9, #4]
+    str     r1, [r9, #8]
+    str     r10, [r9, #12]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
+shl_long_2addr_taint_prop:
+    SET_TAINT_FP(r0)
+    GET_VREG_TAINT(r0, r3, r0)
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[A]
+    and     r2, r2, #63                 @ r2<- r2 & 0x3f
+//    ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
+    ldr     r10, [r9, #4]
+    orr     r10, r0, r10
+    ldr     r0, [r9, #0]
+    ldr     r1, [r9, #8]
+    bx      lr
 
 /* continuation for OP_SHR_LONG_2ADDR */
 
 .LOP_SHR_LONG_2ADDR_finish:
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r9, {r0-r1}                 @ vAA/vAA+1<- r0/r1
+// begin WITH_TAINT_TRACKING
+//    stmia   r9, {r0-r1}                 @ vAA/vAA+1<- r0/r1
+    str     r0, [r9, #0]
+    str     r10, [r9, #4]
+    str     r1, [r9, #8]
+    str     r10, [r9, #12]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
+// OP_SHR_LONG_2ADDR.S
+shr_long_2addr_taint_prop:
+    SET_TAINT_FP(r0)
+    GET_VREG_TAINT(r0, r3, r0)
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[A]
+    and     r2, r2, #63                 @ r2<- r2 & 0x3f
+//    ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
+    ldr     r10, [r9, #4]
+    orr     r10, r0, r10
+    ldr     r0, [r9, #0]
+    ldr     r1, [r9, #8]
+    bx      lr
 
 /* continuation for OP_USHR_LONG_2ADDR */
 
 .LOP_USHR_LONG_2ADDR_finish:
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r9, {r0-r1}                 @ vAA/vAA+1<- r0/r1
+// begin WITH_TAINT_TRACKING
+//    stmia   r9, {r0-r1}                 @ vAA/vAA+1<- r0/r1
+    str     r0, [r9, #0]
+    str     r10, [r9, #4]
+    str     r1, [r9, #8]
+    str     r10, [r9, #12]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
+ushr_long_2addr_taint_prop:
+    SET_TAINT_FP(r0)
+    GET_VREG_TAINT(r0, r3, r0)
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[A]
+    and     r2, r2, #63                 @ r2<- r2 & 0x3f
+//    ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
+    ldr     r10, [r9, #4]
+    orr     r10, r0, r10
+    ldr     r0, [r9, #0]
+    ldr     r1, [r9, #8]
+    bx      lr
+
+/* continuation for OP_ADD_FLOAT_2ADDR */
+
+.LOP_ADD_FLOAT_2ADDR_finish:
+    fadds   s2, s0, s1                              @ s2<- op
+    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
+    fsts    s2, [r9]                    @ vAA<- s2
+// begin WITH_TAINT_TRACKING
+    str     r0, [r9, #4]
+// end WITH_TAINT_TRACKING
+    GOTO_OPCODE(ip)                     @ jump to next instruction
+
+/* continuation for OP_SUB_FLOAT_2ADDR */
+
+.LOP_SUB_FLOAT_2ADDR_finish:
+    fsubs   s2, s0, s1                              @ s2<- op
+    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
+    fsts    s2, [r9]                    @ vAA<- s2
+// begin WITH_TAINT_TRACKING
+    str     r0, [r9, #4]
+// end WITH_TAINT_TRACKING
+    GOTO_OPCODE(ip)                     @ jump to next instruction
+
+/* continuation for OP_MUL_FLOAT_2ADDR */
+
+.LOP_MUL_FLOAT_2ADDR_finish:
+    fmuls   s2, s0, s1                              @ s2<- op
+    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
+    fsts    s2, [r9]                    @ vAA<- s2
+// begin WITH_TAINT_TRACKING
+    str     r0, [r9, #4]
+// end WITH_TAINT_TRACKING
+    GOTO_OPCODE(ip)                     @ jump to next instruction
+
+/* continuation for OP_DIV_FLOAT_2ADDR */
+
+.LOP_DIV_FLOAT_2ADDR_finish:
+    fdivs   s2, s0, s1                              @ s2<- op
+    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
+    fsts    s2, [r9]                    @ vAA<- s2
+// begin WITH_TAINT_TRACKING
+    str     r0, [r9, #4]
+// end WITH_TAINT_TRACKING
+    GOTO_OPCODE(ip)                     @ jump to next instruction
+
+/* continuation for OP_REM_FLOAT_2ADDR */
+
+.LOP_REM_FLOAT_2ADDR_taint_prop:
+    SET_TAINT_FP(r2)
+    GET_VREG_TAINT(r3, r3, r2)
+    GET_VREG_TAINT(r10, r9, r2)
+    orr     r10, r3, r10
+    SET_VREG_TAINT(r10, r9, r2)
+    bx      lr
+
+/* continuation for OP_ADD_DOUBLE_2ADDR */
+
+.LOP_ADD_DOUBLE_2ADDR_finish:
+    faddd   d2, d0, d1                              @ d2<- op
+    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
+// begin WITH_TAINT_TRACKING
+    orr    r0, r0, r1
+//    fstd    d2, [r9]                    @ vAA<- d2
+    fsts    s4, [r9]
+    fsts    s5, [r9, #8]
+    str     r0, [r9, #4]
+    str     r0, [r9, #12]
+// end WITH_TAINT_TRACKING
+    GOTO_OPCODE(ip)                     @ jump to next instruction
+
+/* continuation for OP_SUB_DOUBLE_2ADDR */
+
+.LOP_SUB_DOUBLE_2ADDR_finish:
+    fsubd   d2, d0, d1                              @ d2<- op
+    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
+// begin WITH_TAINT_TRACKING
+    orr    r0, r0, r1
+//    fstd    d2, [r9]                    @ vAA<- d2
+    fsts    s4, [r9]
+    fsts    s5, [r9, #8]
+    str     r0, [r9, #4]
+    str     r0, [r9, #12]
+// end WITH_TAINT_TRACKING
+    GOTO_OPCODE(ip)                     @ jump to next instruction
+
+/* continuation for OP_MUL_DOUBLE_2ADDR */
+
+.LOP_MUL_DOUBLE_2ADDR_finish:
+    fmuld   d2, d0, d1                              @ d2<- op
+    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
+// begin WITH_TAINT_TRACKING
+    orr    r0, r0, r1
+//    fstd    d2, [r9]                    @ vAA<- d2
+    fsts    s4, [r9]
+    fsts    s5, [r9, #8]
+    str     r0, [r9, #4]
+    str     r0, [r9, #12]
+// end WITH_TAINT_TRACKING
+    GOTO_OPCODE(ip)                     @ jump to next instruction
+
+/* continuation for OP_DIV_DOUBLE_2ADDR */
+
+.LOP_DIV_DOUBLE_2ADDR_finish:
+    fdivd   d2, d0, d1                              @ d2<- op
+    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
+// begin WITH_TAINT_TRACKING
+    orr    r0, r0, r1
+//    fstd    d2, [r9]                    @ vAA<- d2
+    fsts    s4, [r9]
+    fsts    s5, [r9, #8]
+    str     r0, [r9, #4]
+    str     r0, [r9, #12]
+// end WITH_TAINT_TRACKING
+    GOTO_OPCODE(ip)                     @ jump to next instruction
+
+/* continuation for OP_REM_DOUBLE_2ADDR */
+
+.LOP_REM_DOUBLE_2ADDR_taint_prop:
+    add     r1, rFP, r1, lsl #3         @ r1<- &fp[B]
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[A]
+//    ldmia   r1, {r2-r3}                 @ r2/r3<- vBB/vBB+1
+    ldr     r2, [r1, #0]
+    ldr     r10, [r1, #4]
+    ldr     r3, [r1, #8]
+//    ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
+    ldr     r0, [r9, #0]
+    ldr     r1, [r9, #8]
+    stmfd   sp!, {r9}
+    ldr     r9, [r9, #4]
+    orr     r10, r9, r10
+    ldmfd   sp!, {r9}
+    bx      lr
 
 /* continuation for OP_IGET_VOLATILE */
 
@@ -9227,14 +11849,36 @@ d2l_doconv:
     cmp     r9, #0                      @ check object for null
     ldr     r3, [r0, #offInstField_byteOffset]  @ r3<- byte offset of field
     beq     common_errNullObject        @ object was null
+// begin WITH_TAINT_TRACKING
+//    .if     1
+//    add     r0, r9, r3                  @ r0<- address of field
+//    bl      dvmQuasiAtomicRead64        @ r0/r1<- value/taint
+//    orr	    r3, r1, r10
+//    .else
     ldr   r0, [r9, r3]                @ r0<- obj.field (8/16/32 bits)
-    SMP_DMB                            @ acquiring load
+    @ no-op                             @ acquiring load
+    add     r3, r3, #4
+    ldr	    r3, [r9, r3]
+    orr     r3, r3, r10
+//    .endif
+// end WITH_TAINT_TRACKING
     mov     r2, rINST, lsr #8           @ r2<- A+
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     and     r2, r2, #15                 @ r2<- A
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     SET_VREG(r0, r2)                    @ fp[A]<- r0
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r1)
+    SET_VREG_TAINT(r3, r2, r1)
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
+.LOP_IGET_VOLATILE_taint_prop:
+    GET_VREG(r9, r0)                    @ r9<- fp[B], the object pointer
+    SET_TAINT_FP(r3)
+    GET_VREG_TAINT(r10, r0, r3)
+    ldr     r0, [r2, r1, lsl #2]        @ r0<- resolved InstField ptr
+    bx      lr
 
 /* continuation for OP_IPUT_VOLATILE */
 
@@ -9250,13 +11894,28 @@ d2l_doconv:
     and     r1, r1, #15                 @ r1<- A
     cmp     r9, #0                      @ check object for null
     GET_VREG(r0, r1)                    @ r0<- fp[A]
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r2)
+    GET_VREG_TAINT(r10, r1, r2)
+// end WITH_TAINT_TRACKING
     beq     common_errNullObject        @ object was null
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    SMP_DMB_ST                        @ releasing store
+    @ no-op                          @ releasing store
+// begin WITH_TAINT_TRACKING
+//    .if     1
+//    add     r2, r9, r3                  @ r2<- target address
+//    mov	    r1, r10                     @ r1<-taint
+//    bl      dvmQuasiAtomicSwap64        @ stores r0/r1 into addr r2
+//    .else
     str  r0, [r9, r3]                @ obj.field (8/16/32 bits)<- r0
-    SMP_DMB
+    add	    r3, r3, #4
+    str	    r10, [r9, r3]
+//    .endif
+// end WITH_TAINT_TRACKING
+    @ no-op 
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
 
 /* continuation for OP_SGET_VOLATILE */
 
@@ -9284,6 +11943,21 @@ d2l_doconv:
 #endif
     b       .LOP_SGET_VOLATILE_finish
 
+.LOP_SGET_VOLATILE_taint_prop:
+//    .if     1
+//    add     r0, r0, #offStaticField_value		@ r0<- address of field
+//    bl      dvmQuasiAtomicRead32SfieldTaint		@ r0/r1<- value/taint
+//    .else
+    ldr	    r1, [r0, #offStaticField_taint] @ r1<- taint value
+    ldr     r0, [r0, #offStaticField_value] @ r0<- field value
+    @ no-op                             @ acquiring load
+//    .endif
+    mov     r2, rINST, lsr #8           @ r2<- AA
+    SET_TAINT_FP(r3)
+    SET_VREG_TAINT(r1, r2, r3)
+    bx      lr
+
+
 /* continuation for OP_SPUT_VOLATILE */
 
     /*
@@ -9310,6 +11984,25 @@ d2l_doconv:
 #endif
     b       .LOP_SPUT_VOLATILE_finish          @ resume
 
+.LOP_SPUT_VOLATILE_taint_prop:
+//    .if     1
+//    add     r3, r0, #offStaticField_value   @ r3<- addr
+//    mov     r0, r1                          @ r0<- val
+//    mov     r1, r3                          @ r1<- addr
+//    SET_TAINT_FP(r3)
+//    GET_VREG_TAINT(r2, r2, r3)              @ r2<- taint
+//    bl      dvmQuasiAtomicSwap32SfieldTaint
+//    .else
+    @ no-op                        	    @ releasing store
+    str     r1, [r0, #offStaticField_value] @ field<- vAA
+    SET_TAINT_FP(r3)
+    GET_VREG_TAINT(r1, r2, r3)
+    str	    r1, [r0, #offStaticField_taint]
+    @ no-op 
+//    .endif
+    bx      lr
+
+
 /* continuation for OP_IGET_OBJECT_VOLATILE */
 
     /*
@@ -9322,14 +12015,36 @@ d2l_doconv:
     cmp     r9, #0                      @ check object for null
     ldr     r3, [r0, #offInstField_byteOffset]  @ r3<- byte offset of field
     beq     common_errNullObject        @ object was null
+// begin WITH_TAINT_TRACKING
+//    .if     1
+//    add     r0, r9, r3                  @ r0<- address of field
+//    bl      dvmQuasiAtomicRead64        @ r0/r1<- value/taint
+//    orr	    r3, r1, r10
+//    .else
     ldr   r0, [r9, r3]                @ r0<- obj.field (8/16/32 bits)
-    SMP_DMB                            @ acquiring load
+    @ no-op                             @ acquiring load
+    add     r3, r3, #4
+    ldr	    r3, [r9, r3]
+    orr     r3, r3, r10
+//    .endif
+// end WITH_TAINT_TRACKING
     mov     r2, rINST, lsr #8           @ r2<- A+
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     and     r2, r2, #15                 @ r2<- A
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
     SET_VREG(r0, r2)                    @ fp[A]<- r0
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r1)
+    SET_VREG_TAINT(r3, r2, r1)
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
+.LOP_IGET_OBJECT_VOLATILE_taint_prop:
+    GET_VREG(r9, r0)                    @ r9<- fp[B], the object pointer
+    SET_TAINT_FP(r3)
+    GET_VREG_TAINT(r10, r0, r3)
+    ldr     r0, [r2, r1, lsl #2]        @ r0<- resolved InstField ptr
+    bx      lr
 
 /* continuation for OP_IGET_WIDE_VOLATILE */
 
@@ -9343,18 +12058,38 @@ d2l_doconv:
     ldr     r3, [r0, #offInstField_byteOffset]  @ r3<- byte offset of field
     beq     common_errNullObject        @ object was null
     .if     1
-    add     r0, r9, r3                  @ r0<- address of field
+// begin WITH_TAINT_TRACKING
+    stmfd   sp!, {r3}
+    add     r0, r9, r3                  		@ r0<- address of field
     bl      dvmQuasiAtomicRead64        @ r0/r1<- contents of field
+    ldmfd   sp!, {r3}
     .else
     ldrd    r0, [r9, r3]                @ r0/r1<- obj.field (64-bit align ok)
     .endif
+    add     r3, r3, #8
+    ldr     r3, [r9, r3]
+    orr	    r10, r3, r10
     mov     r2, rINST, lsr #8           @ r2<- A+
-    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     and     r2, r2, #15                 @ r2<- A
-    add     r3, rFP, r2, lsl #2         @ r3<- &fp[A]
+    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+    add     r3, rFP, r2, lsl #3         @ r3<- &fp[A]
+// end WITH_TAINT_TRACKING
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    stmia   r3, {r0-r1}                 @ fp[A]<- r0/r1
+// begin WITH_TAINT_TRACKING
+//    stmia   r3, {r0-r1}                 @ fp[A]<- r0/r1
+    str    r0, [r3, #0]
+    str    r10, [r3, #4]
+    str    r1, [r3, #8]
+    str    r10, [r3, #12]
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
+
+.LOP_IGET_WIDE_VOLATILE_taint_prop:
+    GET_VREG(r9, r0)                    @ r9<- fp[B], the object pointer
+    SET_TAINT_FP(r3)
+    GET_VREG_TAINT(r10, r0, r3)
+    ldr     r0, [r2, r1, lsl #2]        @ r0<- resolved InstField ptr
+    bx      lr
 
 /* continuation for OP_IPUT_WIDE_VOLATILE */
 
@@ -9368,20 +12103,58 @@ d2l_doconv:
     cmp     r9, #0                      @ check object for null
     and     r2, r2, #15                 @ r2<- A
     ldr     r3, [r0, #offInstField_byteOffset]  @ r3<- byte offset of field
-    add     r2, rFP, r2, lsl #2         @ r3<- &fp[A]
+// begin WITH_TAINT_TRACKING
+    add     r2, rFP, r2, lsl #3         @ r3<- &fp[A]
+// end WITH_TAINT_TRACKING
     beq     common_errNullObject        @ object was null
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
-    ldmia   r2, {r0-r1}                 @ r0/r1<- fp[A]
-    GET_INST_OPCODE(r10)                @ extract opcode from rINST
+// begin WITH_TAINT_TRACKING
+//    ldmia   r2, {r0-r1}                 @ r0/r1<- fp[A]
+    ldr	    r0, [r2, #0]
+    ldr     r1, [r2, #8]
+    ldr	    r10, [r2, #4]
+// end WITH_TAINT_TRACKING
     .if     1
+    stmfd   sp!, {r3}
     add     r2, r9, r3                  @ r2<- target address
     bl      dvmQuasiAtomicSwap64Sync    @ stores r0/r1 into addr r2
+    ldmfd   sp!, {r3}
     .else
-    strd    r0, [r9, r3]                @ obj.field (64 bits, aligned)<- r0/r1
+    strd    r0, [r9, r3]                  @ obj.field (64 bits, aligned)<- r0/r1
     .endif
-    GOTO_OPCODE(r10)                    @ jump to next instruction
+// begin WITH_TAINT_TRACKING
+    add	    r3, r3, #8
+    str	    r10, [r9, r3]
+// end WITH_TAINT_TRACKING
+    GET_INST_OPCODE(r10)                 @ extract opcode from rINST
+    GOTO_OPCODE(r10)                     @ jump to next instruction
+
 
 /* continuation for OP_SGET_WIDE_VOLATILE */
+
+.LOP_SGET_WIDE_VOLATILE_finish:
+    mov     r9, rINST, lsr #8           @ r9<- AA
+// begin WITH_TAINT_TRACKING
+    ldr	    r3, [r0, #offStaticField_taint] @ r3<- taint value
+    .if 1
+    stmfd   sp!, {r3}    
+    add     r0, r0, #offStaticField_value @ r0<- pointer to data
+    bl      dvmQuasiAtomicRead64        @ r0/r1<- contents of field
+    ldmfd   sp!, {r3}
+    .else
+    ldrd    r0, [r0, #offStaticField_value] @ r0/r1<- field value (aligned)
+    .endif
+    add     r9, rFP, r9, lsl #3         @ r9<- &fp[AA]
+    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+//    stmia   r9, {r2-r3}                 @ vAA/vAA+1<- r2/r3
+    str	    r0, [r9, #0]
+    str	    r3, [r9, #4]
+    str	    r1, [r9, #8]
+    str	    r3, [r9, #12]
+// end WITH_TAINT_TRACKING
+
+    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
+    GOTO_OPCODE(ip)                     @ jump to next instruction
 
     /*
      * Continuation if the field has not yet been resolved.
@@ -9439,7 +12212,35 @@ d2l_doconv:
 #endif
     b       .LOP_SPUT_WIDE_VOLATILE_finish          @ resume
 
+.LOP_SPUT_WIDE_VOLATILE_taint_prop:
+//    ldmia   r9, {r0-r1}                 @ r0/r1<- vAA/vAA+1
+    ldr r3, [r9, #4]
+    ldr r0, [r9, #0]
+    ldr r1, [r9, #8]
+    bx      lr
+
+
 /* continuation for OP_EXECUTE_INLINE */
+// end WITH_TAINT_TRACKING
+
+.LOP_EXECUTE_INLINE_resume:
+    add     r1, rSELF, #offThread_retval  @ r1<- &self->retval
+// begin WITH_TAINT_TRACKING
+//    sub     sp, sp, #8                  @ make room for arg, +64 bit align
+    sub     sp, sp, #4                  @ make room for arg, +64 bit align
+    mov     r0, rINST, lsr #12          @ r0<- B
+    str     r1, [sp]                    @ push &self->retval
+    add     r1, rSELF, #offThread_rtaint  @ r1< &self->rtaint
+    sub     sp, sp, #4			@ make room for arg,
+    str     r1, [sp]                    @ push &self->rtaint
+    bl      .LOP_EXECUTE_INLINE_continue        @ make call; will return after
+    add     sp, sp, #16                 @ pop stack 4x
+// end WITH_TAINT_TRACKING
+    cmp     r0, #0                      @ test boolean result of inline
+    beq     common_exceptionThrown      @ returned false, handle exception
+    FETCH_ADVANCE_INST(3)               @ advance rPC, load rINST
+    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
+    GOTO_OPCODE(ip)                     @ jump to next instruction
 
     /*
      * Extract args, call function.
@@ -9458,18 +12259,31 @@ d2l_doconv:
     FETCH(rINST, 2)                     @ rINST<- FEDC
     add     pc, pc, r0, lsl #3          @ computed goto, 2 instrs each
     bl      common_abort                @ (skipped due to ARM prefetch)
+// begin WITH_TAINT_TRACKING
 4:  and     ip, rINST, #0xf000          @ isolate F
-    ldr     r3, [rFP, ip, lsr #10]      @ r3<- vF (shift right 12, left 2)
+    ldr     r3, [rFP, ip, lsr #9]       @ r3<- vF (shift right 12, left 2)
 3:  and     ip, rINST, #0x0f00          @ isolate E
-    ldr     r2, [rFP, ip, lsr #6]       @ r2<- vE
+    ldr     r2, [rFP, ip, lsr #5]       @ r2<- vE
 2:  and     ip, rINST, #0x00f0          @ isolate D
-    ldr     r1, [rFP, ip, lsr #2]       @ r1<- vD
+    ldr     r1, [rFP, ip, lsr #1]       @ r1<- vD
 1:  and     ip, rINST, #0x000f          @ isolate C
-    ldr     r0, [rFP, ip, lsl #2]       @ r0<- vC
+    ldr     r0, [rFP, ip, lsl #3]       @ r0<- vC
 0:
+// push arg0_taint and arg1_taint
+    SET_TAINT_FP(r11)
+    and     ip, rINST, #0x00f0          @ isolate D
+    ldr     ip, [r11, ip, lsr #1]       @ ip<-arg1_taint
+    sub     sp, sp, #4			@ make room for arg
+    str     ip, [sp]                    @ push arg1_taint
+    and     ip, rINST, #0x000f          @ isolate C
+    ldr     ip, [r11, ip, lsl #3]       @ ip<-arg0_taint
+    sub     sp, sp, #4			@ make room for arg
+    str     ip, [sp]                    @ push arg0_taint
+// end WITH_TAINT_TRACKING
     ldr     rINST, .LOP_EXECUTE_INLINE_table    @ table of InlineOperation
     ldr     pc, [rINST, r10, lsl #4]    @ sizeof=16, "func" is first entry
     @ (not reached)
+
 
     /*
      * We're debugging or profiling.
@@ -9484,12 +12298,21 @@ d2l_doconv:
     mov     r1, rSELF
     bl      dvmFastMethodTraceEnter     @ (method, self)
     add     r1, rSELF, #offThread_retval@ r1<- &self->retval
-    sub     sp, sp, #8                  @ make room for arg, +64 bit align
+// begin WITH_TAINT_TRACKING
+//    sub     sp, sp, #8                  @ make room for arg, +64 bit align
+    sub     sp, sp, #4                  @ make room for arg, +64 bit align
     mov     r0, rINST, lsr #12          @ r0<- B
     str     r1, [sp]                    @ push &self->retval
+    add     r1, rSELF, #offThread_rtaint  @ r1< &self->rtaint
+    sub     sp, sp, #4			@ make room for arg,
+    str     r1, [sp]                    @ push &self->rtaint
+// end WITH_TAINT_TRACKING
     bl      .LOP_EXECUTE_INLINE_continue        @ make call; will return after
     mov     rINST, r0                   @ save result of inline
-    add     sp, sp, #8                  @ pop stack
+// begin WITH_TAINT_TRACKING
+//    add     sp, sp, #8                  @ pop stack
+    add     sp, sp, #16                 @ pop stack 4x
+// end WITH_TAINT_TRACKING
     mov     r0, r9                      @ r0<- method
     mov     r1, rSELF
     bl      dvmFastNativeMethodTraceExit @ (method, self)
@@ -9506,6 +12329,26 @@ d2l_doconv:
     .word   gDvmInlineOpsTable
 
 /* continuation for OP_EXECUTE_INLINE_RANGE */
+// end WITH_TAINT_TRACKING
+
+.LOP_EXECUTE_INLINE_RANGE_resume:
+    add     r1, rSELF, #offThread_retval  @ r1<- &self->retval
+// begin WITH_TAINT_TRACKING
+//    sub     sp, sp, #8                  @ make room for arg, +64 bit align
+    sub     sp, sp, #4                  @ make room for arg, +64 bit align
+    mov     r0, rINST, lsr #8           @ r0<- AA
+    str     r1, [sp]                    @ push &self->retval
+    add     r1, rSELF, #offThread_rtaint  @ r1< &self->rtaint
+    sub     sp, sp, #4			@ make room for arg
+    str     r1, [sp]                    @ push &self->rtaint
+    bl      .LOP_EXECUTE_INLINE_RANGE_continue        @ make call; will return after
+    add     sp, sp, #16                 @ pop stack 4x
+// end WITH_TAINT_TRACKING
+    cmp     r0, #0                      @ test boolean result of inline
+    beq     common_exceptionThrown      @ returned false, handle exception
+    FETCH_ADVANCE_INST(3)               @ advance rPC, load rINST
+    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
+    GOTO_OPCODE(ip)                     @ jump to next instruction
 
     /*
      * Extract args, call function.
@@ -9527,6 +12370,17 @@ d2l_doconv:
 1:  add     ip, r9, #0                  @ (nop)
     GET_VREG(r0, ip)                    @ r0<- vBase[0]
 0:
+// begin WITH_TAINT_TRACKING
+// push arg0_taint and arg1_taint
+    SET_TAINT_FP(r11)
+    add     ip, r9, #1                  
+    GET_VREG_TAINT(ip, ip, r11)
+    sub     sp, sp, #4			@ make room for arg
+    str     ip, [sp]                    @ push arg1_taint
+    GET_VREG_TAINT(ip, r9, r11)
+    sub     sp, sp, #4			@ make room for arg
+    str     ip, [sp]                    @ push arg0_taint
+// end WITH_TAINT_TRACKING
     ldr     r9, .LOP_EXECUTE_INLINE_RANGE_table       @ table of InlineOperation
     ldr     pc, [r9, r10, lsl #4]       @ sizeof=16, "func" is first entry
     @ (not reached)
@@ -9545,13 +12399,21 @@ d2l_doconv:
     mov     r1, rSELF
     bl      dvmFastMethodTraceEnter     @ (method, self)
     add     r1, rSELF, #offThread_retval@ r1<- &self->retval
-    sub     sp, sp, #8                  @ make room for arg, +64 bit align
-    mov     r0, rINST, lsr #8           @ r0<- B
-    mov     rINST, r9                   @ rINST<- method
+// begin WITH_TAINT_TRACKING
+//    sub     sp, sp, #8                  @ make room for arg, +64 bit align
+    sub     sp, sp, #4                  @ make room for arg, +64 bit align
+    mov     r0, rINST, lsr #8           @ r0<- AA
     str     r1, [sp]                    @ push &self->retval
+    add     r1, rSELF, #offThread_rtaint  @ r1< &self->rtaint
+    sub     sp, sp, #4			@ make room for arg
+    str     r1, [sp]                    @ push &self->rtaint
+// end WITH_TAINT_TRACKING
     bl      .LOP_EXECUTE_INLINE_RANGE_continue        @ make call; will return after
     mov     r9, r0                      @ save result of inline
-    add     sp, sp, #8                  @ pop stack
+// begin WITH_TAINT_TRACKING
+//    add     sp, sp, #8                  @ pop stack
+    add     sp, sp, #16                 @ pop stack 4x
+// end WITH_TAINT_TRACKING
     mov     r0, rINST                   @ r0<- method
     mov     r1, rSELF
     bl      dvmFastNativeMethodTraceExit  @ (method, self)
@@ -9590,6 +12452,63 @@ d2l_doconv:
     mov     ip, #OP_INVOKE_DIRECT_RANGE
     GOTO_OPCODE_BASE(r1,ip)             @ execute it
 
+/* continuation for OP_IGET_QUICK */
+
+.LOP_IGET_QUICK_taint_prop:
+    add     r1, r1, #4
+    ldr     r10, [r3, r1]
+    orr     r10, r9, r10
+    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+    bx      lr
+
+
+/* continuation for OP_IGET_WIDE_QUICK */
+
+iget_wide_quick_taint_prop:
+    add     r3, rFP, r2, lsl #3         @ r3<- &fp[A]
+    GET_INST_OPCODE(ip)                 @ extract opcode from rINST
+//    stmia   r3, {r0-r1}                 @ fp[A]<- r0/r1
+    str     r0, [r3, #0]
+    str     r10, [r3, #4]
+    str     r1, [r3, #8]
+    str     r10, [r3, #12]
+    bx      lr
+
+/* continuation for OP_IGET_OBJECT_QUICK */
+
+.LOP_IGET_OBJECT_QUICK_taint_prop:
+	add		r1, r1, #4
+	ldr		r10, [r3, r1]
+	orr		r10, r9, r10
+	FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+	bx		lr
+
+/* continuation for OP_IPUT_WIDE_QUICK */
+
+iput_wide_quick_taint_prop:
+    add     r3, rFP, r0, lsl #3         @ r3<- &fp[A]
+    cmp     r2, #0                      @ check object for null
+//    ldmia   r3, {r0-r1}                 @ r0/r1<- fp[A]
+    ldr     r0, [r3, #0]
+    ldr     r1, [r3, #8]
+    ldr     r9, [r3, #4]
+    bx      lr
+
+/* continuation for OP_IPUT_OBJECT_QUICK */
+
+.LOP_IPUT_OBJECT_QUICK_taint_prop:
+    SET_TAINT_FP(r9)
+    GET_VREG_TAINT(r10, r2, r9)
+    ldr     r2, [rSELF, #offThread_cardTable]  @ r2<- card table base
+    FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
+    str     r0, [r3, r1]                @ obj.field (always 32 bits)<- r0
+    add	    r1, r1, #4
+    str	    r10, [r3, r1]
+    bx	    lr
+
+
+
+
 /* continuation for OP_IPUT_OBJECT_VOLATILE */
 
     /*
@@ -9604,15 +12523,29 @@ d2l_doconv:
     and     r1, r1, #15                 @ r1<- A
     cmp     r9, #0                      @ check object for null
     GET_VREG(r0, r1)                    @ r0<- fp[A]
-    ldr     r2, [rSELF, #offThread_cardTable]  @ r2<- card table base
+// begin WITH_TAINT_TRACKING
+    SET_TAINT_FP(r2)
+    GET_VREG_TAINT(r10, r1, r2)
+    ldr     r11, [rSELF, #offThread_cardTable]  @ r11<- card table base
+// end WITH_TAINT_TRACKING
     beq     common_errNullObject        @ object was null
     FETCH_ADVANCE_INST(2)               @ advance rPC, load rINST
     GET_INST_OPCODE(ip)                 @ extract opcode from rINST
-    SMP_DMB_ST                        @ releasing store
+    @ no-op                         @ releasing store
+// begin WITH_TAINT_TRACKING
+//    .if     1
+//    add     r2, r9, r3                  @ r2<- target address
+//    mov     r1, r10                     @ r1<-taint
+//    bl      dvmQuasiAtomicSwap64        @ stores r0/r1 into addr r2
+//    .else
     str     r0, [r9, r3]                @ obj.field (32 bits)<- r0
-    SMP_DMB
+    add     r3, r3, #4
+    str     r10, [r9, r3]
+//    .endif
+    @ no-op 
     cmp     r0, #0                      @ stored a null reference?
-    strneb  r2, [r2, r9, lsr #GC_CARD_SHIFT]  @ mark card if not
+    strneb  r11, [r11, r9, lsr #GC_CARD_SHIFT]  @ mark card if not
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
 /* continuation for OP_SGET_OBJECT_VOLATILE */
@@ -9641,14 +12574,42 @@ d2l_doconv:
 #endif
     b       .LOP_SGET_OBJECT_VOLATILE_finish
 
+.LOP_SGET_OBJECT_VOLATILE_taint_prop:
+//    .if     1
+//    add     r0, r0, #offStaticField_value		@ r0<- address of field
+//    bl      dvmQuasiAtomicRead32SfieldTaint		@ r0/r1<- value/taint
+//    .else
+    ldr	    r1, [r0, #offStaticField_taint] @ r1<- taint value
+    ldr     r0, [r0, #offStaticField_value] @ r0<- field value
+    @ no-op                             @ acquiring load
+//    .endif
+    mov     r2, rINST, lsr #8           @ r2<- AA
+    SET_TAINT_FP(r3)
+    SET_VREG_TAINT(r1, r2, r3)
+    bx      lr
+
+
 /* continuation for OP_SPUT_OBJECT_VOLATILE */
 
 
 .LOP_SPUT_OBJECT_VOLATILE_end:
-    str     r1, [r0, #offStaticField_value]  @ field<- vAA
-    SMP_DMB
-    cmp     r1, #0                      @ stored a null object?
-    strneb  r2, [r2, r9, lsr #GC_CARD_SHIFT]  @ mark card based on obj head
+// begin WITH_TAINT_TRACKING
+//    .if     1
+//    add	    r2, r0, #offStaticField_value       @ r2<- addr
+//    mov	    r0, r1                              @ r0<- val
+//    mov	    r1, r2                              @ r1<- addr
+//    mov	    r2, r3                              @ r2<- taint
+//    bl      dvmQuasiAtomicSwap32SfieldTaint
+//    cmp     r0, #0                    	        @ stored a null object?
+//    .else
+    str     r1, [r0, #offStaticField_value] @ field<- vAA
+    str	    r3, [r0, #offStaticField_taint]
+//    @ no-op 
+    cmp     r1, #0                              @ stored a null object?
+//    .endif
+//    strneb  r2, [r2, r9, lsr #GC_CARD_SHIFT]  @ mark card based on obj head
+    strneb  r10, [r10, r9, lsr #GC_CARD_SHIFT]  @ mark card based on obj head
+// end WITH_TAINT_TRACKING
     GOTO_OPCODE(ip)                     @ jump to next instruction
 
     /* Continuation if the field has not yet been resolved.
@@ -9688,7 +12649,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_NOP: /* 0x00 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -9711,7 +12672,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_MOVE: /* 0x01 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -9734,7 +12695,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_MOVE_FROM16: /* 0x02 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -9757,7 +12718,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_MOVE_16: /* 0x03 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -9780,7 +12741,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_MOVE_WIDE: /* 0x04 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -9803,7 +12764,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_MOVE_WIDE_FROM16: /* 0x05 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -9826,7 +12787,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_MOVE_WIDE_16: /* 0x06 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -9849,7 +12810,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_MOVE_OBJECT: /* 0x07 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -9872,7 +12833,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_MOVE_OBJECT_FROM16: /* 0x08 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -9895,7 +12856,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_MOVE_OBJECT_16: /* 0x09 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -9918,7 +12879,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_MOVE_RESULT: /* 0x0a */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -9941,7 +12902,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_MOVE_RESULT_WIDE: /* 0x0b */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -9964,7 +12925,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_MOVE_RESULT_OBJECT: /* 0x0c */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -9987,7 +12948,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_MOVE_EXCEPTION: /* 0x0d */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10010,7 +12971,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_RETURN_VOID: /* 0x0e */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10033,7 +12994,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_RETURN: /* 0x0f */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10056,7 +13017,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_RETURN_WIDE: /* 0x10 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10079,7 +13040,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_RETURN_OBJECT: /* 0x11 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10102,7 +13063,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_CONST_4: /* 0x12 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10125,7 +13086,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_CONST_16: /* 0x13 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10148,7 +13109,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_CONST: /* 0x14 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10171,7 +13132,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_CONST_HIGH16: /* 0x15 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10194,7 +13155,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_CONST_WIDE_16: /* 0x16 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10217,7 +13178,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_CONST_WIDE_32: /* 0x17 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10240,7 +13201,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_CONST_WIDE: /* 0x18 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10263,7 +13224,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_CONST_WIDE_HIGH16: /* 0x19 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10286,7 +13247,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_CONST_STRING: /* 0x1a */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10309,7 +13270,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_CONST_STRING_JUMBO: /* 0x1b */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10332,7 +13293,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_CONST_CLASS: /* 0x1c */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10355,7 +13316,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_MONITOR_ENTER: /* 0x1d */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10378,7 +13339,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_MONITOR_EXIT: /* 0x1e */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10401,7 +13362,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_CHECK_CAST: /* 0x1f */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10424,7 +13385,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_INSTANCE_OF: /* 0x20 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10447,7 +13408,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_ARRAY_LENGTH: /* 0x21 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10470,7 +13431,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_NEW_INSTANCE: /* 0x22 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10493,7 +13454,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_NEW_ARRAY: /* 0x23 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10516,7 +13477,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_FILLED_NEW_ARRAY: /* 0x24 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10539,7 +13500,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_FILLED_NEW_ARRAY_RANGE: /* 0x25 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10562,7 +13523,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_FILL_ARRAY_DATA: /* 0x26 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10585,7 +13546,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_THROW: /* 0x27 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10608,7 +13569,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_GOTO: /* 0x28 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10631,7 +13592,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_GOTO_16: /* 0x29 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10654,7 +13615,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_GOTO_32: /* 0x2a */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10677,7 +13638,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_PACKED_SWITCH: /* 0x2b */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10700,7 +13661,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SPARSE_SWITCH: /* 0x2c */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10723,7 +13684,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_CMPL_FLOAT: /* 0x2d */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10746,7 +13707,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_CMPG_FLOAT: /* 0x2e */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10769,7 +13730,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_CMPL_DOUBLE: /* 0x2f */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10792,7 +13753,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_CMPG_DOUBLE: /* 0x30 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10815,7 +13776,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_CMP_LONG: /* 0x31 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10838,7 +13799,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IF_EQ: /* 0x32 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10861,7 +13822,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IF_NE: /* 0x33 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10884,7 +13845,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IF_LT: /* 0x34 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10907,7 +13868,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IF_GE: /* 0x35 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10930,7 +13891,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IF_GT: /* 0x36 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10953,7 +13914,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IF_LE: /* 0x37 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10976,7 +13937,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IF_EQZ: /* 0x38 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -10999,7 +13960,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IF_NEZ: /* 0x39 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11022,7 +13983,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IF_LTZ: /* 0x3a */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11045,7 +14006,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IF_GEZ: /* 0x3b */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11068,7 +14029,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IF_GTZ: /* 0x3c */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11091,7 +14052,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IF_LEZ: /* 0x3d */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11114,7 +14075,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_UNUSED_3E: /* 0x3e */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11137,7 +14098,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_UNUSED_3F: /* 0x3f */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11160,7 +14121,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_UNUSED_40: /* 0x40 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11183,7 +14144,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_UNUSED_41: /* 0x41 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11206,7 +14167,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_UNUSED_42: /* 0x42 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11229,7 +14190,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_UNUSED_43: /* 0x43 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11252,7 +14213,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_AGET: /* 0x44 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11275,7 +14236,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_AGET_WIDE: /* 0x45 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11298,7 +14259,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_AGET_OBJECT: /* 0x46 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11321,7 +14282,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_AGET_BOOLEAN: /* 0x47 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11344,7 +14305,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_AGET_BYTE: /* 0x48 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11367,7 +14328,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_AGET_CHAR: /* 0x49 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11390,7 +14351,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_AGET_SHORT: /* 0x4a */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11413,7 +14374,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_APUT: /* 0x4b */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11436,7 +14397,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_APUT_WIDE: /* 0x4c */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11459,7 +14420,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_APUT_OBJECT: /* 0x4d */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11482,7 +14443,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_APUT_BOOLEAN: /* 0x4e */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11505,7 +14466,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_APUT_BYTE: /* 0x4f */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11528,7 +14489,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_APUT_CHAR: /* 0x50 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11551,7 +14512,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_APUT_SHORT: /* 0x51 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11574,7 +14535,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IGET: /* 0x52 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11597,7 +14558,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IGET_WIDE: /* 0x53 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11620,7 +14581,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IGET_OBJECT: /* 0x54 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11643,7 +14604,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IGET_BOOLEAN: /* 0x55 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11666,7 +14627,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IGET_BYTE: /* 0x56 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11689,7 +14650,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IGET_CHAR: /* 0x57 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11712,7 +14673,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IGET_SHORT: /* 0x58 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11735,7 +14696,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IPUT: /* 0x59 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11758,7 +14719,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IPUT_WIDE: /* 0x5a */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11781,7 +14742,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IPUT_OBJECT: /* 0x5b */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11804,7 +14765,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IPUT_BOOLEAN: /* 0x5c */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11827,7 +14788,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IPUT_BYTE: /* 0x5d */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11850,7 +14811,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IPUT_CHAR: /* 0x5e */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11873,7 +14834,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IPUT_SHORT: /* 0x5f */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11896,7 +14857,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SGET: /* 0x60 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11919,7 +14880,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SGET_WIDE: /* 0x61 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11942,7 +14903,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SGET_OBJECT: /* 0x62 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11965,7 +14926,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SGET_BOOLEAN: /* 0x63 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -11988,7 +14949,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SGET_BYTE: /* 0x64 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12011,7 +14972,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SGET_CHAR: /* 0x65 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12034,7 +14995,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SGET_SHORT: /* 0x66 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12057,7 +15018,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SPUT: /* 0x67 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12080,7 +15041,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SPUT_WIDE: /* 0x68 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12103,7 +15064,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SPUT_OBJECT: /* 0x69 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12126,7 +15087,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SPUT_BOOLEAN: /* 0x6a */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12149,7 +15110,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SPUT_BYTE: /* 0x6b */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12172,7 +15133,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SPUT_CHAR: /* 0x6c */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12195,7 +15156,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SPUT_SHORT: /* 0x6d */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12218,7 +15179,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_INVOKE_VIRTUAL: /* 0x6e */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12241,7 +15202,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_INVOKE_SUPER: /* 0x6f */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12264,7 +15225,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_INVOKE_DIRECT: /* 0x70 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12287,7 +15248,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_INVOKE_STATIC: /* 0x71 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12310,7 +15271,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_INVOKE_INTERFACE: /* 0x72 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12333,7 +15294,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_UNUSED_73: /* 0x73 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12356,7 +15317,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_INVOKE_VIRTUAL_RANGE: /* 0x74 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12379,7 +15340,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_INVOKE_SUPER_RANGE: /* 0x75 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12402,7 +15363,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_INVOKE_DIRECT_RANGE: /* 0x76 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12425,7 +15386,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_INVOKE_STATIC_RANGE: /* 0x77 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12448,7 +15409,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_INVOKE_INTERFACE_RANGE: /* 0x78 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12471,7 +15432,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_UNUSED_79: /* 0x79 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12494,7 +15455,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_UNUSED_7A: /* 0x7a */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12517,7 +15478,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_NEG_INT: /* 0x7b */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12540,7 +15501,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_NOT_INT: /* 0x7c */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12563,7 +15524,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_NEG_LONG: /* 0x7d */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12586,7 +15547,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_NOT_LONG: /* 0x7e */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12609,7 +15570,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_NEG_FLOAT: /* 0x7f */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12632,7 +15593,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_NEG_DOUBLE: /* 0x80 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12655,7 +15616,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_INT_TO_LONG: /* 0x81 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12678,7 +15639,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_INT_TO_FLOAT: /* 0x82 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12701,7 +15662,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_INT_TO_DOUBLE: /* 0x83 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12724,7 +15685,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_LONG_TO_INT: /* 0x84 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12747,7 +15708,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_LONG_TO_FLOAT: /* 0x85 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12770,7 +15731,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_LONG_TO_DOUBLE: /* 0x86 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12793,7 +15754,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_FLOAT_TO_INT: /* 0x87 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12816,7 +15777,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_FLOAT_TO_LONG: /* 0x88 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12839,7 +15800,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_FLOAT_TO_DOUBLE: /* 0x89 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12862,7 +15823,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_DOUBLE_TO_INT: /* 0x8a */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12885,7 +15846,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_DOUBLE_TO_LONG: /* 0x8b */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12908,7 +15869,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_DOUBLE_TO_FLOAT: /* 0x8c */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12931,7 +15892,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_INT_TO_BYTE: /* 0x8d */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12954,7 +15915,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_INT_TO_CHAR: /* 0x8e */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -12977,7 +15938,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_INT_TO_SHORT: /* 0x8f */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13000,7 +15961,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_ADD_INT: /* 0x90 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13023,7 +15984,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SUB_INT: /* 0x91 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13046,7 +16007,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_MUL_INT: /* 0x92 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13069,7 +16030,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_DIV_INT: /* 0x93 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13092,7 +16053,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_REM_INT: /* 0x94 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13115,7 +16076,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_AND_INT: /* 0x95 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13138,7 +16099,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_OR_INT: /* 0x96 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13161,7 +16122,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_XOR_INT: /* 0x97 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13184,7 +16145,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SHL_INT: /* 0x98 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13207,7 +16168,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SHR_INT: /* 0x99 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13230,7 +16191,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_USHR_INT: /* 0x9a */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13253,7 +16214,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_ADD_LONG: /* 0x9b */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13276,7 +16237,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SUB_LONG: /* 0x9c */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13299,7 +16260,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_MUL_LONG: /* 0x9d */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13322,7 +16283,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_DIV_LONG: /* 0x9e */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13345,7 +16306,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_REM_LONG: /* 0x9f */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13368,7 +16329,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_AND_LONG: /* 0xa0 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13391,7 +16352,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_OR_LONG: /* 0xa1 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13414,7 +16375,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_XOR_LONG: /* 0xa2 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13437,7 +16398,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SHL_LONG: /* 0xa3 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13460,7 +16421,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SHR_LONG: /* 0xa4 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13483,7 +16444,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_USHR_LONG: /* 0xa5 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13506,7 +16467,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_ADD_FLOAT: /* 0xa6 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13529,7 +16490,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SUB_FLOAT: /* 0xa7 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13552,7 +16513,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_MUL_FLOAT: /* 0xa8 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13575,7 +16536,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_DIV_FLOAT: /* 0xa9 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13598,7 +16559,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_REM_FLOAT: /* 0xaa */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13621,7 +16582,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_ADD_DOUBLE: /* 0xab */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13644,7 +16605,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SUB_DOUBLE: /* 0xac */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13667,7 +16628,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_MUL_DOUBLE: /* 0xad */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13690,7 +16651,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_DIV_DOUBLE: /* 0xae */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13713,7 +16674,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_REM_DOUBLE: /* 0xaf */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13736,7 +16697,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_ADD_INT_2ADDR: /* 0xb0 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13759,7 +16720,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SUB_INT_2ADDR: /* 0xb1 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13782,7 +16743,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_MUL_INT_2ADDR: /* 0xb2 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13805,7 +16766,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_DIV_INT_2ADDR: /* 0xb3 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13828,7 +16789,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_REM_INT_2ADDR: /* 0xb4 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13851,7 +16812,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_AND_INT_2ADDR: /* 0xb5 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13874,7 +16835,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_OR_INT_2ADDR: /* 0xb6 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13897,7 +16858,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_XOR_INT_2ADDR: /* 0xb7 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13920,7 +16881,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SHL_INT_2ADDR: /* 0xb8 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13943,7 +16904,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SHR_INT_2ADDR: /* 0xb9 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13966,7 +16927,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_USHR_INT_2ADDR: /* 0xba */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -13989,7 +16950,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_ADD_LONG_2ADDR: /* 0xbb */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14012,7 +16973,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SUB_LONG_2ADDR: /* 0xbc */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14035,7 +16996,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_MUL_LONG_2ADDR: /* 0xbd */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14058,7 +17019,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_DIV_LONG_2ADDR: /* 0xbe */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14081,7 +17042,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_REM_LONG_2ADDR: /* 0xbf */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14104,7 +17065,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_AND_LONG_2ADDR: /* 0xc0 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14127,7 +17088,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_OR_LONG_2ADDR: /* 0xc1 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14150,7 +17111,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_XOR_LONG_2ADDR: /* 0xc2 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14173,7 +17134,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SHL_LONG_2ADDR: /* 0xc3 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14196,7 +17157,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SHR_LONG_2ADDR: /* 0xc4 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14219,7 +17180,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_USHR_LONG_2ADDR: /* 0xc5 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14242,7 +17203,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_ADD_FLOAT_2ADDR: /* 0xc6 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14265,7 +17226,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SUB_FLOAT_2ADDR: /* 0xc7 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14288,7 +17249,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_MUL_FLOAT_2ADDR: /* 0xc8 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14311,7 +17272,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_DIV_FLOAT_2ADDR: /* 0xc9 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14334,7 +17295,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_REM_FLOAT_2ADDR: /* 0xca */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14357,7 +17318,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_ADD_DOUBLE_2ADDR: /* 0xcb */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14380,7 +17341,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SUB_DOUBLE_2ADDR: /* 0xcc */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14403,7 +17364,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_MUL_DOUBLE_2ADDR: /* 0xcd */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14426,7 +17387,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_DIV_DOUBLE_2ADDR: /* 0xce */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14449,7 +17410,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_REM_DOUBLE_2ADDR: /* 0xcf */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14472,7 +17433,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_ADD_INT_LIT16: /* 0xd0 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14495,7 +17456,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_RSUB_INT: /* 0xd1 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14518,7 +17479,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_MUL_INT_LIT16: /* 0xd2 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14541,7 +17502,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_DIV_INT_LIT16: /* 0xd3 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14564,7 +17525,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_REM_INT_LIT16: /* 0xd4 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14587,7 +17548,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_AND_INT_LIT16: /* 0xd5 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14610,7 +17571,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_OR_INT_LIT16: /* 0xd6 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14633,7 +17594,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_XOR_INT_LIT16: /* 0xd7 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14656,7 +17617,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_ADD_INT_LIT8: /* 0xd8 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14679,7 +17640,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_RSUB_INT_LIT8: /* 0xd9 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14702,7 +17663,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_MUL_INT_LIT8: /* 0xda */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14725,7 +17686,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_DIV_INT_LIT8: /* 0xdb */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14748,7 +17709,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_REM_INT_LIT8: /* 0xdc */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14771,7 +17732,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_AND_INT_LIT8: /* 0xdd */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14794,7 +17755,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_OR_INT_LIT8: /* 0xde */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14817,7 +17778,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_XOR_INT_LIT8: /* 0xdf */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14840,7 +17801,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SHL_INT_LIT8: /* 0xe0 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14863,7 +17824,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SHR_INT_LIT8: /* 0xe1 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14886,7 +17847,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_USHR_INT_LIT8: /* 0xe2 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14909,7 +17870,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IGET_VOLATILE: /* 0xe3 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14932,7 +17893,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IPUT_VOLATILE: /* 0xe4 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14955,7 +17916,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SGET_VOLATILE: /* 0xe5 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -14978,7 +17939,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SPUT_VOLATILE: /* 0xe6 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -15001,7 +17962,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IGET_OBJECT_VOLATILE: /* 0xe7 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -15024,7 +17985,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IGET_WIDE_VOLATILE: /* 0xe8 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -15047,7 +18008,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IPUT_WIDE_VOLATILE: /* 0xe9 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -15070,7 +18031,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SGET_WIDE_VOLATILE: /* 0xea */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -15093,7 +18054,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SPUT_WIDE_VOLATILE: /* 0xeb */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -15116,7 +18077,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_BREAKPOINT: /* 0xec */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -15139,7 +18100,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_THROW_VERIFICATION_ERROR: /* 0xed */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -15162,7 +18123,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_EXECUTE_INLINE: /* 0xee */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -15185,7 +18146,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_EXECUTE_INLINE_RANGE: /* 0xef */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -15208,7 +18169,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_INVOKE_OBJECT_INIT_RANGE: /* 0xf0 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -15231,7 +18192,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_RETURN_VOID_BARRIER: /* 0xf1 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -15254,7 +18215,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IGET_QUICK: /* 0xf2 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -15277,7 +18238,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IGET_WIDE_QUICK: /* 0xf3 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -15300,7 +18261,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IGET_OBJECT_QUICK: /* 0xf4 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -15323,7 +18284,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IPUT_QUICK: /* 0xf5 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -15346,7 +18307,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IPUT_WIDE_QUICK: /* 0xf6 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -15369,7 +18330,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IPUT_OBJECT_QUICK: /* 0xf7 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -15392,7 +18353,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_INVOKE_VIRTUAL_QUICK: /* 0xf8 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -15415,7 +18376,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_INVOKE_VIRTUAL_QUICK_RANGE: /* 0xf9 */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -15438,7 +18399,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_INVOKE_SUPER_QUICK: /* 0xfa */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -15461,7 +18422,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_INVOKE_SUPER_QUICK_RANGE: /* 0xfb */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -15484,7 +18445,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_IPUT_OBJECT_VOLATILE: /* 0xfc */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -15507,7 +18468,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SGET_OBJECT_VOLATILE: /* 0xfd */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -15530,7 +18491,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_SPUT_OBJECT_VOLATILE: /* 0xfe */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -15553,7 +18514,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
 /* ------------------------------ */
     .balign 64
 .L_ALT_OP_UNUSED_FF: /* 0xff */
-/* File: armv5te/alt_stub.S */
+/* File: armv5te_taint/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to dvmCheckBefore to handle
  * any interesting requests and then jump to the real instruction
@@ -15577,7 +18538,7 @@ dvmAsmAltInstructionStart = .L_ALT_OP_NOP
     .size   dvmAsmAltInstructionStart, .-dvmAsmAltInstructionStart
     .global dvmAsmAltInstructionEnd
 dvmAsmAltInstructionEnd:
-/* File: armv5te/footer.S */
+/* File: armv5te_taint/footer.S */
 /*
  * ===========================================================================
  *  Common subroutines and data
@@ -16059,21 +19020,78 @@ common_invokeMethodRange:
     blne    save_callsiteinfo
 #endif
     @ prepare to copy args to "outs" area of current frame
-    movs    r2, rINST, lsr #8           @ r2<- AA (arg count) -- test for zero
+// begin WITH_TAINT_TRACKING
+//    movs    r2, rINST, lsr #8           @ r2<- AA (arg count) -- test for zero
+    mov     r2, rINST, lsr #8           @ r2<- AA (arg count)
     SAVEAREA_FROM_FP(r10, rFP)          @ r10<- stack save area
-    beq     .LinvokeArgsDone            @ if no args, skip the rest
+//    beq     .LinvokeArgsDone            @ if no args, skip the rest
+    str     r2, [r10, #offStackSaveArea_argCount]	@ save arg count
+// end WITH_TAINT_TRACKING
     FETCH(r1, 2)                        @ r1<- CCCC
+
+// begin WITH_TAINT_TRACKING
+    // is this a native method?
+    stmfd   sp!, {r0}                   @ push methodToCall to stack
+    ldr     r0, [r0, #offMethod_accessFlags] @ r0<- methodToCall->accessFlags
+    tst     r0, #ACC_NATIVE
+    ldmfd   sp!, {r0}                   @ restore methodToCall
+    bne     .LinvokeRangeNative
 
 .LinvokeRangeArgs:
     @ r0=methodToCall, r1=CCCC, r2=count, r10=outs
     @ (very few methods have > 10 args; could unroll for common cases)
-    add     r3, rFP, r1, lsl #2         @ r3<- &fp[CCCC]
-    sub     r10, r10, r2, lsl #2        @ r10<- "outs" area, for call args
-1:  ldr     r1, [r3], #4                @ val = *fp++
+    stmfd   sp!, {r0}                   @ push methodToCall to stack
+    mov	    r9, #0
+    str     r9, [r10, #-4]              @ clear native hack
+    cmp	    r2, #0
+    beq     .LinvokeRangeDone           @ if no args, skip the rest
+    add     r3, rFP, r1, lsl #3         @ r3<- &fp[CCCC]
+    sub     r10, r10, r2, lsl #3        @ r10<- "outs" area, for call args
+    sub	    r10, r10, #4
+    //mov     r9, #0                      @ r9<- slot = 0
+1:  ldrd    r0, [r3, r9]
     subs    r2, r2, #1                  @ count--
-    str     r1, [r10], #4               @ *outs++ = val
+    strd    r0, [r10, r9]               @ *outs++ = val
+    add	    r9, r9, #8
     bne     1b                          @ ...while count != 0
+.LinvokeRangeDone:
+    ldmfd   sp!, {r0}                   @ restore methodToCall
+    // PJG: moved
+    //ldrh    r9, [r0, #offMethod_registersSize]  @ r9<- methodToCall->regsSize
+    //ldrh    r3, [r0, #offMethod_outsSize]   @ r3<- methodToCall->outsSize
     b       .LinvokeArgsDone
+
+.LinvokeRangeNative:
+    @ r0=methodToCall, r1=CCCC, r2=count, r10=outs
+    @ (very few methods have > 10 args; could unroll for common cases)
+    stmfd   sp!, {r0}                   @ push methodToCall to stack
+    sub	    r10, r10, #4
+    sub     r10, r10, r2, lsl #3        @ r10<- "outs" area, for call args
+    mov	    r9, #0                      @ r9<- index
+    str     r9, [r10, r2, lsl #2]       @ clear native hack
+    cmp	    r2, #0
+    beq     .LinvokeRangeNativeDone     @ if no args, skip the rest
+    add     r3, rFP, r1, lsl #3         @ r3<- &fp[CCCC]
+    mov	    r0, r2                      @ r0<- count
+    mov	    r2, r2, lsl #2
+    add	    r2, r2, #4                  @ r2<- index (taint)
+1:  stmfd   sp!, {r0}                   @ push count
+    mov	    r0, r9, lsl #3
+    ldrd    r0, [r3, r0]
+    str	    r0, [r10, r9, lsl #2]
+    str	    r1, [r10, r2]
+    add	    r9, r9, #1
+    add	    r2, r2, #4
+    ldmfd   sp!, {r0}                   @ pop count
+    subs    r0, r0, #1                  @ count--
+    bne     1b                          @ ...while count != 0
+.LinvokeRangeNativeDone:
+    ldmfd   sp!, {r0}                   @ restore methodToCall
+    // PJG: moved
+    //ldrh    r9, [r0, #offMethod_registersSize]  @ r9<- methodToCall->regsSize
+    //ldrh    r3, [r0, #offMethod_outsSize]   @ r3<- methodToCall->outsSize
+    b       .LinvokeArgsDone
+// end WITH_TAINT_TRACKING
 
 /*
  * Common code for method invocation without range.
@@ -16089,37 +19107,107 @@ common_invokeMethodNoRange:
     blne    save_callsiteinfo
 #endif
     @ prepare to copy args to "outs" area of current frame
-    movs    r2, rINST, lsr #12          @ r2<- B (arg count) -- test for zero
+// begin WITH_TAINT_TRACKING
+//    movs    r2, rINST, lsr #12          @ r2<- B (arg count) -- test for zero
+    movs    r2, rINST, lsr #12          @ r2<- B (arg count)
     SAVEAREA_FROM_FP(r10, rFP)          @ r10<- stack save area
+    str     r2, [r10, #offStackSaveArea_argCount]    @ save arg count
     FETCH(r1, 2)                        @ r1<- GFED (load here to hide latency)
-    beq     .LinvokeArgsDone
-
+    // is this a native method?
+    stmfd   sp!, {r0}                   @ push methodToCall to stack
+    ldr     r0, [r0, #offMethod_accessFlags] @ r0<- methodToCall->accessFlags
+    tst     r0, #ACC_NATIVE
+    bne     .LinvokeNonRangeNative
+// end WITH_TAINT_TRACKING
     @ r0=methodToCall, r1=GFED, r2=count, r10=outs
 .LinvokeNonRange:
+// begin WITH_TAINT_TRACKING
+    stmfd   sp!, {r3}                   @ push count, outSize to stack
+    // clear native hack
+    mov	    r3, #0
+    str     r3, [r10, #-4]!
+// end WITH_TAINT_TRACKING
     rsb     r2, r2, #5                  @ r2<- 5-r2
     add     pc, pc, r2, lsl #4          @ computed goto, 4 instrs each
     bl      common_abort                @ (skipped due to ARM prefetch)
+// begin WITH_TAINT_TRACKING
 5:  and     ip, rINST, #0x0f00          @ isolate A
-    ldr     r2, [rFP, ip, lsr #6]       @ r2<- vA (shift right 8, left 2)
-    mov     r0, r0                      @ nop
-    str     r2, [r10, #-4]!             @ *--outs = vA
+    mov	    r2, ip, lsr #5
+    ldrd    r2, [rFP, r2]               @ r2/r3<- vA (shift right 8, left 2) / taint
+    strd    r2, [r10, #-8]!             @ *--outs = vA
 4:  and     ip, r1, #0xf000             @ isolate G
-    ldr     r2, [rFP, ip, lsr #10]      @ r2<- vG (shift right 12, left 2)
-    mov     r0, r0                      @ nop
-    str     r2, [r10, #-4]!             @ *--outs = vG
+    mov	    r2, ip, lsr #9
+    ldrd    r2, [rFP, r2]               @ r2<- vG (shift right 12, left 2)
+    strd    r2, [r10, #-8]!             @ *--outs = vG
 3:  and     ip, r1, #0x0f00             @ isolate F
-    ldr     r2, [rFP, ip, lsr #6]       @ r2<- vF
-    mov     r0, r0                      @ nop
-    str     r2, [r10, #-4]!             @ *--outs = vF
+    mov	    r2, ip, lsr #5
+    ldrd    r2, [rFP, r2]               @ r2<- vF
+    strd    r2, [r10, #-8]!             @ *--outs = vF
 2:  and     ip, r1, #0x00f0             @ isolate E
-    ldr     r2, [rFP, ip, lsr #2]       @ r2<- vE
-    mov     r0, r0                      @ nop
-    str     r2, [r10, #-4]!             @ *--outs = vE
+    mov	    r2, ip, lsr #1
+    ldrd    r2, [rFP, r2]               @ r2<- vE
+    strd    r2, [r10, #-8]!             @ *--outs = vE
 1:  and     ip, r1, #0x000f             @ isolate D
-    ldr     r2, [rFP, ip, lsl #2]       @ r2<- vD
-    mov     r0, r0                      @ nop
-    str     r2, [r10, #-4]!             @ *--outs = vD
+    mov	    r2, ip, lsl #3
+    ldrd    r2, [rFP, r2]               @ r2<- vD
+    strd    r2, [r10, #-8]!             @ *--outs = vD
+// end WITH_TAINT_TRACKING
 0:  @ fall through to .LinvokeArgsDone
+// begin WITH_TAINT_TRACKING
+    ldmfd   sp!, {r3}                   @ restore outSize
+    ldmfd   sp!, {r0}                   @ restore methodToCall
+    b       .LinvokeArgsDone            @ jump over .LinvokeNonRangeNative
+// end WITH_TAINT_TRACKING
+
+    @ r0=methodToCall, r1=GFED, r2=count, r10=outs
+.LinvokeNonRangeNative:
+// begin WITH_TAINT_TRACKING
+    sub	    r0, r10, r2, lsl #2         @ r0<- outs (no taint)
+    sub	    r0, r0, #4                  @ native hack
+    stmfd   sp!, {r3}                   @ push outSize to stack
+// end WITH_TAINT_TRACKING
+    rsb     r2, r2, #5                  @ r2<- 5-r2
+// begin WITH_TAINT_TRACKING
+    mov	    r3, #5
+    mul	    r2, r2, r3
+    add     pc, pc, r2, lsl #2         	@ computed goto, 5 instrs each, 4-byte instrs
+// end WITH_TAINT_TRACKING
+    bl      common_abort                @ (skipped due to ARM prefetch)
+// begin WITH_TAINT_TRACKING
+5:  and     ip, rINST, #0x0f00          @ isolate A
+    mov	    r2, ip, lsr #5
+    ldrd    r2, [rFP, r2]               @ r2/r3<- vA (shift right 8, left 2) / taint
+    str     r2, [r0, #-4]!
+    str	    r3, [r10, #-4]!
+4:  and     ip, r1, #0xf000             @ isolate G
+    mov	    r2, ip, lsr #9
+    ldrd    r2, [rFP, r2]               @ r2<- vG (shift right 12, left 2)
+    str     r2, [r0, #-4]!
+    str	    r3, [r10, #-4]!
+3:  and     ip, r1, #0x0f00             @ isolate F
+    mov	    r2, ip, lsr #5
+    ldrd    r2, [rFP, r2]               @ r2<- vF
+    str     r2, [r0, #-4]!
+    str	    r3, [r10, #-4]!
+2:  and     ip, r1, #0x00f0             @ isolate E
+    mov	    r2, ip, lsr #1
+    ldrd    r2, [rFP, r2]               @ r2<- vE
+    str     r2, [r0, #-4]!
+    str	    r3, [r10, #-4]!
+1:  and     ip, r1, #0x000f             @ isolate D
+    mov	    r2, ip, lsl #3
+    ldrd    r2, [rFP, r2]               @ r2<- vD
+    str     r2, [r0, #-4]!
+    str     r3, [r10, #-4]!
+// end WITH_TAINT_TRACKING
+0:  @ fall through to .LinvokeArgsDone
+// begin WITH_TAINT_TRACKING
+    // clear native hack
+    mov		r3, #0
+    str     r3, [r10, #-4]!
+    ldmfd   sp!, {r3}                   @ restore outSize
+    ldmfd   sp!, {r0}                   @ restore methodToCall
+// end WITH_TAINT_TRACKING
 
 .LinvokeArgsDone: @ r0=methodToCall
     ldrh    r9, [r0, #offMethod_registersSize]  @ r9<- methodToCall->regsSize
@@ -16128,11 +19216,17 @@ common_invokeMethodNoRange:
     ldr     rINST, [r0, #offMethod_clazz]  @ rINST<- method->clazz
     @ find space for the new stack frame, check for overflow
     SAVEAREA_FROM_FP(r1, rFP)           @ r1<- stack save area
-    sub     r1, r1, r9, lsl #2          @ r1<- newFp (old savearea - regsSize)
+// begin WITH_TAINT_TRACKING
+    sub     r1, r1, r9, lsl #3
+    sub	    r1, r1, #4                  @ r1<- newFp (old savearea - 2*regsSize - 4)
+// end WITH_TAINT_TRACKING
     SAVEAREA_FROM_FP(r10, r1)           @ r10<- newSaveArea
 @    bl      common_dumpRegs
     ldr     r9, [rSELF, #offThread_interpStackEnd]    @ r9<- interpStackEnd
-    sub     r3, r10, r3, lsl #2         @ r3<- bottom (newsave - outsSize)
+// begin WITH_TAINT_TRACKING
+    sub     r3, r10, r3, lsl #2
+    sub	    r3, r3, #4                  @ r3<- bottom (newsave - outsSize - 4)
+// end WITH_TAINT_TRACKING
     cmp     r3, r9                      @ bottom < interpStackEnd?
     ldrh    lr, [rSELF, #offThread_subMode]
     ldr     r3, [r0, #offMethod_accessFlags] @ r3<- methodToCall->accessFlags
@@ -16240,6 +19334,16 @@ dalvik_mterp:
 7:
 
     @ native return; r10=newSaveArea
+
+// begin WITH_TAINT_TRACKING
+    // set return taint
+    SAVEAREA_FROM_FP(r0, rFP)           @ r0<- stack save area
+    ldr     r1, [r0, #offStackSaveArea_argCount]    @ r1<- arg count
+    sub     r0, r0, r1, lsl #2
+    ldr     r2, [r0, #-4]               @ r2<- return taint
+    str	    r2, [rSELF, #offThread_rtaint]
+// end WITH_TAINT_TRACKING
+
     @ equivalent to dvmPopJniLocals
     ldr     r0, [r10, #offStackSaveArea_localRefCookie] @ r0<- saved top
     ldr     r1, [rSELF, #offThread_exception] @ check for exception

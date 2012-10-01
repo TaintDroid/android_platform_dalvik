@@ -896,7 +896,11 @@ Object* dvmGetThisPtr(const Method* method, const u4* fp)
 {
     if (dvmIsStaticMethod(method))
         return NULL;
+#ifdef WITH_TAINT_TRACKING
+    return (Object*)fp[(method->registersSize - method->insSize)<<1];
+#else
     return (Object*)fp[method->registersSize - method->insSize];
+#endif
 }
 
 
@@ -956,7 +960,11 @@ void dvmDumpRegs(const Method* method, const u4* framePtr, bool inOnly)
     for (i = method->registersSize-1; i >= 0; i--) {
         if (i >= localCount) {
             ALOG(LOG_VERBOSE, LOG_TAG"i", "  v%-2d in%-2d : 0x%08x",
+#ifdef WITH_TAINT_TRACKING
+                i, i-localCount, framePtr[i<<1]);
+#else
                 i, i-localCount, framePtr[i]);
+#endif
         } else {
             if (inOnly) {
                 ALOG(LOG_VERBOSE, LOG_TAG"i", "  [...]");
@@ -977,7 +985,11 @@ void dvmDumpRegs(const Method* method, const u4* framePtr, bool inOnly)
             }
 #endif
             ALOG(LOG_VERBOSE, LOG_TAG"i", "  v%-2d      : 0x%08x %s",
+#ifdef WITH_TAINT_TRACKING
+                i, framePtr[i<<1], name);
+#else
                 i, framePtr[i], name);
+#endif
         }
     }
 }
@@ -1227,6 +1239,11 @@ bool dvmInterpHandleFillArrayData(ArrayObject* arrayObj, const u2* arrayData)
         return false;
     }
     copySwappedArrayData(arrayObj->contents, &arrayData[4], size, width);
+#ifdef WITH_TAINT_TRACKING
+    if (arrayObj->length == size) {
+    	arrayObj->taint.tag = TAINT_CLEAR;
+    }
+#endif
     return true;
 }
 
@@ -1877,7 +1894,11 @@ void dvmCheckBefore(const u2 *pc, u4 *fp, Thread* self)
  * The interpreted stack frame, which holds the method arguments, has
  * already been set up.
  */
+#ifdef WITH_TAINT_TRACKING
+void dvmInterpret(Thread* self, const Method* method, JValue* pResult, u4* rtaint)
+#else
 void dvmInterpret(Thread* self, const Method* method, JValue* pResult)
+#endif
 {
     InterpSaveState interpSaveState;
     ExecutionSubModes savedSubModes;
@@ -1930,6 +1951,9 @@ void dvmInterpret(Thread* self, const Method* method, JValue* pResult)
      *
      * No need to initialize "retval".
      */
+#ifdef WITH_TAINT_TRACKING
+    self->interpSave.rtaint.tag = TAINT_CLEAR;
+#endif
     self->interpSave.method = method;
     self->interpSave.curFrame = (u4*) self->interpSave.curFrame;
     self->interpSave.pc = method->insns;
@@ -1964,6 +1988,9 @@ void dvmInterpret(Thread* self, const Method* method, JValue* pResult)
     (*stdInterp)(self);
 
     *pResult = self->interpSave.retval;
+#ifdef WITH_TAINT_TRACKING
+    *rtaint = self->interpSave.rtaint.tag;
+#endif
 
     /* Restore interpreter state from previous activation */
     self->interpSave = interpSaveState;

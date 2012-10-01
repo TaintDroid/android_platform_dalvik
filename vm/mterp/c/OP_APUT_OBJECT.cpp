@@ -8,7 +8,7 @@ HANDLE_OPCODE(OP_APUT_OBJECT /*vAA, vBB, vCC*/)
         arrayInfo = FETCH(1);
         vsrc1 = arrayInfo & 0xff;   /* BB: array ptr */
         vsrc2 = arrayInfo >> 8;     /* CC: index */
-        ILOGV("|aput%s v%d,v%d,v%d", "-object", vdst, vsrc1, vsrc2);
+        ALOGV("|aput%s v%d,v%d,v%d", "-object", vdst, vsrc1, vsrc2);
         arrayObj = (ArrayObject*) GET_REGISTER(vsrc1);
         if (!checkForNull((Object*) arrayObj))
             GOTO_exceptionThrown();
@@ -33,6 +33,11 @@ HANDLE_OPCODE(OP_APUT_OBJECT /*vAA, vBB, vCC*/)
         dvmSetObjectArrayElement(arrayObj,
                                  GET_REGISTER(vsrc2),
                                  (Object *)GET_REGISTER(vdst));
+/* ifdef WITH_TAINT_TRACKING */
+	SET_ARRAY_TAINT(arrayObj,
+		(GET_ARRAY_TAINT(arrayObj) |
+		 GET_REGISTER_TAINT(vdst)) );
+/* endif */
     }
     FINISH(2);
 OP_END

@@ -32,6 +32,11 @@
  * way classes load changes, e.g. field ordering or vtable layout.  Changing
  * this guarantees that the optimized form of the DEX file is regenerated.
  */
+#ifdef WITH_TAINT_TRACKING
+// just to be safe, make sure odex is regenerated
+#define DALVIK_VM_BUILD         28
+#else
 #define DALVIK_VM_BUILD         27
+#endif /*WITH_TAINT_TRACKING*/
 
 #endif  // DALVIK_VERSION_H_

@@ -122,6 +122,65 @@ INLINE Object* dvmGetFieldObjectVolatile(const Object* obj, int offset) {
     return (Object*)android_atomic_acquire_load((int32_t*)ptr);
 }
 
+#ifdef WITH_TAINT_TRACKING
+INLINE u4 dvmGetFieldTaint(const Object* obj, int offset) {
+    return (*(u4*)BYTE_OFFSET(obj, offset+sizeof(u4)));
+}
+INLINE u4 dvmGetFieldTaintWide(const Object* obj, int offset) {
+    return (*(u4*)BYTE_OFFSET(obj, offset+sizeof(u4)+sizeof(u4)));
+}
+INLINE u4 dvmGetFieldTaintVolatile(const Object* obj, int offset) {
+    s4* ptr = &(*(s4*)(BYTE_OFFSET(obj, offset+sizeof(u4))));
+    return (u4)android_atomic_acquire_load(ptr);
+}
+INLINE u4 dvmGetFieldTaintWideVolatile(const Object* obj, int offset) {
+    s4* ptr = &(*(s4*)BYTE_OFFSET(obj, offset+sizeof(u4)+sizeof(u4)));
+    return (u4)android_atomic_acquire_load(ptr);
+}
+#define dvmGetFieldTaintBoolean(_obj, _offset) dvmGetFieldTaint(_obj, _offset)
+#define dvmGetFieldTaintByte(_obj, _offset)    dvmGetFieldTaint(_obj, _offset)
+#define dvmGetFieldTaintShort(_obj, _offset)   dvmGetFieldTaint(_obj, _offset)
+#define dvmGetFieldTaintChar(_obj, _offset)    dvmGetFieldTaint(_obj, _offset)
+#define dvmGetFieldTaintInt(_obj, _offset)     dvmGetFieldTaint(_obj, _offset)
+#define dvmGetFieldTaintLong(_obj, _offset)    dvmGetFieldTaintWide(_obj, _offset)
+#define dvmGetFieldTaintFloat(_obj, _offset)   dvmGetFieldTaint(_obj, _offset)
+#define dvmGetFieldTaintDouble(_obj, _offset)  dvmGetFieldTaintWide(_obj, _offset)
+#define dvmGetFieldTaintObject(_obj, _offset)  dvmGetFieldTaint(_obj, _offset)
+
+#define dvmGetFieldTaintBooleanVolatile(_obj, _offset) dvmGetFieldTaintVolatile(_obj, _offset)
+#define dvmGetFieldTaintByteVolatile(_obj, _offset)    dvmGetFieldTaintVolatile(_obj, _offset)
+#define dvmGetFieldTaintShortVolatile(_obj, _offset)   dvmGetFieldTaintVolatile(_obj, _offset)
+#define dvmGetFieldTaintCharVolatile(_obj, _offset)    dvmGetFieldTaintVolatile(_obj, _offset)
+#define dvmGetFieldTaintIntVolatile(_obj, _offset)     dvmGetFieldTaintVolatile(_obj, _offset)
+#define dvmGetFieldTaintLongVolatile(_obj, _offset)    dvmGetFieldTaintWideVolatile(_obj, _offset)
+#define dvmGetFieldTaintFloatVolatile(_obj, _offset)   dvmGetFieldTaintVolatile(_obj, _offset)
+#define dvmGetFieldTaintDoubleVolatile(_obj, _offset)  dvmGetFieldTaintWideVolatile(_obj, _offset)
+#define dvmGetFieldTaintObjectVolatile(_obj, _offset)  dvmGetFieldTaintVolatile(_obj, _offset)
+#else
+#define dvmGetFieldTaint(_obj, _offset)        ((void)0)
+#define dvmGetFieldTaintWide(_obj, _offset)    ((void)0)
+#define dvmGetFieldTaintBoolean(_obj, _offset) ((void)0)
+#define dvmGetFieldTaintByte(_obj, _offset)    ((void)0)
+#define dvmGetFieldTaintShort(_obj, _offset)   ((void)0)
+#define dvmGetFieldTaintChar(_obj, _offset)    ((void)0)
+#define dvmGetFieldTaintInt(_obj, _offset)     ((void)0)
+#define dvmGetFieldTaintLong(_obj, _offset)    ((void)0)
+#define dvmGetFieldTaintFloat(_obj, _offset)   ((void)0)
+#define dvmGetFieldTaintDouble(_obj, _offset)  ((void)0)
+#define dvmGetFieldTaintObject(_obj, _offset)  ((void)0)
+
+#define dvmGetFieldTaintBooleanVolatile(_obj, _offset) ((void)0)
+#define dvmGetFieldTaintByteVolatile(_obj, _offset)    ((void)0)
+#define dvmGetFieldTaintShortVolatile(_obj, _offset)   ((void)0)
+#define dvmGetFieldTaintCharVolatile(_obj, _offset)    ((void)0)
+#define dvmGetFieldTaintIntVolatile(_obj, _offset)     ((void)0)
+#define dvmGetFieldTaintLongVolatile(_obj, _offset)    ((void)0)
+#define dvmGetFieldTaintFloatVolatile(_obj, _offset)   ((void)0)
+#define dvmGetFieldTaintDoubleVolatile(_obj, _offset)  ((void)0)
+#define dvmGetFieldTaintObjectVolatile(_obj, _offset)  ((void)0)
+#endif
+
+
 INLINE void dvmSetFieldBoolean(Object* obj, int offset, bool val) {
     ((JValue*)BYTE_OFFSET(obj, offset))->i = val;
 }
@@ -199,6 +258,64 @@ INLINE void dvmSetFieldObjectVolatile(Object* obj, int offset, Object* val) {
         dvmWriteBarrierField(obj, ptr);
     }
 }
+
+#ifdef WITH_TAINT_TRACKING
+INLINE void dvmSetFieldTaint(Object* obj, int offset, u4 tag) {
+    (*(u4*)BYTE_OFFSET(obj, offset+sizeof(u4))) = tag;
+}
+INLINE void dvmSetFieldTaintWide(Object* obj, int offset, u4 tag) {
+    (*(u4*)BYTE_OFFSET(obj, offset+sizeof(u4)+sizeof(u4))) = tag;
+}
+INLINE void dvmSetFieldTaintVolatile(Object* obj, int offset, u4 tag) {
+    s4* ptr = &(*(s4*)BYTE_OFFSET(obj, offset+sizeof(u4)));
+    android_atomic_release_store(tag, ptr);
+}
+INLINE void dvmSetFieldTaintWideVolatile(Object* obj, int offset, u4 tag) {
+    s4* ptr = &(*(s4*)BYTE_OFFSET(obj, offset+sizeof(u4)+sizeof(u4)));
+    android_atomic_release_store(tag, ptr);
+}
+#define dvmSetFieldTaintBoolean(_obj, _offset, _tag) dvmSetFieldTaint(_obj, _offset, _tag)
+#define dvmSetFieldTaintByte(_obj, _offset, _tag)    dvmSetFieldTaint(_obj, _offset, _tag)
+#define dvmSetFieldTaintShort(_obj, _offset, _tag)   dvmSetFieldTaint(_obj, _offset, _tag)
+#define dvmSetFieldTaintChar(_obj, _offset, _tag)    dvmSetFieldTaint(_obj, _offset, _tag)
+#define dvmSetFieldTaintInt(_obj, _offset, _tag)     dvmSetFieldTaint(_obj, _offset, _tag)
+#define dvmSetFieldTaintLong(_obj, _offset, _tag)    dvmSetFieldTaintWide(_obj, _offset, _tag)
+#define dvmSetFieldTaintFloat(_obj, _offset, _tag)   dvmSetFieldTaint(_obj, _offset, _tag)
+#define dvmSetFieldTaintDouble(_obj, _offset, _tag)  dvmSetFieldTaintWide(_obj, _offset, _tag)
+#define dvmSetFieldTaintObject(_obj, _offset, _tag)  dvmSetFieldTaint(_obj, _offset, _tag)
+
+#define dvmSetFieldTaintBooleanVolatile(_obj, _offset, _tag) dvmSetFieldTaintVolatile(_obj, _offset, _tag)
+#define dvmSetFieldTaintByteVolatile(_obj, _offset, _tag)    dvmSetFieldTaintVolatile(_obj, _offset, _tag)
+#define dvmSetFieldTaintShortVolatile(_obj, _offset, _tag)   dvmSetFieldTaintVolatile(_obj, _offset, _tag)
+#define dvmSetFieldTaintCharVolatile(_obj, _offset, _tag)    dvmSetFieldTaintVolatile(_obj, _offset, _tag)
+#define dvmSetFieldTaintIntVolatile(_obj, _offset, _tag)     dvmSetFieldTaintVolatile(_obj, _offset, _tag)
+#define dvmSetFieldTaintLongVolatile(_obj, _offset, _tag)    dvmSetFieldTaintWideVolatile(_obj, _offset, _tag)
+#define dvmSetFieldTaintFloatVolatile(_obj, _offset, _tag)   dvmSetFieldTaintVolatile(_obj, _offset, _tag)
+#define dvmSetFieldTaintDoubleVolatile(_obj, _offset, _tag)  dvmSetFieldTaintWideVolatile(_obj, _offset, _tag)
+#define dvmSetFieldTaintObjectVolatile(_obj, _offset, _tag)  dvmSetFieldTaintVolatile(_obj, _offset, _tag)
+#else
+#define dvmSetFieldTaint(_obj, _offset, _tag)        ((void)0)
+#define dvmSetFieldTaintWide(_obj, _offset, _tag)    ((void)0)
+#define dvmSetFieldTaintBoolean(_obj, _offset, _tag) ((void)0)
+#define dvmSetFieldTaintByte(_obj, _offset, _tag)    ((void)0)
+#define dvmSetFieldTaintShort(_obj, _offset, _tag)   ((void)0)
+#define dvmSetFieldTaintChar(_obj, _offset, _tag)    ((void)0)
+#define dvmSetFieldTaintInt(_obj, _offset, _tag)     ((void)0)
+#define dvmSetFieldTaintLong(_obj, _offset, _tag)    ((void)0)
+#define dvmSetFieldTaintFloat(_obj, _offset, _tag)   ((void)0)
+#define dvmSetFieldTaintDouble(_obj, _offset, _tag)  ((void)0)
+#define dvmSetFieldTaintObject(_obj, _offset, _tag)  ((void)0)
+
+#define dvmSetFieldTaintBooleanVolatile(_obj, _offset, _tag) ((void)0)
+#define dvmSetFieldTaintByteVolatile(_obj, _offset, _tag)    ((void)0)
+#define dvmSetFieldTaintShortVolatile(_obj, _offset, _tag)   ((void)0)
+#define dvmSetFieldTaintCharVolatile(_obj, _offset, _tag)    ((void)0)
+#define dvmSetFieldTaintIntVolatile(_obj, _offset, _tag)     ((void)0)
+#define dvmSetFieldTaintLongVolatile(_obj, _offset, _tag)    ((void)0)
+#define dvmSetFieldTaintFloatVolatile(_obj, _offset, _tag)   ((void)0)
+#define dvmSetFieldTaintDoubleVolatile(_obj, _offset, _tag)  ((void)0)
+#define dvmSetFieldTaintObjectVolatile(_obj, _offset, _tag)  ((void)0)
+#endif
 
 /*
  * Static field access functions.
@@ -278,6 +395,56 @@ INLINE Object* dvmGetStaticFieldObjectVolatile(const StaticField* sfield) {
     return (Object*)android_atomic_acquire_load((int32_t*)ptr);
 }
 
+#ifdef WITH_TAINT_TRACKING
+INLINE u4 dvmGetStaticFieldTaint(const StaticField* sfield) {
+    return sfield->taint.tag;
+}
+INLINE u4 dvmGetStaticFieldTaintVolatile(const StaticField* sfield) {
+    const u4* ptr = &(sfield->taint.tag);
+    return (u4)android_atomic_acquire_load((s4*)ptr);
+}
+#define dvmGetStaticFieldTaintBoolean(_sfield) dvmGetStaticFieldTaint(_sfield)
+#define dvmGetStaticFieldTaintByte(_sfield)    dvmGetStaticFieldTaint(_sfield)
+#define dvmGetStaticFieldTaintShort(_sfield)   dvmGetStaticFieldTaint(_sfield)
+#define dvmGetStaticFieldTaintChar(_sfield)    dvmGetStaticFieldTaint(_sfield)
+#define dvmGetStaticFieldTaintInt(_sfield)     dvmGetStaticFieldTaint(_sfield)
+#define dvmGetStaticFieldTaintLong(_sfield)    dvmGetStaticFieldTaint(_sfield)
+#define dvmGetStaticFieldTaintFloat(_sfield)   dvmGetStaticFieldTaint(_sfield)
+#define dvmGetStaticFieldTaintDouble(_sfield)  dvmGetStaticFieldTaint(_sfield)
+#define dvmGetStaticFieldTaintObject(_sfield)  dvmGetStaticFieldTaint(_sfield)
+
+#define dvmGetStaticFieldTaintBooleanVolatile(_sfield) dvmGetStaticFieldTaintVolatile(_sfield)
+#define dvmGetStaticFieldTaintByteVolatile(_sfield)    dvmGetStaticFieldTaintVolatile(_sfield)
+#define dvmGetStaticFieldTaintShortVolatile(_sfield)   dvmGetStaticFieldTaintVolatile(_sfield)
+#define dvmGetStaticFieldTaintCharVolatile(_sfield)    dvmGetStaticFieldTaintVolatile(_sfield)
+#define dvmGetStaticFieldTaintIntVolatile(_sfield)     dvmGetStaticFieldTaintVolatile(_sfield)
+#define dvmGetStaticFieldTaintLongVolatile(_sfield)    dvmGetStaticFieldTaintVolatile(_sfield)
+#define dvmGetStaticFieldTaintFloatVolatile(_sfield)   dvmGetStaticFieldTaintVolatile(_sfield)
+#define dvmGetStaticFieldTaintDoubleVolatile(_sfield)  dvmGetStaticFieldTaintVolatile(_sfield)
+#define dvmGetStaticFieldTaintObjectVolatile(_sfield)  dvmGetStaticFieldTaintVolatile(_sfield)
+#else
+#define dvmGetStaticFieldTaint(_sfield)        ((void)0)
+#define dvmGetStaticFieldTaintBoolean(_sfield) ((void)0)
+#define dvmGetStaticFieldTaintByte(_sfield)    ((void)0)
+#define dvmGetStaticFieldTaintShort(_sfield)   ((void)0)
+#define dvmGetStaticFieldTaintChar(_sfield)    ((void)0)
+#define dvmGetStaticFieldTaintInt(_sfield)     ((void)0)
+#define dvmGetStaticFieldTaintLong(_sfield)    ((void)0)
+#define dvmGetStaticFieldTaintFloat(_sfield)   ((void)0)
+#define dvmGetStaticFieldTaintDouble(_sfield)  ((void)0)
+#define dvmGetStaticFieldTaintObject(_sfield)  ((void)0)
+
+#define dvmGetStaticFieldTaintBooleanVolatile(_sfield) ((void)0)
+#define dvmGetStaticFieldTaintByteVolatile(_sfield)    ((void)0)
+#define dvmGetStaticFieldTaintShortVolatile(_sfield)   ((void)0)
+#define dvmGetStaticFieldTaintCharVolatile(_sfield)    ((void)0)
+#define dvmGetStaticFieldTaintIntVolatile(_sfield)     ((void)0)
+#define dvmGetStaticFieldTaintLongVolatile(_sfield)    ((void)0)
+#define dvmGetStaticFieldTaintFloatVolatile(_sfield)   ((void)0)
+#define dvmGetStaticFieldTaintDoubleVolatile(_sfield)  ((void)0)
+#define dvmGetStaticFieldTaintObjectVolatile(_sfield)  ((void)0)
+#endif
+
 INLINE void dvmSetStaticFieldBoolean(StaticField* sfield, bool val) {
     sfield->value.i = val;
 }
@@ -349,5 +516,45 @@ INLINE void dvmSetStaticFieldObjectVolatile(StaticField* sfield, Object* val) {
         dvmWriteBarrierField(sfield->clazz, &sfield->value.l);
     }
 }
+
+#ifdef WITH_TAINT_TRACKING
+INLINE void dvmSetStaticFieldTaint(StaticField* sfield, u4 tag) {
+    sfield->taint.tag = tag;
+}
+INLINE void dvmSetStaticFieldTaintVolatile(StaticField* sfield, u4 tag) {
+    u4* ptr = &sfield->taint.tag;
+    android_atomic_release_store(tag, (s4*)ptr);
+}
+#define dvmSetStaticFieldTaintBoolean(_sfield, _tag) dvmSetStaticFieldTaint(_sfield, _tag)
+#define dvmSetStaticFieldTaintByte(_sfield, _tag)    dvmSetStaticFieldTaint(_sfield, _tag)
+#define dvmSetStaticFieldTaintShort(_sfield, _tag)   dvmSetStaticFieldTaint(_sfield, _tag)
+#define dvmSetStaticFieldTaintChar(_sfield, _tag)    dvmSetStaticFieldTaint(_sfield, _tag)
+#define dvmSetStaticFieldTaintInt(_sfield, _tag)     dvmSetStaticFieldTaint(_sfield, _tag)
+#define dvmSetStaticFieldTaintLong(_sfield, _tag)    dvmSetStaticFieldTaint(_sfield, _tag)
+#define dvmSetStaticFieldTaintFloat(_sfield, _tag)   dvmSetStaticFieldTaint(_sfield, _tag)
+#define dvmSetStaticFieldTaintDouble(_sfield, _tag)  dvmSetStaticFieldTaint(_sfield, _tag)
+#define dvmSetStaticFieldTaintObject(_sfield, _tag)  dvmSetStaticFieldTaint(_sfield, _tag)
+
+#define dvmSetStaticFieldTaintBooleanVolatile(_sfield, _tag) dvmSetStaticFieldTaintVolatile(_sfield, _tag)
+#define dvmSetStaticFieldTaintByteVolatile(_sfield, _tag)    dvmSetStaticFieldTaintVolatile(_sfield, _tag)
+#define dvmSetStaticFieldTaintShortVolatile(_sfield, _tag)   dvmSetStaticFieldTaintVolatile(_sfield, _tag)
+#define dvmSetStaticFieldTaintCharVolatile(_sfield, _tag)    dvmSetStaticFieldTaintVolatile(_sfield, _tag)
+#define dvmSetStaticFieldTaintIntVolatile(_sfield, _tag)     dvmSetStaticFieldTaintVolatile(_sfield, _tag)
+#define dvmSetStaticFieldTaintLongVolatile(_sfield, _tag)    dvmSetStaticFieldTaintVolatile(_sfield, _tag)
+#define dvmSetStaticFieldTaintFloatVolatile(_sfield, _tag)   dvmSetStaticFieldTaintVolatile(_sfield, _tag)
+#define dvmSetStaticFieldTaintDoubleVolatile(_sfield, _tag)  dvmSetStaticFieldTaintVolatile(_sfield, _tag)
+#define dvmSetStaticFieldTaintObjectVolatile(_sfield, _tag)  dvmSetStaticFieldTaintVolatile(_sfield, _tag)
+#else
+#define dvmSetStaticFieldTaint(_sfield, _tag)        ((void)0)
+#define dvmSetStaticFieldTaintBoolean(_sfield, _tag) ((void)0)
+#define dvmSetStaticFieldTaintByte(_sfield, _tag)    ((void)0)
+#define dvmSetStaticFieldTaintShort(_sfield, _tag)   ((void)0)
+#define dvmSetStaticFieldTaintChar(_sfield, _tag)    ((void)0)
+#define dvmSetStaticFieldTaintInt(_sfield, _tag)     ((void)0)
+#define dvmSetStaticFieldTaintLong(_sfield, _tag)    ((void)0)
+#define dvmSetStaticFieldTaintFloat(_sfield, _tag)   ((void)0)
+#define dvmSetStaticFieldTaintDouble(_sfield, _tag)  ((void)0)
+#define dvmSetStaticFieldTaintObject(_sfield, _tag)  ((void)0)
+#endif
 
 #endif  // DALVIK_OO_OBJECTINLINES_H_

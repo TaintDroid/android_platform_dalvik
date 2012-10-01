@@ -62,6 +62,9 @@ void dvmSelfVerificationShadowSpaceFree(Thread* self)
  *     pc  (Dalvik PC)
  *     fp  (Dalvik FP)
  *     retval
+ *     // begin WITH_TAINT_TRACKING
+ *     rtaint
+ *     // end WITH_TAINT_tRACKING
  *     method
  *     methodClassDex
  *     interpStackEnd
@@ -70,12 +73,17 @@ void* dvmSelfVerificationSaveState(const u2* pc, u4* fp,
                                    Thread* self, int targetTrace)
 {
     ShadowSpace *shadowSpace = self->shadowSpace;
+#ifdef WITH_TAINT_TRACKING
+    unsigned preBytes = self->interpSave.method->outsSize*4*2 + sizeof(StackSaveArea) + 4;
+    unsigned postBytes = self->interpSave.method->registersSize*4*2;
+#else
     unsigned preBytes = self->interpSave.method->outsSize*4 +
         sizeof(StackSaveArea);
     unsigned postBytes = self->interpSave.method->registersSize*4;
+#endif /*WITH_TAINT_TRACKING*/
 
-    //ALOGD("### selfVerificationSaveState(%d) pc: %#x fp: %#x",
-    //    self->threadId, (int)pc, (int)fp);
+    ALOGD("### selfVerificationSaveState(%d) pc: %#x fp: %#x",
+        self->threadId, (int)pc, (int)fp);
 
     if (shadowSpace->selfVerificationState != kSVSIdle) {
         ALOGD("~~~ Save: INCORRECT PREVIOUS STATE(%d): %d",
@@ -97,6 +105,9 @@ void* dvmSelfVerificationSaveState(const u2* pc, u4* fp,
     shadowSpace->startPC = pc;
     shadowSpace->fp = fp;
     shadowSpace->retval = self->interpSave.retval;
+#ifdef WITH_TAINT_TRACKING
+    shadowSpace->rtaint = self->interpSave.rtaint;
+#endif /*WITH_TAINT_TRACKING*/
     shadowSpace->interpStackEnd = self->interpStackEnd;
 
     /*
@@ -138,9 +149,9 @@ void* dvmSelfVerificationRestoreState(const u2* pc, u4* fp,
     shadowSpace->endShadowFP = fp;
     shadowSpace->jitExitState = exitState;
 
-    //ALOGD("### selfVerificationRestoreState(%d) pc: %#x fp: %#x endPC: %#x",
-    //    self->threadId, (int)shadowSpace->startPC, (int)shadowSpace->fp,
-    //    (int)pc);
+    ALOGD("### selfVerificationRestoreState(%d) pc: %#x fp: %#x endPC: %#x",
+        self->threadId, (int)shadowSpace->startPC, (int)shadowSpace->fp,
+        (int)pc);
 
     if (shadowSpace->selfVerificationState != kSVSStart) {
         ALOGD("~~~ Restore: INCORRECT PREVIOUS STATE(%d): %d",
@@ -166,6 +177,9 @@ void* dvmSelfVerificationRestoreState(const u2* pc, u4* fp,
     self->interpSave.method = shadowSpace->method;
     self->interpSave.methodClassDex = shadowSpace->methodClassDex;
     self->interpSave.retval = shadowSpace->retval;
+#ifdef WITH_TAINT_TRACKING
+    self->interpSave.rtaint = shadowSpace->rtaint;
+#endif /*WITH_TAINT_TRACKING*/
     self->interpStackEnd = shadowSpace->interpStackEnd;
 
     return shadowSpace;
@@ -175,10 +189,19 @@ void* dvmSelfVerificationRestoreState(const u2* pc, u4* fp,
 static void selfVerificationPrintRegisters(int* addr, int* addrRef,
                                            int numWords)
 {
+#ifdef WITH_TAINT_TRACKING
+    int i = 0;
+    while(i<numWords) {
+        ALOGD("(v%d) 0x%8x%s", i/2, addr[i], addr[i] != addrRef[i] ? " X" : "");
+        ALOGD("(t%d) 0x%8x (taint tag)%s", i/2, addr[i+1], addr[i+1] != addrRef[i+1] ? " X" : "");
+        i+=2;
+    }
+#else
     int i;
     for (i = 0; i < numWords; i++) {
         ALOGD("(v%d) 0x%8x%s", i, addr[i], addr[i] != addrRef[i] ? " X" : "");
     }
+#endif /*WITH_TAINT_TRACKING*/
 }
 
 /* Print values maintained in shadowSpace */
@@ -192,8 +215,13 @@ static void selfVerificationDumpState(const u2* pc, Thread* self)
     int localRegs = 0;
     int frameBytes2 = 0;
     if ((uintptr_t)self->interpSave.curFrame < (uintptr_t)shadowSpace->fp) {
+#ifdef WITH_TAINT_TRACKING
+        localRegs = (stackSave->method->registersSize -
+                     stackSave->method->insSize)*4*2;
+#else
         localRegs = (stackSave->method->registersSize -
                      stackSave->method->insSize)*4;
+#endif /*WITH_TAINT_TRACKING*/
         frameBytes2 = (int) shadowSpace->fp -
                       (int)self->interpSave.curFrame - localRegs;
     }
@@ -269,9 +297,9 @@ void dvmCheckSelfVerification(const u2* pc, Thread* self)
     DecodedInstruction decInsn;
     dexDecodeInstruction(pc, &decInsn);
 
-    //ALOGD("### DbgIntp(%d): PC: %#x endPC: %#x state: %d len: %d %s",
-    //    self->threadId, (int)pc, (int)shadowSpace->endPC, state,
-    //    shadowSpace->traceLength, dexGetOpcodeName(decInsn.opcode));
+    ALOGD("### DbgIntp(%d): PC: %#x endPC: %#x state: %d len: %d %s",
+        self->threadId, (int)pc, (int)shadowSpace->endPC, state,
+        shadowSpace->traceLength, dexGetOpcodeName(decInsn.opcode));
 
     if (state == kSVSIdle || state == kSVSStart) {
         ALOGD("~~~ DbgIntrp: INCORRECT PREVIOUS STATE(%d): %d",
@@ -323,12 +351,19 @@ void dvmCheckSelfVerification(const u2* pc, Thread* self)
                                            frameBytes/4);
             selfVerificationSpinLoop(shadowSpace);
         }
+#ifndef WITH_TAINT_TRACKING
+        // PJG: incorrect for our stack config
         /* Check new frame if it exists (invokes only) */
         if ((uintptr_t)self->interpSave.curFrame < (uintptr_t)shadowSpace->fp) {
             StackSaveArea* stackSave =
                 SAVEAREA_FROM_FP(self->interpSave.curFrame);
+#ifdef WITH_TAINT_TRACKING
+            int localRegs = (stackSave->method->registersSize -
+                             stackSave->method->insSize)*4*2;
+#else
             int localRegs = (stackSave->method->registersSize -
                              stackSave->method->insSize)*4;
+#endif /*WITH_TAINT_TRACKING*/
             int frameBytes2 = (int) shadowSpace->fp -
                               (int) self->interpSave.curFrame - localRegs;
             if (memcmp(((char*)self->interpSave.curFrame)+localRegs,
@@ -358,6 +393,7 @@ void dvmCheckSelfVerification(const u2* pc, Thread* self)
                 selfVerificationSpinLoop(shadowSpace);
             }
         }
+#endif /*WITH_TAINT_TRACKING*/
 
         /* Check memory space */
         bool memDiff = false;
@@ -383,7 +419,6 @@ void dvmCheckSelfVerification(const u2* pc, Thread* self)
             }
         }
         if (memDiff) selfVerificationSpinLoop(shadowSpace);
-
 
         /*
          * Success.  If this shadowed trace included a single-stepped

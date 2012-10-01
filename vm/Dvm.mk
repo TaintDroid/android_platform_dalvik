@@ -28,6 +28,17 @@ LOCAL_CFLAGS += -fstrict-aliasing -Wstrict-aliasing=2 -fno-align-jumps
 LOCAL_CFLAGS += -Wall -Wextra -Wno-unused-parameter
 LOCAL_CFLAGS += -DARCH_VARIANT=\"$(dvm_arch_variant)\"
 
+# Turn on Taint Tracking
+ifeq ($(WITH_TAINT_TRACKING),true)
+  LOCAL_CFLAGS += -DWITH_TAINT_TRACKING
+endif
+ifeq ($(TAINT_JNI_LOG),true)
+  LOCAL_CFLAGS += -DTAINT_JNI_LOG
+endif
+ifeq ($(WITH_TAINT_FAST),true)
+  LOCAL_CFLAGS += -DWITH_TAINT_FAST
+endif
+
 #
 # Optional features.  These may impact the size or performance of the VM.
 #
@@ -184,6 +195,12 @@ LOCAL_SRC_FILES := \
 	test/TestHash.cpp \
 	test/TestIndirectRefTable.cpp
 
+ifeq ($(WITH_TAINT_TRACKING), true)
+	LOCAL_SRC_FILES += native/dalvik_system_Taint.cpp
+	LOCAL_SRC_FILES += tprop/TaintProp.cpp
+	LOCAL_SRC_FILES += tprop/TaintPolicy.cpp
+endif
+
 # TODO: this is the wrong test, but what's the right one?
 ifeq ($(dvm_arch),arm)
   LOCAL_SRC_FILES += os/android.cpp
@@ -227,12 +244,22 @@ LOCAL_C_INCLUDES += \
 	external/zlib \
 	libcore/include \
 
+# Taint tracking with file propagation
+ifeq ($(WITH_TAINT_TRACKING),true)
+    LOCAL_C_INCLUDES += dalvik/libattr
+endif
+
 MTERP_ARCH_KNOWN := false
 
 ifeq ($(dvm_arch),arm)
   #dvm_arch_variant := armv7-a
   #LOCAL_CFLAGS += -march=armv7-a -mfloat-abi=softfp -mfpu=vfp
-  LOCAL_CFLAGS += -Werror
+  #LOCAL_CFLAGS += -march=armv7-a -mfloat-abi=softfp -mfpu=neon
+
+  # begin WITH_TAINT_TRACKING
+  # don't treat warnings as errors
+  #LOCAL_CFLAGS += -Werror
+  # end WITH_TAINT_TRACKING
   MTERP_ARCH_KNOWN := true
   # Select architecture-specific sources (armv5te, armv7-a, etc.)
   LOCAL_SRC_FILES += \
@@ -254,9 +281,19 @@ ifeq ($(dvm_arch),arm)
 		compiler/codegen/arm/ArmRallocUtil.cpp \
 		compiler/template/out/CompilerTemplateAsm-$(dvm_arch_variant).S
   endif
+
+  # Taint tracking with file propagation
+  ifeq ($(WITH_TAINT_TRACKING),true)
+  		LOCAL_STATIC_LIBRARIES += libattr
+  endif
 endif
 
 ifeq ($(dvm_arch),x86)
+# begin WITH_TAINT_TRACKING
+# for TaintDroid: need to know so we can force portable interp
+   LOCAL_CFLAGS += -DTAINT_IS_86
+# end WITH_TAINT_TRACKING
+
   ifeq ($(dvm_os),linux)
     MTERP_ARCH_KNOWN := true
     LOCAL_CFLAGS += -DDVM_JMP_TABLE_MTERP=1

@@ -107,9 +107,15 @@ static void visitThreadStack(RootVisitor *visitor, Thread *thread, void *arg)
                  * scan.
                  */
                 for (size_t i = 0; i < method->registersSize; ++i) {
+#ifdef WITH_TAINT_TRACKING
+                    if (dvmIsValidObject((Object *)fp[i<<1])) {
+			(*visitor)(&fp[i<<1], threadId, ROOT_JAVA_FRAME, arg);
+                    }
+#else
                     if (dvmIsValidObject((Object *)fp[i])) {
                         (*visitor)(&fp[i], threadId, ROOT_JAVA_FRAME, arg);
                     }
+#endif
                 }
             } else {
                 /*
@@ -142,7 +148,11 @@ static void visitThreadStack(RootVisitor *visitor, Thread *thread, void *arg)
                             continue;
                         }
 #endif
+#ifdef WITH_TAINT_TRACKING
+			(*visitor)(&fp[i<<1], threadId, ROOT_JAVA_FRAME, arg);
+#else
                         (*visitor)(&fp[i], threadId, ROOT_JAVA_FRAME, arg);
+#endif
                     }
                 }
                 dvmReleaseRegisterMapLine(pMap, regVector);

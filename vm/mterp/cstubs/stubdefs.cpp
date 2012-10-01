@@ -29,6 +29,10 @@
 #define methodClassDex          self->interpSave.methodClassDex
 #define debugTrackedRefStart    self->interpSave.debugTrackedRefStart
 
+#ifdef WITH_TAINT_TRACKING
+#define rtaint			self->interpSave.rtaint
+#endif
+
 /* ugh */
 #define STUB_HACK(x) x
 #if defined(WITH_JIT)

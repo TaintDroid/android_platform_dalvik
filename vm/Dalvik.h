@@ -84,4 +84,9 @@
 #include "InlineNative.h"
 #include "oo/ObjectInlines.h"
 
+#ifdef WITH_TAINT_TRACKING
+#include "interp/Taint.h"
+#include "tprop/TaintProp.h"
+#endif
+
 #endif  // DALVIK_DALVIK_H_

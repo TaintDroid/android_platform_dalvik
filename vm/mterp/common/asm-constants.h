@@ -81,12 +81,42 @@
  * values are incorrect.
  */
 
+
 /* DvmDex fields */
 MTERP_OFFSET(offDvmDex_pResStrings,     DvmDex, pResStrings, 8)
 MTERP_OFFSET(offDvmDex_pResClasses,     DvmDex, pResClasses, 12)
 MTERP_OFFSET(offDvmDex_pResMethods,     DvmDex, pResMethods, 16)
 MTERP_OFFSET(offDvmDex_pResFields,      DvmDex, pResFields, 20)
 MTERP_OFFSET(offDvmDex_pInterfaceCache, DvmDex, pInterfaceCache, 24)
+
+#ifdef WITH_TAINT_TRACKING
+// need to store arg count for native methods
+
+/* StackSaveArea fields */
+#ifdef EASY_GDB
+MTERP_OFFSET(offStackSaveArea_prevSave, StackSaveArea, prevSave, 0)
+MTERP_OFFSET(offStackSaveArea_prevFrame, StackSaveArea, prevFrame, 4)
+MTERP_OFFSET(offStackSaveArea_savedPc,  StackSaveArea, savedPc, 8)
+MTERP_OFFSET(offStackSaveArea_method,   StackSaveArea, method, 12)
+MTERP_OFFSET(offStackSaveArea_argCount, StackSaveArea, argCount, 16)
+MTERP_OFFSET(offStackSaveArea_currentPc, StackSaveArea, xtra.currentPc, 20)
+MTERP_OFFSET(offStackSaveArea_localRefCookie, \
+                                        StackSaveArea, xtra.localRefCookie, 20)
+MTERP_OFFSET(offStackSaveArea_returnAddr, StackSaveArea, returnAddr, 24)
+MTERP_SIZEOF(sizeofStackSaveArea,       StackSaveArea, 28)
+#else
+MTERP_OFFSET(offStackSaveArea_prevFrame, StackSaveArea, prevFrame, 0)
+MTERP_OFFSET(offStackSaveArea_savedPc,  StackSaveArea, savedPc, 4)
+MTERP_OFFSET(offStackSaveArea_method,   StackSaveArea, method, 8)
+MTERP_OFFSET(offStackSaveArea_argCount, StackSaveArea, argCount, 12)
+MTERP_OFFSET(offStackSaveArea_currentPc, StackSaveArea, xtra.currentPc, 16)
+MTERP_OFFSET(offStackSaveArea_localRefCookie, \
+                                        StackSaveArea, xtra.localRefCookie, 16)
+MTERP_OFFSET(offStackSaveArea_returnAddr, StackSaveArea, returnAddr, 20)
+MTERP_SIZEOF(sizeofStackSaveArea,       StackSaveArea, 24)
+#endif
+
+#else
 
 /* StackSaveArea fields */
 #ifdef EASY_GDB
@@ -110,6 +140,8 @@ MTERP_OFFSET(offStackSaveArea_returnAddr, StackSaveArea, returnAddr, 16)
 MTERP_SIZEOF(sizeofStackSaveArea,       StackSaveArea, 20)
 #endif
 
+#endif /*WITH_TAINT_TRACKING*/
+
   /* ShadowSpace fields */
 #if defined(WITH_JIT) && defined(WITH_SELF_VERIFICATION)
 MTERP_OFFSET(offShadowSpace_startPC,     ShadowSpace, startPC, 0)
@@ -117,10 +149,18 @@ MTERP_OFFSET(offShadowSpace_fp,          ShadowSpace, fp, 4)
 MTERP_OFFSET(offShadowSpace_method,      ShadowSpace, method, 8)
 MTERP_OFFSET(offShadowSpace_methodClassDex, ShadowSpace, methodClassDex, 12)
 MTERP_OFFSET(offShadowSpace_retval,      ShadowSpace, retval, 16)
+#ifdef WITH_TAINT_TRACKING
+MTERP_OFFSET(offShadowSpace_rtaint,      ShadowSpace, rtaint, 24)
+MTERP_OFFSET(offShadowSpace_interpStackEnd, ShadowSpace, interpStackEnd, 28)
+MTERP_OFFSET(offShadowSpace_jitExitState,ShadowSpace, jitExitState, 32)
+MTERP_OFFSET(offShadowSpace_svState,     ShadowSpace, selfVerificationState, 36)
+MTERP_OFFSET(offShadowSpace_shadowFP,    ShadowSpace, shadowFP, 44)
+#else
 MTERP_OFFSET(offShadowSpace_interpStackEnd, ShadowSpace, interpStackEnd, 24)
 MTERP_OFFSET(offShadowSpace_jitExitState,ShadowSpace, jitExitState, 28)
 MTERP_OFFSET(offShadowSpace_svState,     ShadowSpace, selfVerificationState, 32)
 MTERP_OFFSET(offShadowSpace_shadowFP,    ShadowSpace, shadowFP, 40)
+#endif /*WITH_TAINT_TRACKING*/
 #endif
 
 /* InstField fields */
@@ -130,7 +170,12 @@ MTERP_OFFSET(offInstField_byteOffset,   InstField, byteOffset, 16)
 MTERP_OFFSET(offField_clazz,            Field, clazz, 0)
 
 /* StaticField fields */
+#ifdef WITH_TAINT_TRACKING
 MTERP_OFFSET(offStaticField_value,      StaticField, value, 16)
+MTERP_OFFSET(offStaticField_taint,		StaticField, taint, 24)
+#else
+MTERP_OFFSET(offStaticField_value,      StaticField, value, 16)
+#endif
 
 /* Method fields */
 MTERP_OFFSET(offMethod_clazz,           Method, clazz, 0)
@@ -156,6 +201,56 @@ MTERP_OFFSET(offThread_retval_z,          Thread, interpSave.retval.z, 16)
 MTERP_OFFSET(offThread_retval_i,          Thread, interpSave.retval.i, 16)
 MTERP_OFFSET(offThread_retval_j,          Thread, interpSave.retval.j, 16)
 MTERP_OFFSET(offThread_retval_l,          Thread, interpSave.retval.l, 16)
+
+/*-----------------------------------------------------------------*/
+#ifdef WITH_TAINT_TRACKING
+/* Adjustments required for Thread, interpSave.rtaint */
+MTERP_OFFSET(offThread_rtaint,		Thread, interpSave.rtaint, 24)
+MTERP_OFFSET(offThread_bailPtr,           Thread, interpSave.bailPtr, 28)
+MTERP_OFFSET(offThread_threadId,          Thread, threadId, 40)
+
+//40
+MTERP_OFFSET(offThread_subMode, \
+                               Thread, interpBreak.ctl.subMode, 48)
+MTERP_OFFSET(offThread_breakFlags, \
+                               Thread, interpBreak.ctl.breakFlags, 50)
+MTERP_OFFSET(offThread_curHandlerTable, \
+                               Thread, interpBreak.ctl.curHandlerTable, 52)
+MTERP_OFFSET(offThread_suspendCount,      Thread, suspendCount, 56);
+MTERP_OFFSET(offThread_dbgSuspendCount,   Thread, dbgSuspendCount, 60);
+MTERP_OFFSET(offThread_cardTable,         Thread, cardTable, 64)
+MTERP_OFFSET(offThread_interpStackEnd,    Thread, interpStackEnd, 68)
+MTERP_OFFSET(offThread_exception,         Thread, exception, 76)
+MTERP_OFFSET(offThread_debugIsMethodEntry, Thread, debugIsMethodEntry, 80)
+MTERP_OFFSET(offThread_interpStackSize,   Thread, interpStackSize, 84)
+MTERP_OFFSET(offThread_stackOverflowed,   Thread, stackOverflowed, 88)
+MTERP_OFFSET(offThread_mainHandlerTable,  Thread, mainHandlerTable, 96)
+MTERP_OFFSET(offThread_singleStepCount,   Thread, singleStepCount, 104)
+
+#ifdef WITH_JIT
+MTERP_OFFSET(offThread_jitToInterpEntries,Thread, jitToInterpEntries, 108)
+MTERP_OFFSET(offThread_inJitCodeCache,    Thread, inJitCodeCache, 132)
+MTERP_OFFSET(offThread_pJitProfTable,     Thread, pJitProfTable, 136)
+MTERP_OFFSET(offThread_jitThreshold,      Thread, jitThreshold, 140)
+MTERP_OFFSET(offThread_jitResumeNPC,      Thread, jitResumeNPC, 144)
+MTERP_OFFSET(offThread_jitResumeNSP,      Thread, jitResumeNSP, 148)
+MTERP_OFFSET(offThread_jitResumeDPC,      Thread, jitResumeDPC, 152)
+MTERP_OFFSET(offThread_jitState,          Thread, jitState, 156)
+MTERP_OFFSET(offThread_icRechainCount,    Thread, icRechainCount, 160)
+MTERP_OFFSET(offThread_pProfileCountdown, Thread, pProfileCountdown, 164)
+MTERP_OFFSET(offThread_callsiteClass,     Thread, callsiteClass, 168)
+MTERP_OFFSET(offThread_methodToCall,      Thread, methodToCall, 172)
+MTERP_OFFSET(offThread_jniLocal_topCookie, \
+                                Thread, jniLocalRefTable.segmentState.all, 176)
+#if defined(WITH_SELF_VERIFICATION)
+MTERP_OFFSET(offThread_shadowSpace,       Thread, shadowSpace, 196)
+#endif
+#else
+MTERP_OFFSET(offThread_jniLocal_topCookie, \
+                                Thread, jniLocalRefTable.segmentState.all, 104)
+#endif
+/*-----------------------------------------------------------------*/
+#else /* ndef WITH_TAINT_TRACKING */
 MTERP_OFFSET(offThread_bailPtr,           Thread, interpSave.bailPtr, 24)
 MTERP_OFFSET(offThread_threadId,          Thread, threadId, 36)
 
@@ -193,12 +288,14 @@ MTERP_OFFSET(offThread_methodToCall,      Thread, methodToCall, 164)
 MTERP_OFFSET(offThread_jniLocal_topCookie, \
                                 Thread, jniLocalRefTable.segmentState.all, 168)
 #if defined(WITH_SELF_VERIFICATION)
-MTERP_OFFSET(offThread_shadowSpace,       Thread, shadowSpace, 188)
+MTERP_OFFSET(offThread_shadowSpace,       Thread, shadowSpace, 192)
 #endif
 #else
 MTERP_OFFSET(offThread_jniLocal_topCookie, \
                                 Thread, jniLocalRefTable.segmentState.all, 100)
 #endif
+#endif /* ndef WITH_TAINT_TRACKING */
+/*-----------------------------------------------------------------*/
 
 /* Object fields */
 MTERP_OFFSET(offObject_clazz,           Object, clazz, 0)
@@ -210,17 +307,41 @@ MTERP_CONSTANT(LW_HASH_STATE_SHIFT, 1)
 
 /* ArrayObject fields */
 MTERP_OFFSET(offArrayObject_length,     ArrayObject, length, 8)
+#ifdef WITH_TAINT_TRACKING
+MTERP_OFFSET(offArrayObject_taint,	ArrayObject, taint, 12)
+#endif
+
+#ifdef WITH_TAINT_TRACKING
+/*-----------------------------------------------------------------*/
+/* The extra 4 bytes for the taint tag makes these the same */
+#ifdef MTERP_NO_UNALIGN_64
+MTERP_OFFSET(offArrayObject_contents,   ArrayObject, contents, 16)
+#else
+MTERP_OFFSET(offArrayObject_contents,   ArrayObject, contents, 16)
+#endif
+/*-----------------------------------------------------------------*/
+#else /* ndef WITH_TAINT_TRACKING */
+/*-----------------------------------------------------------------*/
 #ifdef MTERP_NO_UNALIGN_64
 MTERP_OFFSET(offArrayObject_contents,   ArrayObject, contents, 16)
 #else
 MTERP_OFFSET(offArrayObject_contents,   ArrayObject, contents, 12)
 #endif
+/*-----------------------------------------------------------------*/
+#endif /* WITH_TAINT_TRACKING */
 
 /* String fields */
+#ifdef WITH_TAINT_TRACKING
+MTERP_CONSTANT(STRING_FIELDOFF_VALUE,     8)
+MTERP_CONSTANT(STRING_FIELDOFF_HASHCODE, 16)
+MTERP_CONSTANT(STRING_FIELDOFF_OFFSET,   24)
+MTERP_CONSTANT(STRING_FIELDOFF_COUNT,    32)
+#else
 MTERP_CONSTANT(STRING_FIELDOFF_VALUE,     8)
 MTERP_CONSTANT(STRING_FIELDOFF_HASHCODE, 12)
 MTERP_CONSTANT(STRING_FIELDOFF_OFFSET,   16)
 MTERP_CONSTANT(STRING_FIELDOFF_COUNT,    20)
+#endif /* WITH_TAINT_TRACKING */
 
 #if defined(WITH_JIT)
 /*
@@ -237,6 +358,16 @@ MTERP_CONSTANT(JIT_CALLEE_SAVE_DOUBLE_COUNT,   8)
 #endif
 
 /* ClassObject fields */
+#ifdef WITH_TAINT_TRACKING
+// taint tags interleaved with instance data
+MTERP_OFFSET(offClassObject_descriptor, ClassObject, descriptor, 40)
+MTERP_OFFSET(offClassObject_accessFlags, ClassObject, accessFlags, 48)
+MTERP_OFFSET(offClassObject_pDvmDex,    ClassObject, pDvmDex, 56)
+MTERP_OFFSET(offClassObject_status,     ClassObject, status, 60)
+MTERP_OFFSET(offClassObject_super,      ClassObject, super, 88)
+MTERP_OFFSET(offClassObject_vtableCount, ClassObject, vtableCount, 128)
+MTERP_OFFSET(offClassObject_vtable,     ClassObject, vtable, 132)
+#else
 MTERP_OFFSET(offClassObject_descriptor, ClassObject, descriptor, 24)
 MTERP_OFFSET(offClassObject_accessFlags, ClassObject, accessFlags, 32)
 MTERP_OFFSET(offClassObject_pDvmDex,    ClassObject, pDvmDex, 40)
@@ -244,6 +375,7 @@ MTERP_OFFSET(offClassObject_status,     ClassObject, status, 44)
 MTERP_OFFSET(offClassObject_super,      ClassObject, super, 72)
 MTERP_OFFSET(offClassObject_vtableCount, ClassObject, vtableCount, 112)
 MTERP_OFFSET(offClassObject_vtable,     ClassObject, vtable, 116)
+#endif /*WITH_TAINT_TRACKING*/
 
 #if defined(WITH_JIT)
 MTERP_CONSTANT(kJitNot,                 0)

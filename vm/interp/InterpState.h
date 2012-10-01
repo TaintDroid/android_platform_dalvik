@@ -24,6 +24,10 @@
 #ifndef DALVIK_INTERP_STATE_H_
 #define DALVIK_INTERP_STATE_H_
 
+#ifdef WITH_TAINT_TRACKING
+#include "interp/Taint.h"
+#endif
+
 /*
  * Execution mode, e.g. interpreter vs. JIT.
  */
@@ -100,6 +104,9 @@ struct InterpSaveState {
     const Method    *method;    // Method being executed
     DvmDex*         methodClassDex;
     JValue          retval;
+#ifdef WITH_TAINT_TRACKING
+    Taint       rtaint;			// return taint value
+#endif /* WITH_TAINT_TRACKING */
     void*           bailPtr;
 #if defined(WITH_TRACKREF_CHECKS)
     int             debugTrackedRefStart;

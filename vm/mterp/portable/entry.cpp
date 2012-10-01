@@ -10,6 +10,9 @@ void dvmInterpretPortable(Thread* self)
 #endif
     DvmDex* methodClassDex;     // curMethod->clazz->pDvmDex
     JValue retval;
+#ifdef WITH_TAINT_TRACKING
+    Taint rtaint;
+#endif
 
     /* core state */
     const Method* curMethod;    // method we're interpreting
@@ -31,6 +34,9 @@ void dvmInterpretPortable(Thread* self)
     pc = self->interpSave.pc;
     fp = self->interpSave.curFrame;
     retval = self->interpSave.retval;   /* only need for kInterpEntryReturn? */
+#ifdef WITH_TAINT_TRACKING
+    rtaint = self->interpSave.rtaint;
+#endif
 
     methodClassDex = curMethod->clazz->pDvmDex;
 

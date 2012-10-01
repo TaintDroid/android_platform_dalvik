@@ -7,3 +7,8 @@
 #undef methodClassDex
 #undef self
 #undef debugTrackedRefStart
+
+#ifdef WITH_TAINT_TRACKING
+#undef rtaint
+#endif
+

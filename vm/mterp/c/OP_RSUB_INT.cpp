@@ -5,6 +5,9 @@ HANDLE_OPCODE(OP_RSUB_INT /*vA, vB, #+CCCC*/)
         vsrc2 = FETCH(1);
         ILOGV("|rsub-int v%d,v%d,#+0x%04x", vdst, vsrc1, vsrc2);
         SET_REGISTER(vdst, (s2) vsrc2 - (s4) GET_REGISTER(vsrc1));
+/* ifdef WITH_TAINT_TRACKING */
+        SET_REGISTER_TAINT(vdst, GET_REGISTER_TAINT(vsrc1));
+/* endif */
     }
     FINISH(2);
 OP_END

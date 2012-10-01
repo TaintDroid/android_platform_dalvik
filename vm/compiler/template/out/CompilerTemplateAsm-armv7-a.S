@@ -4,7 +4,7 @@
  * --> DO NOT EDIT <--
  */
 
-/* File: armv5te/header.S */
+/* File: armv5te_taint/header.S */
 /*
  * Copyright (C) 2008 The Android Open Source Project
  *
@@ -101,7 +101,7 @@ unspecified registers or condition codes.
  */
 #include "../../../mterp/common/asm-constants.h"
 
-/* File: armv5te-vfp/platform.S */
+/* File: armv5te-vfp_taint/platform.S */
 /*
  * ===========================================================================
  *  CPU-version-specific defines and utility
@@ -119,7 +119,7 @@ dvmCompilerTemplateStart:
     .balign 4
     .global dvmCompiler_TEMPLATE_CMP_LONG
 dvmCompiler_TEMPLATE_CMP_LONG:
-/* File: armv5te/TEMPLATE_CMP_LONG.S */
+/* File: armv5te_taint/TEMPLATE_CMP_LONG.S */
     /*
      * Compare two 64-bit values.  Puts 0, 1, or -1 into the destination
      * register based on the results of the comparison.
@@ -158,7 +158,7 @@ dvmCompiler_TEMPLATE_CMP_LONG:
     .balign 4
     .global dvmCompiler_TEMPLATE_RETURN
 dvmCompiler_TEMPLATE_RETURN:
-/* File: armv5te/TEMPLATE_RETURN.S */
+/* File: armv5te_taint/TEMPLATE_RETURN.S */
     /*
      * Unwind a frame from the Dalvik stack for compiled OP_RETURN_XXX.
      * If the stored value in returnAddr
@@ -221,7 +221,7 @@ dvmCompiler_TEMPLATE_RETURN:
     .balign 4
     .global dvmCompiler_TEMPLATE_INVOKE_METHOD_NO_OPT
 dvmCompiler_TEMPLATE_INVOKE_METHOD_NO_OPT:
-/* File: armv5te/TEMPLATE_INVOKE_METHOD_NO_OPT.S */
+/* File: armv5te_taint/TEMPLATE_INVOKE_METHOD_NO_OPT.S */
     /*
      * For polymorphic callsites - setup the Dalvik frame and load Dalvik PC
      * into rPC then jump to dvmJitToInterpNoChain to dispatch the
@@ -234,9 +234,16 @@ dvmCompiler_TEMPLATE_INVOKE_METHOD_NO_OPT:
     ldrb    r8, [rSELF, #offThread_breakFlags] @ r8<- breakFlags
     add     r3, r1, #1  @ Thumb addr is odd
     SAVEAREA_FROM_FP(r1, rFP)           @ r1<- stack save area
-    sub     r1, r1, r7, lsl #2          @ r1<- newFp (old savearea - regsSize)
+// begin WITH_TAINT_TRACKING
+    sub     r1, r1, r7, lsl #3
+    sub     r1, r1, #4                  @ r1<- newFp (old savearea - 2*regsSize - 4)
+// end WITH_TAINT_TRACKING
     SAVEAREA_FROM_FP(r10, r1)           @ r10<- stack save area
-    sub     r10, r10, r2, lsl #2        @ r10<- bottom (newsave - outsSize)
+// begin WITH_TAINT_TRACKING
+    // PJG: typo fixed from 2.3.4
+    sub     r10, r10, r2, lsl #2
+    sub	    r10, r10, #4		@ r10<- bottom (newsave - outsSize - 4)
+// end WITH_TAINT_TRACKING
     cmp     r10, r9                     @ bottom < interpStackEnd?
     bxlo    lr                          @ return to raise stack overflow excep.
     @ r1 = newFP, r0 = methodToCall, r3 = returnCell, rPC = dalvikCallsite
@@ -287,7 +294,7 @@ dvmCompiler_TEMPLATE_INVOKE_METHOD_NO_OPT:
     .balign 4
     .global dvmCompiler_TEMPLATE_INVOKE_METHOD_CHAIN
 dvmCompiler_TEMPLATE_INVOKE_METHOD_CHAIN:
-/* File: armv5te/TEMPLATE_INVOKE_METHOD_CHAIN.S */
+/* File: armv5te_taint/TEMPLATE_INVOKE_METHOD_CHAIN.S */
     /*
      * For monomorphic callsite, setup the Dalvik frame and return to the
      * Thumb code through the link register to transfer control to the callee
@@ -301,10 +308,16 @@ dvmCompiler_TEMPLATE_INVOKE_METHOD_CHAIN:
     ldrb    r8, [rSELF, #offThread_breakFlags]        @ r8<- breakFlags
     add     r3, r1, #1  @ Thumb addr is odd
     SAVEAREA_FROM_FP(r1, rFP)           @ r1<- stack save area
-    sub     r1, r1, r7, lsl #2          @ r1<- newFp (old savearea - regsSize)
+// begin WITH_TAINT_TRACKING
+    sub     r1, r1, r7, lsl #3
+    sub     r1, r1, #4                  @ r1<- newFp (old savearea - 2*regsSize - 4)
+// end WITH_TAINT_TRACKING
     SAVEAREA_FROM_FP(r10, r1)           @ r10<- stack save area
     add     r12, lr, #2                 @ setup the punt-to-interp address
-    sub     r10, r10, r2, lsl #2        @ r10<- bottom (newsave - outsSize)
+// begin WITH_TAINT_TRACKING
+    sub     r10, r10, r2, lsl #2
+    sub	    r10, r10, #4                @ r10<- bottom (newsave - outsSize - 4)
+// end WITH_TAINT_TRACKING
     cmp     r10, r9                     @ bottom < interpStackEnd?
     bxlo    r12                         @ return to raise stack overflow excep.
     @ r1 = newFP, r0 = methodToCall, r3 = returnCell, rPC = dalvikCallsite
@@ -341,7 +354,7 @@ dvmCompiler_TEMPLATE_INVOKE_METHOD_CHAIN:
     .balign 4
     .global dvmCompiler_TEMPLATE_INVOKE_METHOD_PREDICTED_CHAIN
 dvmCompiler_TEMPLATE_INVOKE_METHOD_PREDICTED_CHAIN:
-/* File: armv5te/TEMPLATE_INVOKE_METHOD_PREDICTED_CHAIN.S */
+/* File: armv5te_taint/TEMPLATE_INVOKE_METHOD_PREDICTED_CHAIN.S */
     /*
      * For polymorphic callsite, check whether the cached class pointer matches
      * the current one. If so setup the Dalvik frame and return to the
@@ -406,14 +419,17 @@ dvmCompiler_TEMPLATE_INVOKE_METHOD_PREDICTED_CHAIN:
     .balign 4
     .global dvmCompiler_TEMPLATE_INVOKE_METHOD_NATIVE
 dvmCompiler_TEMPLATE_INVOKE_METHOD_NATIVE:
-/* File: armv5te/TEMPLATE_INVOKE_METHOD_NATIVE.S */
+/* File: armv5te_taint/TEMPLATE_INVOKE_METHOD_NATIVE.S */
     @ r0 = methodToCall, r1 = returnCell, rPC = dalvikCallsite
     @ r7 = methodToCall->registersSize
     ldr     r9, [rSELF, #offThread_interpStackEnd]    @ r9<- interpStackEnd
     ldrb    r8, [rSELF, #offThread_breakFlags]        @ r8<- breakFlags
     add     r3, r1, #1  @ Thumb addr is odd
     SAVEAREA_FROM_FP(r1, rFP)           @ r1<- stack save area
-    sub     r1, r1, r7, lsl #2          @ r1<- newFp (old savearea - regsSize)
+// begin WITH_TAINT_TRACKING
+    sub     r1, r1, r7, lsl #3
+    sub	    r1, r1, #4                  @ r1<- newFp (old savearea - 2*regsSize - 4)
+// end WITH_TAINT_TRACKING
     SAVEAREA_FROM_FP(r10, r1)           @ r10<- stack save area
     cmp     r10, r9                     @ bottom < interpStackEnd?
     bxlo    lr                          @ return to raise stack overflow excep.
@@ -467,6 +483,16 @@ dvmCompiler_TEMPLATE_INVOKE_METHOD_NATIVE:
     ldr     pc, .LdvmFastNativeMethodTraceExit
 #endif
     @ native return; r10=newSaveArea
+
+// begin WITH_TAINT_TRACKING
+    // set return taint
+    SAVEAREA_FROM_FP(r0, rFP)                       @ r0<- stack save area
+    ldr     r1, [r0, #offStackSaveArea_argCount]    @ r1<- arg count
+    sub     r0, r0, r1, lsl #2
+    ldr     r2, [r0, #-4]                           @ r2<- return taint
+    str	    r2, [rSELF, #offThread_rtaint]
+// end WITH_TAINT_TRACKING
+
     @ equivalent to dvmPopJniLocals
     ldr     r2, [r10, #offStackSaveArea_returnAddr] @ r2 = chaining cell ret
     ldr     r0, [r10, #offStackSaveArea_localRefCookie] @ r0<- saved->top
@@ -495,7 +521,7 @@ dvmCompiler_TEMPLATE_INVOKE_METHOD_NATIVE:
     .balign 4
     .global dvmCompiler_TEMPLATE_MUL_LONG
 dvmCompiler_TEMPLATE_MUL_LONG:
-/* File: armv5te/TEMPLATE_MUL_LONG.S */
+/* File: armv5te_taint/TEMPLATE_MUL_LONG.S */
     /*
      * Signed 64-bit integer multiply.
      *
@@ -529,7 +555,7 @@ dvmCompiler_TEMPLATE_MUL_LONG:
     .balign 4
     .global dvmCompiler_TEMPLATE_SHL_LONG
 dvmCompiler_TEMPLATE_SHL_LONG:
-/* File: armv5te/TEMPLATE_SHL_LONG.S */
+/* File: armv5te_taint/TEMPLATE_SHL_LONG.S */
     /*
      * Long integer shift.  This is different from the generic 32/64-bit
      * binary operations because vAA/vBB are 64-bit but vCC (the shift
@@ -550,7 +576,7 @@ dvmCompiler_TEMPLATE_SHL_LONG:
     .balign 4
     .global dvmCompiler_TEMPLATE_SHR_LONG
 dvmCompiler_TEMPLATE_SHR_LONG:
-/* File: armv5te/TEMPLATE_SHR_LONG.S */
+/* File: armv5te_taint/TEMPLATE_SHR_LONG.S */
     /*
      * Long integer shift.  This is different from the generic 32/64-bit
      * binary operations because vAA/vBB are 64-bit but vCC (the shift
@@ -571,7 +597,7 @@ dvmCompiler_TEMPLATE_SHR_LONG:
     .balign 4
     .global dvmCompiler_TEMPLATE_USHR_LONG
 dvmCompiler_TEMPLATE_USHR_LONG:
-/* File: armv5te/TEMPLATE_USHR_LONG.S */
+/* File: armv5te_taint/TEMPLATE_USHR_LONG.S */
     /*
      * Long integer shift.  This is different from the generic 32/64-bit
      * binary operations because vAA/vBB are 64-bit but vCC (the shift
@@ -592,7 +618,7 @@ dvmCompiler_TEMPLATE_USHR_LONG:
     .balign 4
     .global dvmCompiler_TEMPLATE_ADD_FLOAT_VFP
 dvmCompiler_TEMPLATE_ADD_FLOAT_VFP:
-/* File: armv5te-vfp/TEMPLATE_ADD_FLOAT_VFP.S */
+/* File: armv5te-vfp_taint/TEMPLATE_ADD_FLOAT_VFP.S */
 /* File: armv5te-vfp/fbinop.S */
     /*
      * Generic 32-bit floating point operation.  Provide an "instr" line that
@@ -614,7 +640,7 @@ dvmCompiler_TEMPLATE_ADD_FLOAT_VFP:
     .balign 4
     .global dvmCompiler_TEMPLATE_SUB_FLOAT_VFP
 dvmCompiler_TEMPLATE_SUB_FLOAT_VFP:
-/* File: armv5te-vfp/TEMPLATE_SUB_FLOAT_VFP.S */
+/* File: armv5te-vfp_taint/TEMPLATE_SUB_FLOAT_VFP.S */
 /* File: armv5te-vfp/fbinop.S */
     /*
      * Generic 32-bit floating point operation.  Provide an "instr" line that
@@ -636,7 +662,7 @@ dvmCompiler_TEMPLATE_SUB_FLOAT_VFP:
     .balign 4
     .global dvmCompiler_TEMPLATE_MUL_FLOAT_VFP
 dvmCompiler_TEMPLATE_MUL_FLOAT_VFP:
-/* File: armv5te-vfp/TEMPLATE_MUL_FLOAT_VFP.S */
+/* File: armv5te-vfp_taint/TEMPLATE_MUL_FLOAT_VFP.S */
 /* File: armv5te-vfp/fbinop.S */
     /*
      * Generic 32-bit floating point operation.  Provide an "instr" line that
@@ -658,7 +684,7 @@ dvmCompiler_TEMPLATE_MUL_FLOAT_VFP:
     .balign 4
     .global dvmCompiler_TEMPLATE_DIV_FLOAT_VFP
 dvmCompiler_TEMPLATE_DIV_FLOAT_VFP:
-/* File: armv5te-vfp/TEMPLATE_DIV_FLOAT_VFP.S */
+/* File: armv5te-vfp_taint/TEMPLATE_DIV_FLOAT_VFP.S */
 /* File: armv5te-vfp/fbinop.S */
     /*
      * Generic 32-bit floating point operation.  Provide an "instr" line that
@@ -680,7 +706,7 @@ dvmCompiler_TEMPLATE_DIV_FLOAT_VFP:
     .balign 4
     .global dvmCompiler_TEMPLATE_ADD_DOUBLE_VFP
 dvmCompiler_TEMPLATE_ADD_DOUBLE_VFP:
-/* File: armv5te-vfp/TEMPLATE_ADD_DOUBLE_VFP.S */
+/* File: armv5te-vfp_taint/TEMPLATE_ADD_DOUBLE_VFP.S */
 /* File: armv5te-vfp/fbinopWide.S */
     /*
      * Generic 64-bit floating point operation.  Provide an "instr" line that
@@ -702,7 +728,7 @@ dvmCompiler_TEMPLATE_ADD_DOUBLE_VFP:
     .balign 4
     .global dvmCompiler_TEMPLATE_SUB_DOUBLE_VFP
 dvmCompiler_TEMPLATE_SUB_DOUBLE_VFP:
-/* File: armv5te-vfp/TEMPLATE_SUB_DOUBLE_VFP.S */
+/* File: armv5te-vfp_taint/TEMPLATE_SUB_DOUBLE_VFP.S */
 /* File: armv5te-vfp/fbinopWide.S */
     /*
      * Generic 64-bit floating point operation.  Provide an "instr" line that
@@ -724,7 +750,7 @@ dvmCompiler_TEMPLATE_SUB_DOUBLE_VFP:
     .balign 4
     .global dvmCompiler_TEMPLATE_MUL_DOUBLE_VFP
 dvmCompiler_TEMPLATE_MUL_DOUBLE_VFP:
-/* File: armv5te-vfp/TEMPLATE_MUL_DOUBLE_VFP.S */
+/* File: armv5te-vfp_taint/TEMPLATE_MUL_DOUBLE_VFP.S */
 /* File: armv5te-vfp/fbinopWide.S */
     /*
      * Generic 64-bit floating point operation.  Provide an "instr" line that
@@ -746,7 +772,7 @@ dvmCompiler_TEMPLATE_MUL_DOUBLE_VFP:
     .balign 4
     .global dvmCompiler_TEMPLATE_DIV_DOUBLE_VFP
 dvmCompiler_TEMPLATE_DIV_DOUBLE_VFP:
-/* File: armv5te-vfp/TEMPLATE_DIV_DOUBLE_VFP.S */
+/* File: armv5te-vfp_taint/TEMPLATE_DIV_DOUBLE_VFP.S */
 /* File: armv5te-vfp/fbinopWide.S */
     /*
      * Generic 64-bit floating point operation.  Provide an "instr" line that
@@ -768,7 +794,7 @@ dvmCompiler_TEMPLATE_DIV_DOUBLE_VFP:
     .balign 4
     .global dvmCompiler_TEMPLATE_DOUBLE_TO_FLOAT_VFP
 dvmCompiler_TEMPLATE_DOUBLE_TO_FLOAT_VFP:
-/* File: armv5te-vfp/TEMPLATE_DOUBLE_TO_FLOAT_VFP.S */
+/* File: armv5te-vfp_taint/TEMPLATE_DOUBLE_TO_FLOAT_VFP.S */
 /* File: armv5te-vfp/funopNarrower.S */
     /*
      * Generic 64bit-to-32bit floating point unary operation.  Provide an
@@ -791,7 +817,7 @@ dvmCompiler_TEMPLATE_DOUBLE_TO_FLOAT_VFP:
     .balign 4
     .global dvmCompiler_TEMPLATE_DOUBLE_TO_INT_VFP
 dvmCompiler_TEMPLATE_DOUBLE_TO_INT_VFP:
-/* File: armv5te-vfp/TEMPLATE_DOUBLE_TO_INT_VFP.S */
+/* File: armv5te-vfp_taint/TEMPLATE_DOUBLE_TO_INT_VFP.S */
 /* File: armv5te-vfp/funopNarrower.S */
     /*
      * Generic 64bit-to-32bit floating point unary operation.  Provide an
@@ -814,7 +840,7 @@ dvmCompiler_TEMPLATE_DOUBLE_TO_INT_VFP:
     .balign 4
     .global dvmCompiler_TEMPLATE_FLOAT_TO_DOUBLE_VFP
 dvmCompiler_TEMPLATE_FLOAT_TO_DOUBLE_VFP:
-/* File: armv5te-vfp/TEMPLATE_FLOAT_TO_DOUBLE_VFP.S */
+/* File: armv5te-vfp_taint/TEMPLATE_FLOAT_TO_DOUBLE_VFP.S */
 /* File: armv5te-vfp/funopWider.S */
     /*
      * Generic 32bit-to-64bit floating point unary operation.  Provide an
@@ -837,7 +863,7 @@ dvmCompiler_TEMPLATE_FLOAT_TO_DOUBLE_VFP:
     .balign 4
     .global dvmCompiler_TEMPLATE_FLOAT_TO_INT_VFP
 dvmCompiler_TEMPLATE_FLOAT_TO_INT_VFP:
-/* File: armv5te-vfp/TEMPLATE_FLOAT_TO_INT_VFP.S */
+/* File: armv5te-vfp_taint/TEMPLATE_FLOAT_TO_INT_VFP.S */
 /* File: armv5te-vfp/funop.S */
     /*
      * Generic 32bit-to-32bit floating point unary operation.  Provide an
@@ -860,7 +886,7 @@ dvmCompiler_TEMPLATE_FLOAT_TO_INT_VFP:
     .balign 4
     .global dvmCompiler_TEMPLATE_INT_TO_DOUBLE_VFP
 dvmCompiler_TEMPLATE_INT_TO_DOUBLE_VFP:
-/* File: armv5te-vfp/TEMPLATE_INT_TO_DOUBLE_VFP.S */
+/* File: armv5te-vfp_taint/TEMPLATE_INT_TO_DOUBLE_VFP.S */
 /* File: armv5te-vfp/funopWider.S */
     /*
      * Generic 32bit-to-64bit floating point unary operation.  Provide an
@@ -883,7 +909,7 @@ dvmCompiler_TEMPLATE_INT_TO_DOUBLE_VFP:
     .balign 4
     .global dvmCompiler_TEMPLATE_INT_TO_FLOAT_VFP
 dvmCompiler_TEMPLATE_INT_TO_FLOAT_VFP:
-/* File: armv5te-vfp/TEMPLATE_INT_TO_FLOAT_VFP.S */
+/* File: armv5te-vfp_taint/TEMPLATE_INT_TO_FLOAT_VFP.S */
 /* File: armv5te-vfp/funop.S */
     /*
      * Generic 32bit-to-32bit floating point unary operation.  Provide an
@@ -906,7 +932,7 @@ dvmCompiler_TEMPLATE_INT_TO_FLOAT_VFP:
     .balign 4
     .global dvmCompiler_TEMPLATE_CMPG_DOUBLE_VFP
 dvmCompiler_TEMPLATE_CMPG_DOUBLE_VFP:
-/* File: armv5te-vfp/TEMPLATE_CMPG_DOUBLE_VFP.S */
+/* File: armv5te-vfp_taint/TEMPLATE_CMPG_DOUBLE_VFP.S */
     /*
      * Compare two floating-point values.  Puts 0, 1, or -1 into the
      * destination register based on the results of the comparison.
@@ -941,7 +967,7 @@ dvmCompiler_TEMPLATE_CMPG_DOUBLE_VFP:
     .balign 4
     .global dvmCompiler_TEMPLATE_CMPL_DOUBLE_VFP
 dvmCompiler_TEMPLATE_CMPL_DOUBLE_VFP:
-/* File: armv5te-vfp/TEMPLATE_CMPL_DOUBLE_VFP.S */
+/* File: armv5te-vfp_taint/TEMPLATE_CMPL_DOUBLE_VFP.S */
     /*
      * Compare two floating-point values.  Puts 0, 1, or -1 into the
      * destination register based on the results of the comparison.
@@ -975,7 +1001,7 @@ dvmCompiler_TEMPLATE_CMPL_DOUBLE_VFP:
     .balign 4
     .global dvmCompiler_TEMPLATE_CMPG_FLOAT_VFP
 dvmCompiler_TEMPLATE_CMPG_FLOAT_VFP:
-/* File: armv5te-vfp/TEMPLATE_CMPG_FLOAT_VFP.S */
+/* File: armv5te-vfp_taint/TEMPLATE_CMPG_FLOAT_VFP.S */
     /*
      * Compare two floating-point values.  Puts 0, 1, or -1 into the
      * destination register based on the results of the comparison.
@@ -1009,7 +1035,7 @@ dvmCompiler_TEMPLATE_CMPG_FLOAT_VFP:
     .balign 4
     .global dvmCompiler_TEMPLATE_CMPL_FLOAT_VFP
 dvmCompiler_TEMPLATE_CMPL_FLOAT_VFP:
-/* File: armv5te-vfp/TEMPLATE_CMPL_FLOAT_VFP.S */
+/* File: armv5te-vfp_taint/TEMPLATE_CMPL_FLOAT_VFP.S */
     /*
      * Compare two floating-point values.  Puts 0, 1, or -1 into the
      * destination register based on the results of the comparison.
@@ -1043,7 +1069,7 @@ dvmCompiler_TEMPLATE_CMPL_FLOAT_VFP:
     .balign 4
     .global dvmCompiler_TEMPLATE_SQRT_DOUBLE_VFP
 dvmCompiler_TEMPLATE_SQRT_DOUBLE_VFP:
-/* File: armv5te-vfp/TEMPLATE_SQRT_DOUBLE_VFP.S */
+/* File: armv5te-vfp_taint/TEMPLATE_SQRT_DOUBLE_VFP.S */
     /*
      * 64-bit floating point vfp sqrt operation.
      * If the result is a NaN, bail out to library code to do
@@ -1071,7 +1097,7 @@ dvmCompiler_TEMPLATE_SQRT_DOUBLE_VFP:
     .balign 4
     .global dvmCompiler_TEMPLATE_THROW_EXCEPTION_COMMON
 dvmCompiler_TEMPLATE_THROW_EXCEPTION_COMMON:
-/* File: armv5te/TEMPLATE_THROW_EXCEPTION_COMMON.S */
+/* File: armv5te_taint/TEMPLATE_THROW_EXCEPTION_COMMON.S */
     /*
      * Throw an exception from JIT'ed code.
      * On entry:
@@ -1083,7 +1109,7 @@ dvmCompiler_TEMPLATE_THROW_EXCEPTION_COMMON:
     .balign 4
     .global dvmCompiler_TEMPLATE_MEM_OP_DECODE
 dvmCompiler_TEMPLATE_MEM_OP_DECODE:
-/* File: armv5te-vfp/TEMPLATE_MEM_OP_DECODE.S */
+/* File: armv5te-vfp_taint/TEMPLATE_MEM_OP_DECODE.S */
 #if defined(WITH_SELF_VERIFICATION)
     /*
      * This handler encapsulates heap memory ops for selfVerification mode.
@@ -1108,7 +1134,7 @@ dvmCompiler_TEMPLATE_MEM_OP_DECODE:
     .balign 4
     .global dvmCompiler_TEMPLATE_STRING_COMPARETO
 dvmCompiler_TEMPLATE_STRING_COMPARETO:
-/* File: armv5te/TEMPLATE_STRING_COMPARETO.S */
+/* File: armv5te_taint/TEMPLATE_STRING_COMPARETO.S */
     /*
      * String's compareTo.
      *
@@ -1247,7 +1273,7 @@ do_memcmp16:
     .balign 4
     .global dvmCompiler_TEMPLATE_STRING_INDEXOF
 dvmCompiler_TEMPLATE_STRING_INDEXOF:
-/* File: armv5te/TEMPLATE_STRING_INDEXOF.S */
+/* File: armv5te_taint/TEMPLATE_STRING_INDEXOF.S */
     /*
      * String's indexOf.
      *
@@ -1365,7 +1391,7 @@ match_3:
     .balign 4
     .global dvmCompiler_TEMPLATE_INTERPRET
 dvmCompiler_TEMPLATE_INTERPRET:
-/* File: armv5te/TEMPLATE_INTERPRET.S */
+/* File: armv5te_taint/TEMPLATE_INTERPRET.S */
     /*
      * This handler transfers control to the interpeter without performing
      * any lookups.  It may be called either as part of a normal chaining
@@ -1401,7 +1427,7 @@ dvmCompiler_TEMPLATE_INTERPRET:
     .balign 4
     .global dvmCompiler_TEMPLATE_MONITOR_ENTER
 dvmCompiler_TEMPLATE_MONITOR_ENTER:
-/* File: armv5te/TEMPLATE_MONITOR_ENTER.S */
+/* File: armv5te_taint/TEMPLATE_MONITOR_ENTER.S */
     /*
      * Call out to the runtime to lock an object.  Because this thread
      * may have been suspended in THREAD_MONITOR state and the Jit's
@@ -1428,7 +1454,7 @@ dvmCompiler_TEMPLATE_MONITOR_ENTER:
     .balign 4
     .global dvmCompiler_TEMPLATE_MONITOR_ENTER_DEBUG
 dvmCompiler_TEMPLATE_MONITOR_ENTER_DEBUG:
-/* File: armv5te/TEMPLATE_MONITOR_ENTER_DEBUG.S */
+/* File: armv5te_taint/TEMPLATE_MONITOR_ENTER_DEBUG.S */
     /*
      * To support deadlock prediction, this version of MONITOR_ENTER
      * will always call the heavyweight dvmLockObject, check for an
@@ -1462,7 +1488,7 @@ dvmCompiler_TEMPLATE_MONITOR_ENTER_DEBUG:
     .balign 4
     .global dvmCompiler_TEMPLATE_PERIODIC_PROFILING
 dvmCompiler_TEMPLATE_PERIODIC_PROFILING:
-/* File: armv5te/TEMPLATE_PERIODIC_PROFILING.S */
+/* File: armv5te_taint/TEMPLATE_PERIODIC_PROFILING.S */
     /*
      * Increment profile counter for this trace, and decrement
      * sample counter.  If sample counter goes below zero, turn
@@ -1561,9 +1587,9 @@ dvmCompiler_TEMPLATE_RETURN_PROF:
     .balign 4
     .global dvmCompiler_TEMPLATE_INVOKE_METHOD_NO_OPT_PROF
 dvmCompiler_TEMPLATE_INVOKE_METHOD_NO_OPT_PROF:
-/* File: armv5te/TEMPLATE_INVOKE_METHOD_NO_OPT_PROF.S */
+/* File: armv5te_taint/TEMPLATE_INVOKE_METHOD_NO_OPT_PROF.S */
 #define TEMPLATE_INLINE_PROFILING
-/* File: armv5te/TEMPLATE_INVOKE_METHOD_NO_OPT.S */
+/* File: armv5te_taint/TEMPLATE_INVOKE_METHOD_NO_OPT.S */
     /*
      * For polymorphic callsites - setup the Dalvik frame and load Dalvik PC
      * into rPC then jump to dvmJitToInterpNoChain to dispatch the
@@ -1576,9 +1602,16 @@ dvmCompiler_TEMPLATE_INVOKE_METHOD_NO_OPT_PROF:
     ldrb    r8, [rSELF, #offThread_breakFlags] @ r8<- breakFlags
     add     r3, r1, #1  @ Thumb addr is odd
     SAVEAREA_FROM_FP(r1, rFP)           @ r1<- stack save area
-    sub     r1, r1, r7, lsl #2          @ r1<- newFp (old savearea - regsSize)
+// begin WITH_TAINT_TRACKING
+    sub     r1, r1, r7, lsl #3
+    sub     r1, r1, #4                  @ r1<- newFp (old savearea - 2*regsSize - 4)
+// end WITH_TAINT_TRACKING
     SAVEAREA_FROM_FP(r10, r1)           @ r10<- stack save area
-    sub     r10, r10, r2, lsl #2        @ r10<- bottom (newsave - outsSize)
+// begin WITH_TAINT_TRACKING
+    // PJG: typo fixed from 2.3.4
+    sub     r10, r10, r2, lsl #2
+    sub	    r10, r10, #4		@ r10<- bottom (newsave - outsSize - 4)
+// end WITH_TAINT_TRACKING
     cmp     r10, r9                     @ bottom < interpStackEnd?
     bxlo    lr                          @ return to raise stack overflow excep.
     @ r1 = newFP, r0 = methodToCall, r3 = returnCell, rPC = dalvikCallsite
@@ -1631,9 +1664,9 @@ dvmCompiler_TEMPLATE_INVOKE_METHOD_NO_OPT_PROF:
     .balign 4
     .global dvmCompiler_TEMPLATE_INVOKE_METHOD_CHAIN_PROF
 dvmCompiler_TEMPLATE_INVOKE_METHOD_CHAIN_PROF:
-/* File: armv5te/TEMPLATE_INVOKE_METHOD_CHAIN_PROF.S */
+/* File: armv5te_taint/TEMPLATE_INVOKE_METHOD_CHAIN_PROF.S */
 #define TEMPLATE_INLINE_PROFILING
-/* File: armv5te/TEMPLATE_INVOKE_METHOD_CHAIN.S */
+/* File: armv5te_taint/TEMPLATE_INVOKE_METHOD_CHAIN.S */
     /*
      * For monomorphic callsite, setup the Dalvik frame and return to the
      * Thumb code through the link register to transfer control to the callee
@@ -1647,10 +1680,16 @@ dvmCompiler_TEMPLATE_INVOKE_METHOD_CHAIN_PROF:
     ldrb    r8, [rSELF, #offThread_breakFlags]        @ r8<- breakFlags
     add     r3, r1, #1  @ Thumb addr is odd
     SAVEAREA_FROM_FP(r1, rFP)           @ r1<- stack save area
-    sub     r1, r1, r7, lsl #2          @ r1<- newFp (old savearea - regsSize)
+// begin WITH_TAINT_TRACKING
+    sub     r1, r1, r7, lsl #3
+    sub     r1, r1, #4                  @ r1<- newFp (old savearea - 2*regsSize - 4)
+// end WITH_TAINT_TRACKING
     SAVEAREA_FROM_FP(r10, r1)           @ r10<- stack save area
     add     r12, lr, #2                 @ setup the punt-to-interp address
-    sub     r10, r10, r2, lsl #2        @ r10<- bottom (newsave - outsSize)
+// begin WITH_TAINT_TRACKING
+    sub     r10, r10, r2, lsl #2
+    sub	    r10, r10, #4                @ r10<- bottom (newsave - outsSize - 4)
+// end WITH_TAINT_TRACKING
     cmp     r10, r9                     @ bottom < interpStackEnd?
     bxlo    r12                         @ return to raise stack overflow excep.
     @ r1 = newFP, r0 = methodToCall, r3 = returnCell, rPC = dalvikCallsite
@@ -1689,9 +1728,9 @@ dvmCompiler_TEMPLATE_INVOKE_METHOD_CHAIN_PROF:
     .balign 4
     .global dvmCompiler_TEMPLATE_INVOKE_METHOD_PREDICTED_CHAIN_PROF
 dvmCompiler_TEMPLATE_INVOKE_METHOD_PREDICTED_CHAIN_PROF:
-/* File: armv5te/TEMPLATE_INVOKE_METHOD_PREDICTED_CHAIN_PROF.S */
+/* File: armv5te_taint/TEMPLATE_INVOKE_METHOD_PREDICTED_CHAIN_PROF.S */
 #define TEMPLATE_INLINE_PROFILING
-/* File: armv5te/TEMPLATE_INVOKE_METHOD_PREDICTED_CHAIN.S */
+/* File: armv5te_taint/TEMPLATE_INVOKE_METHOD_PREDICTED_CHAIN.S */
     /*
      * For polymorphic callsite, check whether the cached class pointer matches
      * the current one. If so setup the Dalvik frame and return to the
@@ -1758,16 +1797,19 @@ dvmCompiler_TEMPLATE_INVOKE_METHOD_PREDICTED_CHAIN_PROF:
     .balign 4
     .global dvmCompiler_TEMPLATE_INVOKE_METHOD_NATIVE_PROF
 dvmCompiler_TEMPLATE_INVOKE_METHOD_NATIVE_PROF:
-/* File: armv5te/TEMPLATE_INVOKE_METHOD_NATIVE_PROF.S */
+/* File: armv5te_taint/TEMPLATE_INVOKE_METHOD_NATIVE_PROF.S */
 #define TEMPLATE_INLINE_PROFILING
-/* File: armv5te/TEMPLATE_INVOKE_METHOD_NATIVE.S */
+/* File: armv5te_taint/TEMPLATE_INVOKE_METHOD_NATIVE.S */
     @ r0 = methodToCall, r1 = returnCell, rPC = dalvikCallsite
     @ r7 = methodToCall->registersSize
     ldr     r9, [rSELF, #offThread_interpStackEnd]    @ r9<- interpStackEnd
     ldrb    r8, [rSELF, #offThread_breakFlags]        @ r8<- breakFlags
     add     r3, r1, #1  @ Thumb addr is odd
     SAVEAREA_FROM_FP(r1, rFP)           @ r1<- stack save area
-    sub     r1, r1, r7, lsl #2          @ r1<- newFp (old savearea - regsSize)
+// begin WITH_TAINT_TRACKING
+    sub     r1, r1, r7, lsl #3
+    sub	    r1, r1, #4                  @ r1<- newFp (old savearea - 2*regsSize - 4)
+// end WITH_TAINT_TRACKING
     SAVEAREA_FROM_FP(r10, r1)           @ r10<- stack save area
     cmp     r10, r9                     @ bottom < interpStackEnd?
     bxlo    lr                          @ return to raise stack overflow excep.
@@ -1821,6 +1863,16 @@ dvmCompiler_TEMPLATE_INVOKE_METHOD_NATIVE_PROF:
     ldr     pc, .LdvmFastNativeMethodTraceExit
 #endif
     @ native return; r10=newSaveArea
+
+// begin WITH_TAINT_TRACKING
+    // set return taint
+    SAVEAREA_FROM_FP(r0, rFP)                       @ r0<- stack save area
+    ldr     r1, [r0, #offStackSaveArea_argCount]    @ r1<- arg count
+    sub     r0, r0, r1, lsl #2
+    ldr     r2, [r0, #-4]                           @ r2<- return taint
+    str	    r2, [rSELF, #offThread_rtaint]
+// end WITH_TAINT_TRACKING
+
     @ equivalent to dvmPopJniLocals
     ldr     r2, [r10, #offStackSaveArea_returnAddr] @ r2 = chaining cell ret
     ldr     r0, [r10, #offStackSaveArea_localRefCookie] @ r0<- saved->top
@@ -1848,7 +1900,7 @@ dvmCompiler_TEMPLATE_INVOKE_METHOD_NATIVE_PROF:
 #undef TEMPLATE_INLINE_PROFILING
 
     .size   dvmCompilerTemplateStart, .-dvmCompilerTemplateStart
-/* File: armv5te/footer.S */
+/* File: armv5te_taint/footer.S */
 /*
  * ===========================================================================
  *  Common subroutines and data
@@ -1897,6 +1949,16 @@ dvmCompiler_TEMPLATE_INVOKE_METHOD_NATIVE_PROF:
 212:
 
     @ native return; r10=newSaveArea
+
+// begin WITH_TAINT_TRACKING
+    // set return taint
+    SAVEAREA_FROM_FP(r0, rFP)                       @ r0<- stack save area
+    ldr     r1, [r0, #offStackSaveArea_argCount]    @ r1<- arg count
+    sub     r0, r0, r1, lsl #2
+    ldr     r2, [r0, #-4]                           @ r2<- return taint
+    str	    r2, [rSELF, #offThread_rtaint]
+// end WITH_TAINT_TRACKING
+
     @ equivalent to dvmPopJniLocals
     ldr     r2, [r10, #offStackSaveArea_returnAddr] @ r2 = chaining cell ret
     ldr     r0, [r10, #offStackSaveArea_localRefCookie] @ r0<- saved->top

@@ -52,6 +52,26 @@ extern "C" int64_t dvmQuasiAtomicSwap64Sync(int64_t value,
  */
 extern "C" int64_t dvmQuasiAtomicRead64(volatile const int64_t* addr);
 
+#ifdef WITH_TAINT_TRACKING
+
+// to return 64-bit value and taint tag on stack
+typedef int v4si __attribute__ ((vector_size (16)));
+union Vec4 {
+    v4si vec4;
+    struct {
+        uint64_t val;
+        uint32_t taint;
+        uint32_t unused;
+    } uint64_with_taint;
+};
+
+extern "C" int64_t dvmQuasiAtomicSwap64FieldTaint(int64_t value, volatile int64_t* addr, uint32_t taint);
+extern "C" int64_t dvmQuasiAtomicRead32SfieldTaint(volatile const int32_t* addr);
+extern "C" int32_t dvmQuasiAtomicSwap32SfieldTaint(int32_t value, volatile int32_t* addr, uint32_t taint);
+extern "C" v4si dvmQuasiAtomicRead64FieldTaint(volatile const int64_t* addr);
+
+#endif /*WITH_TAINT_TRACKING*/
+
 /*
  * If the value at "addr" is equal to "oldvalue", replace it with "newvalue"
  * and return 0.  Otherwise, don't swap, and return nonzero.

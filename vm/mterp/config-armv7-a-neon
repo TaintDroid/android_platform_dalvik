@@ -25,14 +25,14 @@ handler-style computed-goto
 handler-size 64
 
 # source for the instruction table stub
-asm-stub armv5te/stub.S
+asm-stub armv5te_taint/stub.S
 
 # source for alternate entry stub
-asm-alt-stub armv5te/alt_stub.S
+asm-alt-stub armv5te_taint/alt_stub.S
 
 # file header and basic definitions
 import c/header.cpp
-import armv5te/header.S
+import armv5te_taint/header.S
 
 # C pre-processor defines for stub C instructions
 import cstubs/stubdefs.cpp
@@ -44,118 +44,103 @@ import armv7-a/platform.S
 import c/opcommon.cpp
 
 # arch-specific entry point to interpreter
-import armv5te/entry.S
+import armv5te_taint/entry.S
 
 # opcode list; argument to op-start is default directory
-op-start armv5te
+op-start armv5te_taint
     # handlers that take advantage of >= ARMv6T2 instructions
-    op OP_ADD_DOUBLE_2ADDR armv6t2
-    op OP_ADD_FLOAT_2ADDR armv6t2
-    op OP_ADD_INT_2ADDR armv6t2
-    op OP_ADD_INT_LIT16 armv6t2
-    op OP_ADD_LONG_2ADDR armv6t2
-    op OP_AND_INT_2ADDR armv6t2
-    op OP_AND_INT_LIT16 armv6t2
-    op OP_AND_LONG_2ADDR armv6t2
-    op OP_ARRAY_LENGTH armv6t2
-    op OP_CONST_4 armv6t2
-    op OP_DIV_DOUBLE_2ADDR armv6t2
-    op OP_DIV_FLOAT_2ADDR armv6t2
-    op OP_DIV_INT_2ADDR armv6t2
-    op OP_DIV_INT_LIT16 armv6t2
-    op OP_DIV_LONG_2ADDR armv6t2
-    op OP_DOUBLE_TO_FLOAT armv6t2
-    op OP_DOUBLE_TO_INT armv6t2
-    op OP_DOUBLE_TO_LONG armv6t2
-    op OP_FLOAT_TO_DOUBLE armv6t2
-    op OP_FLOAT_TO_INT armv6t2
-    op OP_FLOAT_TO_LONG armv6t2
-    op OP_IF_EQ armv6t2
-    op OP_IF_GE armv6t2
-    op OP_IF_GT armv6t2
-    op OP_IF_LE armv6t2
-    op OP_IF_LT armv6t2
-    op OP_IF_NE armv6t2
-    op OP_IGET armv6t2
-    op OP_IGET_QUICK armv6t2
-    op OP_IGET_WIDE armv6t2
-    op OP_IGET_WIDE_QUICK armv6t2
-    op OP_INT_TO_BYTE armv6t2
-    op OP_INT_TO_CHAR armv6t2
-    op OP_INT_TO_DOUBLE armv6t2
-    op OP_INT_TO_FLOAT armv6t2
-    op OP_INT_TO_LONG armv6t2
-    op OP_INT_TO_SHORT armv6t2
-    op OP_IPUT armv6t2
-    op OP_IPUT_QUICK armv6t2
-    op OP_IPUT_WIDE armv6t2
-    op OP_IPUT_WIDE_QUICK armv6t2
-    op OP_LONG_TO_DOUBLE armv6t2
-    op OP_LONG_TO_FLOAT armv6t2
-    op OP_MOVE armv6t2
-    op OP_MOVE_WIDE armv6t2
-    op OP_MUL_DOUBLE_2ADDR armv6t2
-    op OP_MUL_FLOAT_2ADDR armv6t2
-    op OP_MUL_INT_2ADDR armv6t2
-    op OP_MUL_INT_LIT16 armv6t2
-    op OP_MUL_LONG_2ADDR armv6t2
-    op OP_NEG_DOUBLE armv6t2
-    op OP_NEG_FLOAT armv6t2
-    op OP_NEG_INT armv6t2
-    op OP_NEG_LONG armv6t2
-    op OP_NOT_INT armv6t2
-    op OP_NOT_LONG armv6t2
-    op OP_OR_INT_2ADDR armv6t2
-    op OP_OR_INT_LIT16 armv6t2
-    op OP_OR_LONG_2ADDR armv6t2
-    op OP_REM_DOUBLE_2ADDR armv6t2
-    op OP_REM_FLOAT_2ADDR armv6t2
-    op OP_REM_INT_2ADDR armv6t2
-    op OP_REM_INT_LIT16 armv6t2
-    op OP_REM_LONG_2ADDR armv6t2
-    op OP_RSUB_INT armv6t2
-    op OP_SHL_INT_2ADDR armv6t2
-    op OP_SHL_LONG_2ADDR armv6t2
-    op OP_SHR_INT_2ADDR armv6t2
-    op OP_SHR_LONG_2ADDR armv6t2
-    op OP_SUB_DOUBLE_2ADDR armv6t2
-    op OP_SUB_FLOAT_2ADDR armv6t2
-    op OP_SUB_INT_2ADDR armv6t2
-    op OP_SUB_LONG_2ADDR armv6t2
-    op OP_USHR_INT_2ADDR armv6t2
-    op OP_USHR_LONG_2ADDR armv6t2
-    op OP_XOR_INT_2ADDR armv6t2
-    op OP_XOR_INT_LIT16 armv6t2
-    op OP_XOR_LONG_2ADDR armv6t2
+    op OP_ADD_INT_2ADDR armv6t2_taint
+    op OP_ADD_INT_LIT16 armv6t2_taint
+    op OP_ADD_LONG_2ADDR armv6t2_taint
+    op OP_AND_INT_2ADDR armv6t2_taint
+    op OP_AND_INT_LIT16 armv6t2_taint
+    op OP_AND_LONG_2ADDR armv6t2_taint
+    op OP_ARRAY_LENGTH armv6t2_taint
+    op OP_CONST_4 armv6t2_taint
+    op OP_DIV_INT_2ADDR armv6t2_taint
+    op OP_DIV_INT_LIT16 armv6t2_taint
+    op OP_DIV_LONG_2ADDR armv6t2_taint
+    op OP_DOUBLE_TO_LONG armv6t2_taint
+    op OP_FLOAT_TO_LONG armv6t2_taint
+    op OP_IF_EQ armv6t2_taint
+    op OP_IF_GE armv6t2_taint
+    op OP_IF_GT armv6t2_taint
+    op OP_IF_LE armv6t2_taint
+    op OP_IF_LT armv6t2_taint
+    op OP_IF_NE armv6t2_taint
+    op OP_IGET armv6t2_taint
+    op OP_IGET_QUICK armv6t2_taint
+    op OP_IGET_WIDE armv6t2_taint
+    op OP_IGET_WIDE_QUICK armv6t2_taint
+    op OP_INT_TO_BYTE armv6t2_taint
+    op OP_INT_TO_CHAR armv6t2_taint
+    op OP_INT_TO_LONG armv6t2_taint
+    op OP_INT_TO_SHORT armv6t2_taint
+    op OP_IPUT armv6t2_taint
+    op OP_IPUT_QUICK armv6t2_taint
+    op OP_IPUT_WIDE armv6t2_taint
+    op OP_IPUT_WIDE_QUICK armv6t2_taint
+    op OP_LONG_TO_DOUBLE armv6t2_taint
+    op OP_LONG_TO_FLOAT armv6t2_taint
+    op OP_MOVE armv6t2_taint
+    op OP_MOVE_WIDE armv6t2_taint
+    op OP_MUL_INT_2ADDR armv6t2_taint
+    op OP_MUL_INT_LIT16 armv6t2_taint
+    op OP_MUL_LONG_2ADDR armv6t2_taint
+    op OP_NEG_DOUBLE armv6t2_taint
+    op OP_NEG_FLOAT armv6t2_taint
+    op OP_NEG_INT armv6t2_taint
+    op OP_NEG_LONG armv6t2_taint
+    op OP_NOT_INT armv6t2_taint
+    op OP_NOT_LONG armv6t2_taint
+    op OP_OR_INT_2ADDR armv6t2_taint
+    op OP_OR_INT_LIT16 armv6t2_taint
+    op OP_OR_LONG_2ADDR armv6t2_taint
+    op OP_REM_DOUBLE_2ADDR armv6t2_taint
+    op OP_REM_FLOAT_2ADDR armv6t2_taint
+    op OP_REM_INT_2ADDR armv6t2_taint
+    op OP_REM_INT_LIT16 armv6t2_taint
+    op OP_REM_LONG_2ADDR armv6t2_taint
+    op OP_RSUB_INT armv6t2_taint
+    op OP_SHL_INT_2ADDR armv6t2_taint
+    op OP_SHL_LONG_2ADDR armv6t2_taint
+    op OP_SHR_INT_2ADDR armv6t2_taint
+    op OP_SHR_LONG_2ADDR armv6t2_taint
+    op OP_SUB_INT_2ADDR armv6t2_taint
+    op OP_SUB_LONG_2ADDR armv6t2_taint
+    op OP_USHR_INT_2ADDR armv6t2_taint
+    op OP_USHR_LONG_2ADDR armv6t2_taint
+    op OP_XOR_INT_2ADDR armv6t2_taint
+    op OP_XOR_INT_LIT16 armv6t2_taint
+    op OP_XOR_LONG_2ADDR armv6t2_taint
 
     # floating point handlers that use VFP
-    # these override the handlers specified earlier
-    op OP_ADD_DOUBLE arm-vfp
-    op OP_ADD_DOUBLE_2ADDR arm-vfp
-    op OP_ADD_FLOAT arm-vfp
-    op OP_ADD_FLOAT_2ADDR arm-vfp
-    op OP_CMPG_DOUBLE arm-vfp
-    op OP_CMPG_FLOAT arm-vfp
-    op OP_CMPL_DOUBLE arm-vfp
-    op OP_CMPL_FLOAT arm-vfp
-    op OP_DIV_DOUBLE arm-vfp
-    op OP_DIV_DOUBLE_2ADDR arm-vfp
-    op OP_DIV_FLOAT arm-vfp
-    op OP_DIV_FLOAT_2ADDR arm-vfp
-    op OP_DOUBLE_TO_FLOAT arm-vfp
-    op OP_DOUBLE_TO_INT arm-vfp
-    op OP_FLOAT_TO_DOUBLE arm-vfp
-    op OP_FLOAT_TO_INT arm-vfp
-    op OP_INT_TO_DOUBLE arm-vfp
-    op OP_INT_TO_FLOAT arm-vfp
-    op OP_MUL_DOUBLE arm-vfp
-    op OP_MUL_DOUBLE_2ADDR arm-vfp
-    op OP_MUL_FLOAT arm-vfp
-    op OP_MUL_FLOAT_2ADDR arm-vfp
-    op OP_SUB_DOUBLE arm-vfp
-    op OP_SUB_DOUBLE_2ADDR arm-vfp
-    op OP_SUB_FLOAT arm-vfp
-    op OP_SUB_FLOAT_2ADDR arm-vfp
+    op OP_ADD_DOUBLE arm-vfp_taint
+    op OP_ADD_DOUBLE_2ADDR arm-vfp_taint
+    op OP_ADD_FLOAT arm-vfp_taint
+    op OP_ADD_FLOAT_2ADDR arm-vfp_taint
+    op OP_CMPG_DOUBLE arm-vfp_taint
+    op OP_CMPG_FLOAT arm-vfp_taint
+    op OP_CMPL_DOUBLE arm-vfp_taint
+    op OP_CMPL_FLOAT arm-vfp_taint
+    op OP_DIV_DOUBLE arm-vfp_taint
+    op OP_DIV_DOUBLE_2ADDR arm-vfp_taint
+    op OP_DIV_FLOAT arm-vfp_taint
+    op OP_DIV_FLOAT_2ADDR arm-vfp_taint
+    op OP_DOUBLE_TO_FLOAT arm-vfp_taint
+    op OP_DOUBLE_TO_INT arm-vfp_taint
+    op OP_FLOAT_TO_DOUBLE arm-vfp_taint
+    op OP_FLOAT_TO_INT arm-vfp_taint
+    op OP_INT_TO_DOUBLE arm-vfp_taint
+    op OP_INT_TO_FLOAT arm-vfp_taint
+    op OP_MUL_DOUBLE arm-vfp_taint
+    op OP_MUL_DOUBLE_2ADDR arm-vfp_taint
+    op OP_MUL_FLOAT arm-vfp_taint
+    op OP_MUL_FLOAT_2ADDR arm-vfp_taint
+    op OP_SUB_DOUBLE arm-vfp_taint
+    op OP_SUB_DOUBLE_2ADDR arm-vfp_taint
+    op OP_SUB_FLOAT arm-vfp_taint
+    op OP_SUB_FLOAT_2ADDR arm-vfp_taint
 op-end
 
 # "helper" code for C; include if you use any of the C stubs (this generates
@@ -166,5 +151,5 @@ op-end
 import cstubs/enddefs.cpp
 
 # common subroutines for asm
-import armv5te/footer.S
-import armv5te/debug.cpp
+import armv5te_taint/footer.S
+import armv5te_taint/debug.cpp

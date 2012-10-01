@@ -411,6 +411,12 @@ static bool genInlinedAbsFloat(CompilationUnit *cUnit, MIR *mir)
     RegLocation rlResult = dvmCompilerEvalLoc(cUnit, rlDest, kFPReg, true);
     newLIR2(cUnit, kThumb2Vabss, rlResult.lowReg, rlSrc.lowReg);
     storeValue(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+    int taint = dvmCompilerAllocTemp(cUnit);
+    loadTaintDirect(cUnit, rlSrc, taint);
+    storeTaintDirect(cUnit, rlDest, taint);
+    dvmCompilerFreeTemp(cUnit, taint);
+#endif /*WITH_TAINT_TRACKING*/
     return false;
 }
 
@@ -423,6 +429,12 @@ static bool genInlinedAbsDouble(CompilationUnit *cUnit, MIR *mir)
     newLIR2(cUnit, kThumb2Vabsd, S2D(rlResult.lowReg, rlResult.highReg),
             S2D(rlSrc.lowReg, rlSrc.highReg));
     storeValueWide(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+    int taint = dvmCompilerAllocTemp(cUnit);
+    loadTaintDirect(cUnit, rlSrc, taint);
+    storeTaintDirectWide(cUnit, rlDest, taint);
+    dvmCompilerFreeTemp(cUnit, taint);
+#endif /*WITH_TAINT_TRACKING*/
     return false;
 }
 

@@ -27,7 +27,11 @@ JitInstructionSetType dvmCompilerInstructionSet(void)
 
 /* First, declare dvmCompiler_TEMPLATE_XXX for each template */
 #define JIT_TEMPLATE(X) extern "C" void dvmCompiler_TEMPLATE_##X();
+#ifdef WITH_TAINT_TRACKING
+#include "../../../template/armv5te-vfp_taint/TemplateOpList.h"
+#else
 #include "../../../template/armv5te-vfp/TemplateOpList.h"
+#endif /*WITH_TAINT_TRACKING*/
 #undef JIT_TEMPLATE
 
 /* Architecture-specific initializations and checks go here */
@@ -41,7 +45,11 @@ bool dvmCompilerArchVariantInit(void)
      */
 #define JIT_TEMPLATE(X) templateEntryOffsets[i++] = \
     (intptr_t) dvmCompiler_TEMPLATE_##X - (intptr_t) dvmCompilerTemplateStart;
+#ifdef WITH_TAINT_TRACKING
+#include "../../../template/armv5te-vfp_taint/TemplateOpList.h"
+#else
 #include "../../../template/armv5te-vfp/TemplateOpList.h"
+#endif /*WITH_TAINT_TRACKING*/
 #undef JIT_TEMPLATE
 
     /* Target-specific configuration */
@@ -57,11 +65,20 @@ bool dvmCompilerArchVariantInit(void)
 #endif
 
     /* Codegen-specific assumptions */
+#ifdef WITH_TAINT_TRACKING
+    assert(OFFSETOF_MEMBER(ClassObject, vtable) < 144 &&
+           (OFFSETOF_MEMBER(ClassObject, vtable) & 0x3) == 0);
+    assert(OFFSETOF_MEMBER(ArrayObject, length) < 128 &&
+           (OFFSETOF_MEMBER(ArrayObject, length) & 0x3) == 0);
+    assert(OFFSETOF_MEMBER(ArrayObject, contents) < 256);
+#else
+    /* Codegen-specific assumptions */
     assert(OFFSETOF_MEMBER(ClassObject, vtable) < 128 &&
            (OFFSETOF_MEMBER(ClassObject, vtable) & 0x3) == 0);
     assert(OFFSETOF_MEMBER(ArrayObject, length) < 128 &&
            (OFFSETOF_MEMBER(ArrayObject, length) & 0x3) == 0);
     assert(OFFSETOF_MEMBER(ArrayObject, contents) < 256);
+#endif /*WITH_TAINT_TRACKING*/
 
     /* Up to 5 args are pushed on top of FP - sizeofStackSaveArea */
     assert(sizeof(StackSaveArea) < 236);
@@ -71,7 +88,11 @@ bool dvmCompilerArchVariantInit(void)
      * offset from the struct is less than 128.
      */
     if ((offsetof(Thread, jitToInterpEntries) +
+#ifdef WITH_TAINT_TRACKING
+         sizeof(struct JitToInterpEntries)) >= 136) {
+#else
          sizeof(struct JitToInterpEntries)) >= 128) {
+#endif /*WITH_TAINT_TRACKING*/
         ALOGE("Thread.jitToInterpEntries size overflow");
         dvmAbort();
     }
