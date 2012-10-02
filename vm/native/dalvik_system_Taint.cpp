@@ -616,13 +616,13 @@ static void Dalvik_dalvik_system_Taint_log(const u4* args,
     }
 
 	msg = dvmCreateCstrFromString(msgObj);
-	ALOGW("TaintLog: %s", msg);
+	ALOG(LOG_WARN, "TaintLog", "%s", msg);
 	char *curmsg = msg;
 	while(strlen(curmsg) > 1013)
 	{   
 		curmsg = curmsg+1013;
-		ALOGW("%s", curmsg);
-	}   
+		ALOG(LOG_WARN, "TaintLog", "%s", curmsg);
+	}
 	free(msg);
 
     RETURN_VOID();
