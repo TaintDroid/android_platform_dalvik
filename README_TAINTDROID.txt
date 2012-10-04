@@ -25,7 +25,11 @@ The port of TaintDroid to Android 4.1 and taint propagation for
 ByteBuffers were implemented by:
 
  Minh Tuan Pham <mpham@ncsu.edu>
-  
+
+The TaintDroidNotify app was originally written by:
+
+ Gabriel Maganis <maganis@cs.ucdavis.edu>
+
 
 Unless otherwise noted, all code additions are ...
 
