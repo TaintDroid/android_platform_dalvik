@@ -14,7 +14,7 @@ HashTable *gPolicyTable = NULL;
 
 #ifdef TAINT_JNI_LOG
 /* JNI logging for debugging purposes 
- * -- used to only print methods once (quites things down a bit)
+ * -- used to only print methods once (quiets things down a bit)
  */
 HashTable *gJniLogSeen = NULL;
 bool gJniLog = true;
@@ -687,12 +687,11 @@ void dvmTaintPropJniMethod(const u4* args, JValue* pResult, const Method* method
 
 #if 0
     {
-	char *desc = dexProtoCopyMethodDescriptor(proto);
-	LOGW("Jni: %s.%s%s, descriptor: %s", 
-		method->clazz->descriptor, method->name, 
-		(dvmIsStaticMethod(method)?"[static]":"", desc)
-		);
-	free(desc);
+        char *desc = dexProtoCopyMethodDescriptor(proto);
+        ALOGW("Jni: %s.%s%s, descriptor: %s", 
+            method->clazz->descriptor, method->name, 
+            dvmIsStaticMethod(method)?"[static]":"", desc);
+        free(desc);
     }
 #endif
 

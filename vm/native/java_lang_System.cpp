@@ -294,7 +294,7 @@ static void Dalvik_java_lang_System_arraycopy(const u4* args, JValue* pResult)
                 copyCount * width);
             dvmWriteBarrierArray(dstArray, 0, copyCount);
 #ifdef WITH_TAINT_TRACKING
-            if (dstPos == 0 && dstArray->length == length) {
+            if (dstPos == 0 && dstArray->length == copyCount) {
                 /* entire array replaced */
                 dstArray->taint.tag = (srcArray->taint.tag | srcPosTaint);
             } else {
