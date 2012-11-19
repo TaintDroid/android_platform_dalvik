@@ -444,6 +444,13 @@ static bool genInlinedMinMaxInt(CompilationUnit *cUnit, MIR *mir, bool isMin)
     RegLocation rlSrc2 = dvmCompilerGetSrc(cUnit, mir, 1);
     rlSrc1 = loadValue(cUnit, rlSrc1, kCoreReg);
     rlSrc2 = loadValue(cUnit, rlSrc2, kCoreReg);
+#ifdef WITH_TAINT_TRACKING
+    int taint1 = dvmCompilerAllocTemp(cUnit);
+    int taint2 = dvmCompilerAllocTemp(cUnit);
+    loadTaintDirect(cUnit, rlSrc1, taint1);
+    loadTaintDirect(cUnit, rlSrc2, taint2);
+    opRegRegReg(cUnit, kOpOr, taint1, taint1, taint2);
+#endif /*WITH_TAINT_TRACKING*/
     RegLocation rlDest = inlinedTarget(cUnit, mir, false);
     RegLocation rlResult = dvmCompilerEvalLoc(cUnit, rlDest, kCoreReg, true);
     opRegReg(cUnit, kOpCmp, rlSrc1.lowReg, rlSrc2.lowReg);
@@ -452,6 +459,11 @@ static bool genInlinedMinMaxInt(CompilationUnit *cUnit, MIR *mir, bool isMin)
     opRegReg(cUnit, kOpMov, rlResult.lowReg, rlSrc1.lowReg);
     genBarrier(cUnit);
     storeValue(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+    storeTaintDirect(cUnit, rlDest, taint1);
+    dvmCompilerFreeTemp(cUnit, taint1);
+    dvmCompilerFreeTemp(cUnit, taint2);
+#endif /*WITH_TAINT_TRACKING*/
     return false;
 }
 

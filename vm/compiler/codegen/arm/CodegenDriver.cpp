@@ -879,8 +879,8 @@ static bool genArithOpLong(CompilationUnit *cUnit, MIR *mir,
         genLong3Addr(cUnit, mir, firstOp, secondOp, rlDest, rlSrc1, rlSrc2);
 #ifdef WITH_TAINT_TRACKING
         // taint(dest) <- taint(src1) | taint(src2)
-    	int taint1 = dvmCompilerAllocTemp(cUnit);
-    	int taint2 = dvmCompilerAllocTemp(cUnit);
+        int taint1 = dvmCompilerAllocTemp(cUnit);
+        int taint2 = dvmCompilerAllocTemp(cUnit);
         loadTaintDirectWide(cUnit, rlSrc1, taint1);
         loadTaintDirectWide(cUnit, rlSrc2, taint2);
         opRegRegReg(cUnit, kOpOr, taint1, taint1, taint2);
