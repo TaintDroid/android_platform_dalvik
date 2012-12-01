@@ -1027,10 +1027,10 @@ static bool genArithOpInt(CompilationUnit *cUnit, MIR *mir,
                             rlSrc1.lowReg, rlSrc2.lowReg);
             }
 #ifdef WITH_TAINT_TRACKING
-	    int taint2 = dvmCompilerAllocTemp(cUnit);
-	    loadTaintDirect(cUnit, rlSrc1, taint);
-	    loadTaintDirect(cUnit, rlSrc2, taint2);
-	    opRegRegReg(cUnit, kOpOr, taint, taint, taint2);
+            int taint2 = dvmCompilerAllocTemp(cUnit);
+            loadTaintDirect(cUnit, rlSrc1, taint);
+            loadTaintDirect(cUnit, rlSrc2, taint2);
+            opRegRegReg(cUnit, kOpOr, taint, taint, taint2);
             dvmCompilerFreeTemp(cUnit, taint2);
 #endif /*WITH_TAINT_TRACKING*/
         }
