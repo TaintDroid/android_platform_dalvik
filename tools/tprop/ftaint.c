@@ -39,17 +39,17 @@ static u4 getTaintXattr(const char *path)
 
     ret = getxattr(path, TAINT_XATTR_NAME, &buf, sizeof(buf)); 
     if (ret > 0) {
-	tag = buf;
+        tag = buf;
     } else {
-	if (errno == ENOATTR) {
-	    fprintf(stdout, "getxattr(%s): no taint tag\n", path);
-	} else if (errno == ERANGE) {
-	    fprintf(stderr, "Error: getxattr(%s) contents to large\n", path);
-	} else if (errno == ENOTSUP) {
-	    fprintf(stderr, "Error: getxattr(%s) not supported\n", path);
-	} else {
-	    fprintf(stderr, "Errro: getxattr(%s): unknown error code %d\n", path, errno);
-	}
+        if (errno == ENOATTR) {
+            fprintf(stdout, "getxattr(%s): no taint tag\n", path);
+        } else if (errno == ERANGE) {
+            fprintf(stderr, "Error: getxattr(%s) contents to large\n", path);
+        } else if (errno == ENOTSUP) {
+            fprintf(stderr, "Error: getxattr(%s) not supported\n", path);
+        } else {
+            fprintf(stderr, "Errro: getxattr(%s): unknown error code %d\n", path, errno);
+        }
     }
 
     return tag;
@@ -62,15 +62,14 @@ static void setTaintXattr(const char *path, u4 tag)
     ret = setxattr(path, TAINT_XATTR_NAME, &tag, sizeof(tag), 0);
 
     if (ret < 0) {
-	if (errno == ENOSPC || errno == EDQUOT) {
-	    fprintf(stderr, "Error: setxattr(%s): not enough room to set xattr\n", path);
-	} else if (errno == ENOTSUP) {
-	    fprintf(stderr, "Error: setxattr(%s) not supported\n", path);
-	} else {
-	    fprintf(stderr, "Errro: setxattr(%s): unknown error code %d\n", path, errno);
-	}
+        if (errno == ENOSPC || errno == EDQUOT) {
+            fprintf(stderr, "Error: setxattr(%s): not enough room to set xattr\n", path);
+        } else if (errno == ENOTSUP) {
+            fprintf(stderr, "Error: setxattr(%s) not supported\n", path);
+        } else {
+            fprintf(stderr, "Errro: setxattr(%s): unknown error code %d\n", path, errno);
+        }
     }
-
 }
 
 void usage(const char *prog)
@@ -84,37 +83,37 @@ int main(int argc, char *argv[])
     u4 tag;
 
     if (argc != 3 && argc != 4) {
-	usage(argv[0]);
+        usage(argv[0]);
     }
-
+    
     if (strlen(argv[1]) != 1) {
-	usage(argv[0]);
+        usage(argv[0]);
     }
 
     // Get the taint
     if (argc == 3) {
-	if (argv[1][0] == 'g') {
-	    tag = getTaintXattr(argv[2]);
-	    fprintf(stdout, "0x%08x\n", tag);
-	    return 0;
-	} else {
-	    usage(argv[0]);
-	}
+        if (argv[1][0] == 'g') {
+            tag = getTaintXattr(argv[2]);
+            fprintf(stdout, "0x%08x\n", tag);
+            return 0;
+        } else {
+            usage(argv[0]);
+        }
     }
 
     // Set the taint
     tag = strtol(argv[3], NULL, 16);
-    if (tag == 0 && errno == EINVAL) {
-	usage(argv[0]);
+    if (tag == 0 && errno == ERANGE) {
+        usage(argv[0]);
     }
 
     if (argv[1][0] == 's') {
-	setTaintXattr(argv[2], tag);
+        setTaintXattr(argv[2], tag);
     } else if (argv[1][0] == 'a') {
-	u4 old = getTaintXattr(argv[2]);
-	setTaintXattr(argv[2], tag | old);
+        u4 old = getTaintXattr(argv[2]);
+        setTaintXattr(argv[2], tag | old);
     } else {
-	usage(argv[0]);
+        usage(argv[0]);
     }
 
     return 0;
