@@ -40,6 +40,7 @@
  * value, as described above */
 #define RETURN_CHAR(_val)       do { pResult->i = (_val); return; } while(0)
 #define RETURN_BYTE(_val)       do { pResult->i = (_val); return; } while(0)
+#define RETURN_SHORT(_val)      do { pResult->i = (_val); return; } while(0)
 #endif
 
 /*
