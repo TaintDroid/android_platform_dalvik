@@ -47,6 +47,14 @@ LOCAL_SHARED_LIBRARIES := $(local_shared_libraries) libcutils libexpat liblog li
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := dexopt
 
+# Turn on Taint Tracking
+ifeq ($(WITH_TAINT_TRACKING),true)
+  LOCAL_CFLAGS += -DWITH_TAINT_TRACKING
+endif
+ifeq ($(WITH_TAINT_ODEX),true)
+  LOCAL_CFLAGS += -DWITH_TAINT_ODEX
+endif
+
 LOCAL_C_INCLUDES += external/stlport/stlport bionic/ bionic/libstdc++/include
 LOCAL_SHARED_LIBRARIES += libstlport
 
@@ -62,5 +70,14 @@ ifeq ($(WITH_HOST_DALVIK),true)
     LOCAL_CFLAGS += -DANDROID_SMP=1
     LOCAL_MODULE_TAGS := optional
     LOCAL_MODULE := dexopt
+
+    # Turn on Taint Tracking
+    ifeq ($(WITH_TAINT_TRACKING),true)
+      LOCAL_CFLAGS += -DWITH_TAINT_TRACKING
+    endif
+    ifeq ($(WITH_TAINT_ODEX),true)
+      LOCAL_CFLAGS += -DWITH_TAINT_ODEX
+    endif
+
     include $(BUILD_HOST_EXECUTABLE)
 endif

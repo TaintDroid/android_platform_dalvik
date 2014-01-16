@@ -83,7 +83,7 @@ void dvmMterpStd(Thread* self)
     IF_LOGVV() {
         char* desc = dexProtoCopyMethodDescriptor(
                          &self->interpSave.method->prototype);
-        LOGVV("mterp threadid=%d : %s.%s %s",
+        ALOGE("mterp threadid=%d : %s.%s %s",
             dvmThreadSelf()->threadId,
             self->interpSave.method->clazz->descriptor,
             self->interpSave.method->name,

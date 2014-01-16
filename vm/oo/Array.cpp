@@ -59,6 +59,9 @@ static ArrayObject* allocArray(ClassObject* arrayClass, size_t length,
     if (newArray != NULL) {
         DVM_OBJECT_INIT(newArray, arrayClass);
         newArray->length = length;
+#ifdef WITH_TAINT_TRACKING
+        newArray->taint.tag = TAINT_CLEAR;
+#endif
         dvmTrackAllocation(arrayClass, totalSize);
     }
     return newArray;

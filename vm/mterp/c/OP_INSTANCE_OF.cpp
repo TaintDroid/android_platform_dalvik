@@ -11,6 +11,9 @@ HANDLE_OPCODE(OP_INSTANCE_OF /*vA, vB, class@CCCC*/)
         obj = (Object*)GET_REGISTER(vsrc1);
         if (obj == NULL) {
             SET_REGISTER(vdst, 0);
+/* ifdef WITH_TAINT_TRACKING */
+	    SET_REGISTER_TAINT(vdst, TAINT_CLEAR);
+/* endif */
         } else {
 #if defined(WITH_EXTRA_OBJECT_VALIDATION)
             if (!checkForNullExportPC(obj, fp, pc))
@@ -24,6 +27,9 @@ HANDLE_OPCODE(OP_INSTANCE_OF /*vA, vB, class@CCCC*/)
                     GOTO_exceptionThrown();
             }
             SET_REGISTER(vdst, dvmInstanceof(obj->clazz, clazz));
+/* ifdef WITH_TAINT_TRACKING */
+	    SET_REGISTER_TAINT(vdst, TAINT_CLEAR);
+/* endif */
         }
     }
     FINISH(2);

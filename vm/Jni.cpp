@@ -280,6 +280,10 @@ bool dvmJniStartup() {
 
     dvmInitMutex(&gDvm.jniPinRefLock);
 
+#ifdef WITH_TAINT_TRACKING
+    dvmTaintPropJniStartup();
+#endif
+
     return true;
 }
 
@@ -1118,6 +1122,12 @@ static inline void convertReferenceResult(JNIEnv* env, JValue* pResult,
  * General form, handles all cases.
  */
 void dvmCallJNIMethod(const u4* args, JValue* pResult, const Method* method, Thread* self) {
+#ifdef WITH_TAINT_TRACKING
+    // Copy args to another array, to ensure correct taint propagation in case args change
+    int nArgs = method->insSize * 2 + 1;
+    u4* oldArgs = (u4*)malloc(sizeof(u4)*nArgs);
+    memcpy(oldArgs, args, sizeof(u4)*nArgs);
+#endif /*WITH_TAINT_TRACKING*/
     u4* modArgs = (u4*) args;
     jclass staticMethodClass = NULL;
 
@@ -1188,6 +1198,11 @@ void dvmCallJNIMethod(const u4* args, JValue* pResult, const Method* method, Thr
     dvmChangeStatus(self, oldStatus);
 
     convertReferenceResult(env, pResult, method, self);
+
+#ifdef WITH_TAINT_TRACKING
+    dvmTaintPropJniMethod(oldArgs, pResult, method);
+    free(oldArgs);
+#endif /*WITH_TAINT_TRACKING*/
 
     if (UNLIKELY(isSynchronized)) {
         dvmUnlockObject(self, lockObj);

@@ -192,6 +192,9 @@ static void Dalvik_java_lang_System_arraycopy(const u4* args, JValue* pResult)
     ArrayObject* dstArray = (ArrayObject*) args[2];
     int dstPos = args[3];
     int length = args[4];
+#ifdef WITH_TAINT_TRACKING
+    int srcPosTaint = args[7];
+#endif /*WITH_TAINT_TRACKING*/
 
     /* Check for null pointers. */
     if (srcArray == NULL) {
@@ -281,6 +284,14 @@ static void Dalvik_java_lang_System_arraycopy(const u4* args, JValue* pResult)
             ALOGE("Weird array type '%s'", srcClass->descriptor);
             dvmAbort();
         }
+#ifdef WITH_TAINT_TRACKING
+        if (dstPos == 0 && dstArray->length == length) {
+            /* entire array replaced */
+            dstArray->taint.tag = (srcArray->taint.tag | srcPosTaint);
+        } else {
+            dstArray->taint.tag |= (srcArray->taint.tag | srcPosTaint);
+        }
+#endif
     } else {
         /*
          * Neither class is primitive.  See if elements in "src" are instances
@@ -303,6 +314,14 @@ static void Dalvik_java_lang_System_arraycopy(const u4* args, JValue* pResult)
                 (const u1*)srcArray->contents + srcPos * width,
                 length * width);
             dvmWriteBarrierArray(dstArray, dstPos, dstPos+length);
+#ifdef WITH_TAINT_TRACKING
+            if (dstPos == 0 && dstArray->length == length) {
+                /* entire array replaced */
+                dstArray->taint.tag = (srcArray->taint.tag | srcPosTaint);
+            } else {
+                dstArray->taint.tag |= (srcArray->taint.tag | srcPosTaint);
+            }
+#endif
         } else {
             /*
              * The arrays are not fundamentally compatible.  However, we
@@ -348,6 +367,14 @@ static void Dalvik_java_lang_System_arraycopy(const u4* args, JValue* pResult)
                 (const u1*)srcArray->contents + srcPos * width,
                 copyCount * width);
             dvmWriteBarrierArray(dstArray, 0, copyCount);
+#ifdef WITH_TAINT_TRACKING
+            if (dstPos == 0 && dstArray->length == copyCount) {
+                /* entire array replaced */
+                dstArray->taint.tag = (srcArray->taint.tag | srcPosTaint);
+            } else {
+                dstArray->taint.tag |= (srcArray->taint.tag | srcPosTaint);
+            }
+#endif
             if (copyCount != length) {
                 dvmThrowArrayStoreExceptionIncompatibleArrayElement(srcPos + copyCount,
                         srcObj[copyCount]->clazz, dstClass);

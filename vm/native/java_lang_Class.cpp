@@ -125,7 +125,6 @@ static void Dalvik_java_lang_Class_classForName(const u4* args, JValue* pResult)
     StringObject* nameObj = (StringObject*) args[0];
     bool initialize = (args[1] != 0);
     Object* loader = (Object*) args[2];
-
     RETURN_PTR(dvmFindClassByName(nameObj, loader, initialize));
 }
 

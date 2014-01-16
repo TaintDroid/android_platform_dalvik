@@ -24,6 +24,10 @@
  * applicable directory below this one.
  */
 
+#ifdef WITH_TAINT_TRACKING
+#include "interp/Taint.h"
+#endif /*WITH_TAINT_TRACKING*/
+
 /*
  * Mark garbage collection card. Skip if the value we're storing is null.
  */
@@ -304,6 +308,11 @@ static void genIGetWide(CompilationUnit *cUnit, MIR *mir, int fieldOffset)
     RegLocation rlDest = dvmCompilerGetDestWide(cUnit, mir, 0, 1);
     RegLocation rlResult;
     rlObj = loadValue(cUnit, rlObj, kCoreReg);
+#ifdef WITH_TAINT_TRACKING
+    int fieldTaint = dvmCompilerAllocTemp(cUnit);
+    int objTaint = dvmCompilerAllocTemp(cUnit);
+    loadTaintDirect(cUnit, rlObj, objTaint);
+#endif /*WITH_TAINT_TRACKING*/
     int regPtr = dvmCompilerAllocTemp(cUnit);
 
     assert(rlDest.wide);
@@ -315,10 +324,19 @@ static void genIGetWide(CompilationUnit *cUnit, MIR *mir, int fieldOffset)
 
     HEAP_ACCESS_SHADOW(true);
     loadPair(cUnit, regPtr, rlResult.lowReg, rlResult.highReg);
+#ifdef WITH_TAINT_TRACKING
+    loadWordDisp(cUnit, regPtr, 8, fieldTaint);
+    opRegRegReg(cUnit, kOpOr, fieldTaint, objTaint, fieldTaint);
+    dvmCompilerFreeTemp(cUnit, objTaint);
+#endif /*WITH_TAINT_TRACKING*/
     HEAP_ACCESS_SHADOW(false);
 
     dvmCompilerFreeTemp(cUnit, regPtr);
     storeValueWide(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+    storeTaintDirectWide(cUnit, rlDest, fieldTaint);
+    dvmCompilerFreeTemp(cUnit, fieldTaint);
+#endif /*WITH_TAINT_TRACKING*/
 }
 
 /* Store a wide field to an object instance */
@@ -327,6 +345,10 @@ static void genIPutWide(CompilationUnit *cUnit, MIR *mir, int fieldOffset)
     RegLocation rlSrc = dvmCompilerGetSrcWide(cUnit, mir, 0, 1);
     RegLocation rlObj = dvmCompilerGetSrc(cUnit, mir, 2);
     rlObj = loadValue(cUnit, rlObj, kCoreReg);
+#ifdef WITH_TAINT_TRACKING
+    int taint = dvmCompilerAllocTemp(cUnit);
+    loadTaintDirectWide(cUnit, rlSrc, taint);
+#endif /*WITH_TAINT_TRACKING*/
     int regPtr;
     rlSrc = loadValueWide(cUnit, rlSrc, kAnyReg);
     genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, mir->offset,
@@ -336,6 +358,10 @@ static void genIPutWide(CompilationUnit *cUnit, MIR *mir, int fieldOffset)
 
     HEAP_ACCESS_SHADOW(true);
     storePair(cUnit, regPtr, rlSrc.lowReg, rlSrc.highReg);
+#ifdef WITH_TAINT_TRACKING
+    storeWordDisp(cUnit, regPtr, 8, taint);
+    dvmCompilerFreeTemp(cUnit, taint);
+#endif /*WITH_TAINT_TRACKING*/
     HEAP_ACCESS_SHADOW(false);
 
     dvmCompilerFreeTemp(cUnit, regPtr);
@@ -357,15 +383,31 @@ static void genIGet(CompilationUnit *cUnit, MIR *mir, OpSize size,
     genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, mir->offset,
                  NULL);/* null object? */
 
+#ifdef WITH_TAINT_TRACKING
+    int fieldTaint = dvmCompilerAllocTemp(cUnit);
+    int objTaint = dvmCompilerAllocTemp(cUnit);
+    loadTaintDirect(cUnit, rlObj, objTaint);
+    opRegRegImm(cUnit, kOpAdd, fieldTaint, rlObj.lowReg, fieldOffset);
+#endif /*WITH_TAINT_TRACKING*/
+
     HEAP_ACCESS_SHADOW(true);
     loadBaseDisp(cUnit, mir, rlObj.lowReg, fieldOffset, rlResult.lowReg,
                  size, rlObj.sRegLow);
+#ifdef WITH_TAINT_TRACKING
+    loadWordDisp(cUnit, fieldTaint, 4, fieldTaint);
+    opRegRegReg(cUnit, kOpOr, fieldTaint, objTaint, fieldTaint);
+    dvmCompilerFreeTemp(cUnit, objTaint);
+#endif /*WITH_TAINT_TRACKING*/
     HEAP_ACCESS_SHADOW(false);
     if (isVolatile) {
         dvmCompilerGenMemBarrier(cUnit, kSY);
     }
 
     storeValue(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+    storeTaintDirect(cUnit, rlDest, fieldTaint);
+    dvmCompilerFreeTemp(cUnit, fieldTaint);
+#endif /*WITH_TAINT_TRACKING*/
 }
 
 /*
@@ -383,11 +425,20 @@ static void genIPut(CompilationUnit *cUnit, MIR *mir, OpSize size,
     genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, mir->offset,
                  NULL);/* null object? */
 
+#ifdef WITH_TAINT_TRACKING
+    int taint = dvmCompilerAllocTemp(cUnit);
+    loadTaintDirect(cUnit, rlSrc, taint);
+#endif /*WITH_TAINT_TRACKING*/
+
     if (isVolatile) {
         dvmCompilerGenMemBarrier(cUnit, kST);
     }
     HEAP_ACCESS_SHADOW(true);
     storeBaseDisp(cUnit, rlObj.lowReg, fieldOffset, rlSrc.lowReg, size);
+#ifdef WITH_TAINT_TRACKING
+    storeWordDisp(cUnit, rlObj.lowReg, fieldOffset+4, taint);
+    dvmCompilerFreeTemp(cUnit, taint);
+#endif /*WITH_TAINT_TRACKING*/
     HEAP_ACCESS_SHADOW(false);
     if (isVolatile) {
         dvmCompilerGenMemBarrier(cUnit, kSY);
@@ -409,6 +460,11 @@ static void genArrayGet(CompilationUnit *cUnit, MIR *mir, OpSize size,
     RegisterClass regClass = dvmCompilerRegClassBySize(size);
     int lenOffset = OFFSETOF_MEMBER(ArrayObject, length);
     int dataOffset = OFFSETOF_MEMBER(ArrayObject, contents);
+#ifdef WITH_TAINT_TRACKING
+    int indexTaint = dvmCompilerAllocTemp(cUnit);
+    loadTaintDirect(cUnit, rlIndex, indexTaint);
+    int taintOffset = OFFSETOF_MEMBER(ArrayObject, taint);
+#endif /*WITH_TAINT_TRACKING*/
     RegLocation rlResult;
     rlArray = loadValue(cUnit, rlArray, kCoreReg);
     rlIndex = loadValue(cUnit, rlIndex, kCoreReg);
@@ -421,6 +477,13 @@ static void genArrayGet(CompilationUnit *cUnit, MIR *mir, OpSize size,
         pcrLabel = genNullCheck(cUnit, rlArray.sRegLow,
                                 rlArray.lowReg, mir->offset, NULL);
     }
+
+#ifdef WITH_TAINT_TRACKING
+    int arrayTaint = dvmCompilerAllocTemp(cUnit);
+    loadWordDisp(cUnit, rlArray.lowReg, taintOffset, arrayTaint);
+    opRegRegReg(cUnit, kOpOr, indexTaint, indexTaint, arrayTaint);
+    dvmCompilerFreeTemp(cUnit, arrayTaint);
+#endif /*WITH_TAINT_TRACKING*/
 
     regPtr = dvmCompilerAllocTemp(cUnit);
 
@@ -454,6 +517,10 @@ static void genArrayGet(CompilationUnit *cUnit, MIR *mir, OpSize size,
 
         dvmCompilerFreeTemp(cUnit, regPtr);
         storeValueWide(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+        storeTaintDirectWide(cUnit, rlDest, indexTaint);
+        dvmCompilerFreeTemp(cUnit, indexTaint);
+#endif /*WITH_TAINT_TRACKING*/
     } else {
         rlResult = dvmCompilerEvalLoc(cUnit, rlDest, regClass, true);
 
@@ -464,6 +531,10 @@ static void genArrayGet(CompilationUnit *cUnit, MIR *mir, OpSize size,
 
         dvmCompilerFreeTemp(cUnit, regPtr);
         storeValue(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+        storeTaintDirect(cUnit, rlDest, indexTaint);
+        dvmCompilerFreeTemp(cUnit, indexTaint);
+#endif /*WITH_TAINT_TRACKING*/
     }
 }
 
@@ -478,6 +549,11 @@ static void genArrayPut(CompilationUnit *cUnit, MIR *mir, OpSize size,
     RegisterClass regClass = dvmCompilerRegClassBySize(size);
     int lenOffset = OFFSETOF_MEMBER(ArrayObject, length);
     int dataOffset = OFFSETOF_MEMBER(ArrayObject, contents);
+#ifdef WITH_TAINT_TRACKING
+    int argTaint = dvmCompilerAllocTemp(cUnit);
+    loadTaintDirect(cUnit, rlArray, argTaint);
+    int taintOffset = OFFSETOF_MEMBER(ArrayObject, taint);
+#endif /*WITH_TAINT_TRACKING*/
 
     int regPtr;
     rlArray = loadValue(cUnit, rlArray, kCoreReg);
@@ -498,6 +574,15 @@ static void genArrayPut(CompilationUnit *cUnit, MIR *mir, OpSize size,
         pcrLabel = genNullCheck(cUnit, rlArray.sRegLow, rlArray.lowReg,
                                 mir->offset, NULL);
     }
+
+#ifdef WITH_TAINT_TRACKING
+    int arrayTaint = dvmCompilerAllocTemp(cUnit);
+    loadWordDisp(cUnit, rlArray.lowReg, taintOffset, arrayTaint);
+    opRegRegReg(cUnit, kOpOr, argTaint, argTaint, arrayTaint);
+    storeWordDisp(cUnit, rlArray.lowReg, taintOffset, argTaint);
+    dvmCompilerFreeTemp(cUnit, arrayTaint);
+    dvmCompilerFreeTemp(cUnit, argTaint);
+#endif /*WITH_TAINT_TRACKING*/
 
     if (!(mir->OptimizationFlags & MIR_IGNORE_RANGE_CHECK)) {
         int regLen = dvmCompilerAllocTemp(cUnit);
@@ -570,6 +655,21 @@ static void genArrayObjectPut(CompilationUnit *cUnit, MIR *mir,
         pcrLabel = genNullCheck(cUnit, rlArray.sRegLow, regArray,
                                 mir->offset, NULL);
     }
+
+#ifdef WITH_TAINT_TRACKING
+    int argTaint = dvmCompilerAllocTemp(cUnit);
+    int arrayTaint = dvmCompilerAllocTemp(cUnit);
+
+    int taintOffset = OFFSETOF_MEMBER(ArrayObject, taint);
+
+    loadTaintDirect(cUnit, rlArray, argTaint);
+    loadWordDisp(cUnit, regArray, taintOffset, arrayTaint);
+    opRegRegReg(cUnit, kOpOr, argTaint, argTaint, arrayTaint);
+    storeWordDisp(cUnit, regArray, taintOffset, argTaint);
+
+    dvmCompilerFreeTemp(cUnit, argTaint);
+    dvmCompilerFreeTemp(cUnit, arrayTaint);
+#endif /*WITH_TAINT_TRACKING*/
 
     if (!(mir->OptimizationFlags & MIR_IGNORE_RANGE_CHECK)) {
         /* Get len */
@@ -659,6 +759,16 @@ static bool genShiftOpLong(CompilationUnit *cUnit, MIR *mir,
     }
     rlResult = dvmCompilerGetReturnWide(cUnit);
     storeValueWide(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+    int taint1 = dvmCompilerAllocTemp(cUnit);
+    int taint2 = dvmCompilerAllocTemp(cUnit);
+    loadTaintDirectWide(cUnit, rlSrc1, taint1);
+    loadTaintDirect(cUnit, rlShift, taint2);
+    opRegRegReg(cUnit, kOpOr, taint1, taint1, taint2);
+    storeTaintDirectWide(cUnit, rlDest, taint1);
+    dvmCompilerFreeTemp(cUnit, taint1);
+    dvmCompilerFreeTemp(cUnit, taint2);
+#endif /*WITH_TAINT_TRACKING*/
     return false;
 }
 
@@ -675,14 +785,21 @@ static bool genArithOpLong(CompilationUnit *cUnit, MIR *mir,
     int retReg = r0;
 
     switch (mir->dalvikInsn.opcode) {
-        case OP_NOT_LONG:
+        case OP_NOT_LONG: {
             rlSrc2 = loadValueWide(cUnit, rlSrc2, kCoreReg);
             rlResult = dvmCompilerEvalLoc(cUnit, rlDest, kCoreReg, true);
             opRegReg(cUnit, kOpMvn, rlResult.lowReg, rlSrc2.lowReg);
             opRegReg(cUnit, kOpMvn, rlResult.highReg, rlSrc2.highReg);
             storeValueWide(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+    	    int taint = dvmCompilerAllocTemp(cUnit);
+            loadTaintDirectWide(cUnit, rlSrc2, taint);
+            storeTaintDirectWide(cUnit, rlDest, taint);
+            dvmCompilerFreeTemp(cUnit, taint);
+#endif /*WITH_TAINT_TRACKING*/
             return false;
             break;
+        }
         case OP_ADD_LONG:
         case OP_ADD_LONG_2ADDR:
             firstOp = kOpAdd;
@@ -694,9 +811,20 @@ static bool genArithOpLong(CompilationUnit *cUnit, MIR *mir,
             secondOp = kOpSbc;
             break;
         case OP_MUL_LONG:
-        case OP_MUL_LONG_2ADDR:
+        case OP_MUL_LONG_2ADDR: {
             genMulLong(cUnit, rlDest, rlSrc1, rlSrc2);
+#ifdef WITH_TAINT_TRACKING
+     	    int taint1 = dvmCompilerAllocTemp(cUnit);
+     	    int taint2 = dvmCompilerAllocTemp(cUnit);
+            loadTaintDirectWide(cUnit, rlSrc1, taint1);
+            loadTaintDirectWide(cUnit, rlSrc2, taint2);
+            opRegRegReg(cUnit, kOpOr, taint1, taint1, taint2);
+            storeTaintDirectWide(cUnit, rlDest, taint1);
+            dvmCompilerFreeTemp(cUnit, taint1);
+            dvmCompilerFreeTemp(cUnit, taint2);
+#endif /*WITH_TAINT_TRACKING*/
             return false;
+        }
         case OP_DIV_LONG:
         case OP_DIV_LONG_2ADDR:
             callOut = true;
@@ -738,6 +866,12 @@ static bool genArithOpLong(CompilationUnit *cUnit, MIR *mir,
             opRegReg(cUnit, kOpSbc, tReg, rlSrc2.highReg);
             genRegCopy(cUnit, rlResult.highReg, tReg);
             storeValueWide(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+    	    int taint = dvmCompilerAllocTemp(cUnit);
+            loadTaintDirectWide(cUnit, rlSrc2, taint);
+            storeTaintDirectWide(cUnit, rlDest, taint);
+            dvmCompilerFreeTemp(cUnit, taint);
+#endif /*WITH_TAINT_TRACKING*/
             return false;
         }
         default:
@@ -746,6 +880,17 @@ static bool genArithOpLong(CompilationUnit *cUnit, MIR *mir,
     }
     if (!callOut) {
         genLong3Addr(cUnit, mir, firstOp, secondOp, rlDest, rlSrc1, rlSrc2);
+#ifdef WITH_TAINT_TRACKING
+        // taint(dest) <- taint(src1) | taint(src2)
+        int taint1 = dvmCompilerAllocTemp(cUnit);
+        int taint2 = dvmCompilerAllocTemp(cUnit);
+        loadTaintDirectWide(cUnit, rlSrc1, taint1);
+        loadTaintDirectWide(cUnit, rlSrc2, taint2);
+        opRegRegReg(cUnit, kOpOr, taint1, taint1, taint2);
+        storeTaintDirectWide(cUnit, rlDest, taint1);
+        dvmCompilerFreeTemp(cUnit, taint1);
+        dvmCompilerFreeTemp(cUnit, taint2);
+#endif /*WITH_TAINT_TRACKING*/
     } else {
         // Adjust return regs in to handle case of rem returning r2/r3
         dvmCompilerFlushAllRegs(cUnit);   /* Send everything to home location */
@@ -764,6 +909,17 @@ static bool genArithOpLong(CompilationUnit *cUnit, MIR *mir,
         else
             rlResult = dvmCompilerGetReturnWideAlt(cUnit);
         storeValueWide(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+        // taint(dest) <- taint(src1) | taint(src2)
+    	int taint1 = dvmCompilerAllocTemp(cUnit);
+    	int taint2 = dvmCompilerAllocTemp(cUnit);
+        loadTaintDirectWide(cUnit, rlSrc1, taint1);
+        loadTaintDirectWide(cUnit, rlSrc2, taint2);
+        opRegRegReg(cUnit, kOpOr, taint1, taint1, taint2);
+        storeTaintDirectWide(cUnit, rlDest, taint1);
+        dvmCompilerFreeTemp(cUnit, taint1);
+        dvmCompilerFreeTemp(cUnit, taint2);
+#endif /*WITH_TAINT_TRACKING*/
 #if defined(WITH_SELF_VERIFICATION)
         cUnit->usesLinkRegister = true;
 #endif
@@ -853,11 +1009,17 @@ static bool genArithOpInt(CompilationUnit *cUnit, MIR *mir,
             dvmCompilerAbort(cUnit);
     }
     if (!callOut) {
+#ifdef WITH_TAINT_TRACKING
+    	int taint = dvmCompilerAllocTemp(cUnit);
+#endif /*WITH_TAINT_TRACKING*/
         rlSrc1 = loadValue(cUnit, rlSrc1, kCoreReg);
         if (unary) {
             rlResult = dvmCompilerEvalLoc(cUnit, rlDest, kCoreReg, true);
             opRegReg(cUnit, op, rlResult.lowReg,
                      rlSrc1.lowReg);
+#ifdef WITH_TAINT_TRACKING
+            loadTaintDirect(cUnit, rlSrc1, taint);
+#endif /*WITH_TAINT_TRACKING*/
         } else {
             rlSrc2 = loadValue(cUnit, rlSrc2, kCoreReg);
             if (shiftOp) {
@@ -872,8 +1034,19 @@ static bool genArithOpInt(CompilationUnit *cUnit, MIR *mir,
                 opRegRegReg(cUnit, op, rlResult.lowReg,
                             rlSrc1.lowReg, rlSrc2.lowReg);
             }
+#ifdef WITH_TAINT_TRACKING
+            int taint2 = dvmCompilerAllocTemp(cUnit);
+            loadTaintDirect(cUnit, rlSrc1, taint);
+            loadTaintDirect(cUnit, rlSrc2, taint2);
+            opRegRegReg(cUnit, kOpOr, taint, taint, taint2);
+            dvmCompilerFreeTemp(cUnit, taint2);
+#endif /*WITH_TAINT_TRACKING*/
         }
         storeValue(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+        storeTaintDirect(cUnit, rlDest, taint);
+        dvmCompilerFreeTemp(cUnit, taint);
+#endif /*WITH_TAINT_TRACKING*/
     } else {
         RegLocation rlResult;
         dvmCompilerFlushAllRegs(cUnit);   /* Send everything to home location */
@@ -890,6 +1063,16 @@ static bool genArithOpInt(CompilationUnit *cUnit, MIR *mir,
         else
             rlResult = dvmCompilerGetReturnAlt(cUnit);
         storeValue(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+    	int taint1 = dvmCompilerAllocTemp(cUnit);
+    	int taint2 = dvmCompilerAllocTemp(cUnit);
+        loadTaintDirect(cUnit, rlSrc1, taint1);
+        loadTaintDirect(cUnit, rlSrc2, taint2);
+        opRegRegReg(cUnit, kOpOr, taint1, taint1, taint2);
+        storeTaintDirect(cUnit, rlDest, taint1);
+        dvmCompilerFreeTemp(cUnit, taint1);
+        dvmCompilerFreeTemp(cUnit, taint2);
+#endif /*WITH_TAINT_TRACKING*/
     }
     return false;
 }
@@ -938,16 +1121,72 @@ static bool genArithOp(CompilationUnit *cUnit, MIR *mir)
         return genArithOpInt(cUnit,mir, rlDest, rlSrc1, rlSrc2);
     }
     if ((opcode >= OP_ADD_FLOAT_2ADDR) && (opcode <= OP_REM_FLOAT_2ADDR)) {
+#ifdef WITH_TAINT_TRACKING
+    	bool success;
+    	success = genArithOpFloat(cUnit,mir, rlDest, rlSrc1, rlSrc2);
+    	int taint1 = dvmCompilerAllocTemp(cUnit);
+    	int taint2 = dvmCompilerAllocTemp(cUnit);
+    	loadTaintDirect(cUnit, rlSrc1, taint1);
+    	loadTaintDirect(cUnit, rlSrc2, taint2);
+    	opRegRegReg(cUnit, kOpOr, taint1, taint1, taint2);
+    	storeTaintDirect(cUnit, rlDest, taint1);
+        dvmCompilerFreeTemp(cUnit, taint1);
+        dvmCompilerFreeTemp(cUnit, taint2);
+    	return success;
+#else
         return genArithOpFloat(cUnit,mir, rlDest, rlSrc1, rlSrc2);
+#endif /*WITH_TAINT_TRACKING*/
     }
     if ((opcode >= OP_ADD_FLOAT) && (opcode <= OP_REM_FLOAT)) {
+#ifdef WITH_TAINT_TRACKING
+    	bool success;
+    	success = genArithOpFloat(cUnit,mir, rlDest, rlSrc1, rlSrc2);
+    	int taint1 = dvmCompilerAllocTemp(cUnit);
+    	int taint2 = dvmCompilerAllocTemp(cUnit);
+        loadTaintDirect(cUnit, rlSrc1, taint1);
+        loadTaintDirect(cUnit, rlSrc2, taint2);
+        opRegRegReg(cUnit, kOpOr, taint1, taint1, taint2);
+        storeTaintDirect(cUnit, rlDest, taint1);
+        dvmCompilerFreeTemp(cUnit, taint1);
+        dvmCompilerFreeTemp(cUnit, taint2);
+        return success;
+#else
         return genArithOpFloat(cUnit, mir, rlDest, rlSrc1, rlSrc2);
+#endif /*WITH_TAINT_TRACKING*/
     }
     if ((opcode >= OP_ADD_DOUBLE_2ADDR) && (opcode <= OP_REM_DOUBLE_2ADDR)) {
+#ifdef WITH_TAINT_TRACKING
+    	bool success;
+    	success = genArithOpDouble(cUnit,mir, rlDest, rlSrc1, rlSrc2);
+    	int taint1 = dvmCompilerAllocTemp(cUnit);
+    	int taint2 = dvmCompilerAllocTemp(cUnit);
+    	loadTaintDirectWide(cUnit, rlSrc1, taint1);
+    	loadTaintDirectWide(cUnit, rlSrc2, taint2);
+    	opRegRegReg(cUnit, kOpOr, taint1, taint1, taint2);
+    	storeTaintDirectWide(cUnit, rlDest, taint1);
+        dvmCompilerFreeTemp(cUnit, taint1);
+        dvmCompilerFreeTemp(cUnit, taint2);
+    	return success;
+#else
         return genArithOpDouble(cUnit,mir, rlDest, rlSrc1, rlSrc2);
+#endif /*WITH_TAINT_TRACKING*/
     }
     if ((opcode >= OP_ADD_DOUBLE) && (opcode <= OP_REM_DOUBLE)) {
+#ifdef WITH_TAINT_TRACKING
+    	bool success;
+    	success = genArithOpDouble(cUnit,mir, rlDest, rlSrc1, rlSrc2);
+    	int taint1 = dvmCompilerAllocTemp(cUnit);
+    	int taint2 = dvmCompilerAllocTemp(cUnit);
+    	loadTaintDirectWide(cUnit, rlSrc1, taint1);
+    	loadTaintDirectWide(cUnit, rlSrc2, taint2);
+        opRegRegReg(cUnit, kOpOr, taint1, taint1, taint2);
+        storeTaintDirectWide(cUnit, rlDest, taint1);
+        dvmCompilerFreeTemp(cUnit, taint1);
+        dvmCompilerFreeTemp(cUnit, taint2);        
+        return success;
+#else
         return genArithOpDouble(cUnit,mir, rlDest, rlSrc1, rlSrc2);
+#endif /*WITH_TAINT_TRACKING*/
     }
     return true;
 }
@@ -982,10 +1221,95 @@ static void genReturnCommon(CompilationUnit *cUnit, MIR *mir)
     branch->generic.target = (LIR *) pcrLabel;
 }
 
+
+#ifdef WITH_TAINT_TRACKING
+static int genProcessArgsNoRange(CompilationUnit *cUnit, MIR *mir,
+                                  DecodedInstruction *dInsn,
+				  bool isNative, ArmLIR **pcrLabel)
+#else
 static void genProcessArgsNoRange(CompilationUnit *cUnit, MIR *mir,
                                   DecodedInstruction *dInsn,
                                   ArmLIR **pcrLabel)
+#endif /*WITH_TAINT_TRACKING*/
 {
+#ifdef WITH_TAINT_TRACKING
+    unsigned int i;
+    RegLocation rlArg;
+
+    unsigned int numArgs = dInsn->vA;
+    dvmCompilerLockAllTemps(cUnit);
+
+    // save numArgs to StackSaveArea
+    opRegRegImm(cUnit, kOpSub, r7, r5FP, sizeof(StackSaveArea));
+    loadConstant(cUnit, r9, numArgs);
+    storeWordDisp(cUnit, r7, offsetof(StackSaveArea, argCount), r9);
+
+    if (isNative) {
+        // clear native taint hack
+        opRegRegImm(cUnit, kOpSub, r7, r5FP,
+	            sizeof(StackSaveArea) + (numArgs << 2) + 4);
+        loadConstant(cUnit, r9, 0);
+        storeWordDisp(cUnit, r7, 0, r9);
+
+        if (numArgs > 0) {
+            /* Up to 5 args are pushed on top of FP - sizeofStackSaveArea */
+            opRegRegImm(cUnit, kOpSub, r7, r5FP,
+                        sizeof(StackSaveArea) + (numArgs << 3) + 4);
+
+            // r0 <- this
+            rlArg = dvmCompilerGetSrc(cUnit, mir, 0);
+            loadValueDirectFixed(cUnit, rlArg, 0);
+
+            /* generate null check */
+            if (pcrLabel) {
+                *pcrLabel = genNullCheck(cUnit, dvmCompilerSSASrc(mir, 0), r0,
+                                mir->offset, NULL);
+            }
+
+            for (i = 0; i < numArgs; i++) {
+                rlArg = dvmCompilerGetSrc(cUnit, mir, i);
+                loadValueDirectFixed(cUnit, rlArg, 1);
+                loadTaintDirectFixed(cUnit, rlArg, 2);
+
+                storeWordDisp(cUnit, r7, i<<2, 1);
+                storeWordDisp(cUnit, r7, (i<<2)+(numArgs<<2)+4, 2);
+            }
+        }
+    }
+    else {
+        // clear native taint hack
+        opRegRegImm(cUnit, kOpSub, r7, r5FP, sizeof(StackSaveArea) + 4);
+        loadConstant(cUnit, r9, 0);
+        storeWordDisp(cUnit, r7, 0, r9);
+
+        if (numArgs > 0) {
+            /* Up to 5 args are pushed on top of FP - sizeofStackSaveArea */
+            opRegRegImm(cUnit, kOpSub, r7, r5FP,
+            sizeof(StackSaveArea) + (numArgs << 3) + 4);
+
+            // r0 <- this
+            rlArg = dvmCompilerGetSrc(cUnit, mir, 0);
+            loadValueDirectFixed(cUnit, rlArg, 0);
+
+            /* generate null check */
+            if (pcrLabel) {
+                *pcrLabel = genNullCheck(cUnit, dvmCompilerSSASrc(mir, 0), r0,
+                                         mir->offset, NULL);
+            }
+
+            for (i = 0; i < numArgs; i++) {
+                rlArg = dvmCompilerGetSrc(cUnit, mir, i);
+                loadValueDirectFixed(cUnit, rlArg, 1);
+                loadTaintDirectFixed(cUnit, rlArg, 2);
+
+                storeWordDisp(cUnit, r7, i<<3, 1);
+                storeWordDisp(cUnit, r7, (i<<3) + 4, 2);
+            }
+        }
+    }
+
+    return numArgs;
+#else
     unsigned int i;
     unsigned int regMask = 0;
     RegLocation rlArg;
@@ -1013,12 +1337,111 @@ static void genProcessArgsNoRange(CompilationUnit *cUnit, MIR *mir,
         }
         storeMultiple(cUnit, r7, regMask);
     }
+#endif /*WITH_TAINT_TRACKING*/
 }
 
+#ifdef WITH_TAINT_TRACKING
+static int genProcessArgsRange(CompilationUnit *cUnit, MIR *mir,
+                                DecodedInstruction *dInsn,
+                                bool isNative, ArmLIR **pcrLabel)
+#else
 static void genProcessArgsRange(CompilationUnit *cUnit, MIR *mir,
                                 DecodedInstruction *dInsn,
                                 ArmLIR **pcrLabel)
+#endif /*WITH_TAINT_TRACKING*/
 {
+#ifdef WITH_TAINT_TRACKING
+    int srcOffset = dInsn->vC << 3;
+    int numArgs = dInsn->vA;
+    int regMask;
+
+    /*
+     * Note: here, all promoted registers will have been flushed
+     * back to the Dalvik base locations, so register usage restrictins
+     * are lifted.  All parms loaded from original Dalvik register
+     * region - even though some might conceivably have valid copies
+     * cached in a preserved register.
+     */
+    dvmCompilerLockAllTemps(cUnit);
+
+    /*
+     * r4PC     : &r5FP[vC]
+     * r7: &newFP[0]
+     */
+    opRegRegImm(cUnit, kOpAdd, r4PC, r5FP, srcOffset);
+
+    // save numArgs to StackSaveArea
+    opRegRegImm(cUnit, kOpSub, r7, r5FP, sizeof(StackSaveArea));
+    loadConstant(cUnit, r9, numArgs);
+    storeWordDisp(cUnit, r7, offsetof(StackSaveArea, argCount), r9);
+
+    opRegRegImm(cUnit, kOpSub, r7, r5FP,
+                sizeof(StackSaveArea) + (numArgs << 3) + 4);
+    /* generate null check */
+    if (pcrLabel) {
+        *pcrLabel = genNullCheck(cUnit, dvmCompilerSSASrc(mir, 0), r0,
+                                 mir->offset, NULL);
+    }
+
+    if (isNative) {
+        // clear native taint hack
+        loadConstant(cUnit, r9, 0);
+        storeBaseDisp(cUnit, r7, numArgs << 2, r9, kWord);
+
+        if (numArgs>0) {
+            // save first arg in r0
+            loadWordDisp(cUnit, r4PC, 0, r0);
+
+            // push r0
+            opImm(cUnit, kOpPush, (1 << r0 | 1 << r5FP));
+
+            // taint index
+            opRegRegImm(cUnit, kOpAdd, r9, r7, (numArgs << 2) + 4);
+
+            regMask = 0x3;
+            int i;
+            for (i = 0; i < numArgs; i++) {
+                // value+taint
+                loadMultiple(cUnit, r4PC, regMask);
+
+                storeBaseDisp(cUnit, r7, 0, r0, kWord);
+                storeBaseDisp(cUnit, r9, 0, r1, kWord);
+
+                opRegRegImm(cUnit, kOpAdd, r7, r7, 4);
+                opRegRegImm(cUnit, kOpAdd, r9, r9, 4);
+            }
+
+            // pop r0
+            opImm(cUnit, kOpPop, (1 << r0 | 1 << r5FP));
+        }
+    }
+    else {
+        if (numArgs>0) {
+            // save first arg in r0
+            loadWordDisp(cUnit, r4PC, 0, r0);
+
+            // push r0
+            opImm(cUnit, kOpPush, (1 << r0 | 1 << r5FP));
+
+            regMask = 0x3;
+            int i;
+            for (i = 0; i < numArgs; i++) {
+                // value+taint
+                loadMultiple(cUnit, r4PC, regMask);
+                storeMultiple(cUnit, r7, regMask);
+            }
+
+            // pop r0
+            opImm(cUnit, kOpPop, (1 << r0 | 1 << r5FP));
+        }
+
+        // clear native taint hack
+        loadConstant(cUnit, r9, 0);
+        storeBaseDisp(cUnit, r7, 0, r9, kWord);
+    }
+
+    return numArgs;
+#else
     int srcOffset = dInsn->vC << 2;
     int numArgs = dInsn->vA;
     int regMask;
@@ -1102,6 +1525,7 @@ static void genProcessArgsRange(CompilationUnit *cUnit, MIR *mir,
     if ((numArgs > 4) && (numArgs % 4)) {
         storeMultiple(cUnit, r7, regMask);
     }
+#endif /*WITH_TAINT_TRACKING*/
 }
 
 /*
@@ -1492,9 +1916,16 @@ static bool handleFmt10x(CompilationUnit *cUnit, MIR *mir)
         case OP_RETURN_VOID_BARRIER:
             dvmCompilerGenMemBarrier(cUnit, kST);
             // Intentional fallthrough
-        case OP_RETURN_VOID:
+        case OP_RETURN_VOID: {
+#ifdef WITH_TAINT_TRACKING
+    	    int taintClear = dvmCompilerAllocTemp(cUnit);
+    	    loadConstant(cUnit, taintClear, TAINT_CLEAR);
+            storeWordDisp(cUnit, r6SELF, offsetof(Thread, interpSave.rtaint), taintClear);
+            dvmCompilerFreeTemp(cUnit, taintClear);
+#endif /*WITH_TAINT_TRACKING*/
             genReturnCommon(cUnit,mir);
             break;
+        }
         case OP_UNUSED_73:
         case OP_UNUSED_79:
         case OP_UNUSED_7A:
@@ -1525,6 +1956,9 @@ static bool handleFmt11n_Fmt31i(CompilationUnit *cUnit, MIR *mir)
             rlResult = dvmCompilerEvalLoc(cUnit, rlDest, kAnyReg, true);
             loadConstantNoClobber(cUnit, rlResult.lowReg, mir->dalvikInsn.vB);
             storeValue(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+            setTaintClear(cUnit, rlDest);
+#endif /*WITH_TAINT_TRACKING*/
             break;
         }
         case OP_CONST_WIDE_32: {
@@ -1535,6 +1969,9 @@ static bool handleFmt11n_Fmt31i(CompilationUnit *cUnit, MIR *mir)
             opRegRegImm(cUnit, kOpAsr, rlResult.highReg,
                         rlResult.lowReg, 31);
             storeValueWide(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+            setTaintClearWide(cUnit, rlDest);
+#endif /*WITH_TAINT_TRACKING*/
             break;
         }
         default:
@@ -1559,12 +1996,18 @@ static bool handleFmt21h(CompilationUnit *cUnit, MIR *mir)
             loadConstantNoClobber(cUnit, rlResult.lowReg,
                                   mir->dalvikInsn.vB << 16);
             storeValue(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+            setTaintClear(cUnit, rlDest);
+#endif /*WITH_TAINT_TRACKING*/
             break;
         }
         case OP_CONST_WIDE_HIGH16: {
             loadConstantValueWide(cUnit, rlResult.lowReg, rlResult.highReg,
                                   0, mir->dalvikInsn.vB << 16);
             storeValueWide(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+            setTaintClearWide(cUnit, rlDest);
+#endif /*WITH_TAINT_TRACKING*/
             break;
         }
         default:
@@ -1602,6 +2045,9 @@ static bool handleFmt21c_Fmt31c(CompilationUnit *cUnit, MIR *mir)
             rlResult = dvmCompilerEvalLoc(cUnit, rlDest, kCoreReg, true);
             loadConstantNoClobber(cUnit, rlResult.lowReg, (int) strPtr );
             storeValue(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+            setTaintClear(cUnit, rlDest);
+#endif /*WITH_TAINT_TRACKING*/
             break;
         }
         case OP_CONST_CLASS: {
@@ -1618,6 +2064,9 @@ static bool handleFmt21c_Fmt31c(CompilationUnit *cUnit, MIR *mir)
             rlResult = dvmCompilerEvalLoc(cUnit, rlDest, kCoreReg, true);
             loadConstantNoClobber(cUnit, rlResult.lowReg, (int) classPtr );
             storeValue(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+            setTaintClear(cUnit, rlDest);
+#endif /*WITH_TAINT_TRACKING*/
             break;
         }
         case OP_SGET:
@@ -1661,16 +2110,30 @@ static bool handleFmt21c_Fmt31c(CompilationUnit *cUnit, MIR *mir)
 
             rlDest = dvmCompilerGetDest(cUnit, mir, 0);
             rlResult = dvmCompilerEvalLoc(cUnit, rlDest, kAnyReg, true);
+#ifdef WITH_TAINT_TRACKING
+            int taintOffset = OFFSETOF_MEMBER(StaticField, taint);
+            loadConstant(cUnit, tReg,  (int) fieldPtr);
+#else
             loadConstant(cUnit, tReg,  (int) fieldPtr + valOffset);
+#endif /*WITH_TAINT_TRACKING*/
+
 
             if (isVolatile) {
                 dvmCompilerGenMemBarrier(cUnit, kSY);
             }
             HEAP_ACCESS_SHADOW(true);
+#ifdef WITH_TAINT_TRACKING
+            loadWordDisp(cUnit, tReg, valOffset, rlResult.lowReg);
+            loadWordDisp(cUnit, tReg, taintOffset, tReg);
+#else
             loadWordDisp(cUnit, tReg, 0, rlResult.lowReg);
+#endif /*WITH_TAINT_TRACKING*/
             HEAP_ACCESS_SHADOW(false);
 
             storeValue(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+            storeTaintDirect(cUnit, rlDest, tReg);
+#endif /*WITH_TAINT_TRACKING*/
             break;
         }
         case OP_SGET_WIDE: {
@@ -1691,11 +2154,24 @@ static bool handleFmt21c_Fmt31c(CompilationUnit *cUnit, MIR *mir)
             rlResult = dvmCompilerEvalLoc(cUnit, rlDest, kAnyReg, true);
             loadConstant(cUnit, tReg,  (int) fieldPtr + valOffset);
 
+#ifdef WITH_TAINT_TRACKING
+            int taintOffset = OFFSETOF_MEMBER(StaticField, taint);
+            int taint = dvmCompilerAllocTemp(cUnit);
+            loadConstant(cUnit, taint,  (int) fieldPtr + taintOffset);
+#endif /*WITH_TAINT_TRACKING*/
+
             HEAP_ACCESS_SHADOW(true);
             loadPair(cUnit, tReg, rlResult.lowReg, rlResult.highReg);
+#ifdef WITH_TAINT_TRACKING
+            loadWordDisp(cUnit, taint, 0, taint);
+#endif /*WITH_TAINT_TRACKING*/
             HEAP_ACCESS_SHADOW(false);
 
             storeValueWide(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+            storeTaintDirectWide(cUnit, rlDest, taint);
+            dvmCompilerFreeTemp(cUnit, taint);
+#endif /*WITH_TAINT_TRACKING*/
             break;
         }
         case OP_SPUT:
@@ -1737,6 +2213,11 @@ static bool handleFmt21c_Fmt31c(CompilationUnit *cUnit, MIR *mir)
             rlSrc = dvmCompilerGetSrc(cUnit, mir, 0);
             rlSrc = loadValue(cUnit, rlSrc, kAnyReg);
             loadConstant(cUnit, tReg,  (int) fieldPtr);
+#ifdef WITH_TAINT_TRACKING
+            int taintOffset = OFFSETOF_MEMBER(StaticField, taint);
+            int taint = dvmCompilerAllocTemp(cUnit);
+            loadTaintDirect(cUnit, rlSrc, taint);
+#endif /*WITH_TAINT_TRACKING*/
             if (isSputObject) {
                 objHead = dvmCompilerAllocTemp(cUnit);
                 loadWordDisp(cUnit, tReg, OFFSETOF_MEMBER(Field, clazz), objHead);
@@ -1747,6 +2228,10 @@ static bool handleFmt21c_Fmt31c(CompilationUnit *cUnit, MIR *mir)
             HEAP_ACCESS_SHADOW(true);
             storeWordDisp(cUnit, tReg, valOffset ,rlSrc.lowReg);
             dvmCompilerFreeTemp(cUnit, tReg);
+#ifdef WITH_TAINT_TRACKING
+            storeWordDisp(cUnit, tReg, taintOffset, taint);
+            dvmCompilerFreeTemp(cUnit, taint);
+#endif /*WITH_TAINT_TRACKING*/
             HEAP_ACCESS_SHADOW(false);
             if (isVolatile) {
                 dvmCompilerGenMemBarrier(cUnit, kSY);
@@ -1776,9 +2261,19 @@ static bool handleFmt21c_Fmt31c(CompilationUnit *cUnit, MIR *mir)
             rlSrc = dvmCompilerGetSrcWide(cUnit, mir, 0, 1);
             rlSrc = loadValueWide(cUnit, rlSrc, kAnyReg);
             loadConstant(cUnit, tReg,  (int) fieldPtr + valOffset);
+#ifdef WITH_TAINT_TRACKING
+            int taintOffset = OFFSETOF_MEMBER(StaticField, taint);
+            int taint = dvmCompilerAllocTemp(cUnit);
+            loadTaintDirectWide(cUnit, rlSrc, taint);
+#endif /*WITH_TAINT_TRACKING*/
 
             HEAP_ACCESS_SHADOW(true);
             storePair(cUnit, tReg, rlSrc.lowReg, rlSrc.highReg);
+#ifdef WITH_TAINT_TRACKING
+            loadConstant(cUnit, tReg,  (int) fieldPtr + taintOffset);
+            storeWordDisp(cUnit, tReg, 0, taint);
+            dvmCompilerFreeTemp(cUnit, taint);
+#endif /*WITH_TAINT_TRACKING*/
             HEAP_ACCESS_SHADOW(false);
             break;
         }
@@ -1824,6 +2319,9 @@ static bool handleFmt21c_Fmt31c(CompilationUnit *cUnit, MIR *mir)
             rlDest = dvmCompilerGetDest(cUnit, mir, 0);
             rlResult = dvmCompilerGetReturn(cUnit);
             storeValue(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+            setTaintClear(cUnit, rlDest);
+#endif /*WITH_TAINT_TRACKING*/
             break;
         }
         case OP_CHECK_CAST: {
@@ -1919,6 +2417,9 @@ static bool handleFmt11x(CompilationUnit *cUnit, MIR *mir)
             loadConstant(cUnit, resetReg, 0);
             storeWordDisp(cUnit, r6SELF, exOffset, resetReg);
             storeValue(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+            setTaintClear(cUnit, rlDest);
+#endif /*WITH_TAINT_TRACKING*/
            break;
         }
         case OP_MOVE_RESULT:
@@ -1930,6 +2431,12 @@ static bool handleFmt11x(CompilationUnit *cUnit, MIR *mir)
             RegLocation rlSrc = LOC_DALVIK_RETURN_VAL;
             rlSrc.fp = rlDest.fp;
             storeValue(cUnit, rlDest, rlSrc);
+#ifdef WITH_TAINT_TRACKING
+            int taint = dvmCompilerAllocTemp(cUnit);
+            loadWordDisp(cUnit, r6SELF, offsetof(Thread, interpSave.rtaint), taint);
+            storeTaintDirect(cUnit, rlDest, taint);
+            dvmCompilerFreeTemp(cUnit, taint);
+#endif /*WITH_TAINT_TRACKING*/
             break;
         }
         case OP_MOVE_RESULT_WIDE: {
@@ -1940,6 +2447,12 @@ static bool handleFmt11x(CompilationUnit *cUnit, MIR *mir)
             RegLocation rlSrc = LOC_DALVIK_RETURN_VAL_WIDE;
             rlSrc.fp = rlDest.fp;
             storeValueWide(cUnit, rlDest, rlSrc);
+#ifdef WITH_TAINT_TRACKING
+            int taint = dvmCompilerAllocTemp(cUnit);
+            loadWordDisp(cUnit, r6SELF, offsetof(Thread, interpSave.rtaint), taint);
+            storeTaintDirectWide(cUnit, rlDest, taint);
+            dvmCompilerFreeTemp(cUnit, taint);
+#endif /*WITH_TAINT_TRACKING*/
             break;
         }
         case OP_RETURN_WIDE: {
@@ -1947,6 +2460,12 @@ static bool handleFmt11x(CompilationUnit *cUnit, MIR *mir)
             RegLocation rlDest = LOC_DALVIK_RETURN_VAL_WIDE;
             rlDest.fp = rlSrc.fp;
             storeValueWide(cUnit, rlDest, rlSrc);
+#ifdef WITH_TAINT_TRACKING
+            int taint = dvmCompilerAllocTemp(cUnit);
+            loadTaintDirectWide(cUnit, rlSrc, taint);
+            storeWordDisp(cUnit, r6SELF, offsetof(Thread, interpSave.rtaint), taint);
+            dvmCompilerFreeTemp(cUnit, taint);
+#endif /*WITH_TAINT_TRACKING*/
             genReturnCommon(cUnit,mir);
             break;
         }
@@ -1956,6 +2475,12 @@ static bool handleFmt11x(CompilationUnit *cUnit, MIR *mir)
             RegLocation rlDest = LOC_DALVIK_RETURN_VAL;
             rlDest.fp = rlSrc.fp;
             storeValue(cUnit, rlDest, rlSrc);
+#ifdef WITH_TAINT_TRACKING
+            int taint = dvmCompilerAllocTemp(cUnit);
+            loadTaintDirect(cUnit, rlSrc, taint);
+            storeWordDisp(cUnit, r6SELF, offsetof(Thread, interpSave.rtaint), taint);
+            dvmCompilerFreeTemp(cUnit, taint);
+#endif /*WITH_TAINT_TRACKING*/
             genReturnCommon(cUnit, mir);
             break;
         }
@@ -1978,17 +2503,29 @@ static bool handleFmt12x(CompilationUnit *cUnit, MIR *mir)
     RegLocation rlDest;
     RegLocation rlSrc;
     RegLocation rlResult;
+#ifdef WITH_TAINT_TRACKING
+    bool wideSrc = false;
+    bool wideDest = false;
+#endif /*WITH_TAINT_TRACKING*/
 
     if ( (opcode >= OP_ADD_INT_2ADDR) && (opcode <= OP_REM_DOUBLE_2ADDR)) {
         return genArithOp( cUnit, mir );
     }
 
-    if (mir->ssaRep->numUses == 2)
+    if (mir->ssaRep->numUses == 2) {
         rlSrc = dvmCompilerGetSrcWide(cUnit, mir, 0, 1);
+#ifdef WITH_TAINT_TRACKING
+        wideSrc = true;
+#endif /*WITH_TAINT_TRACKING*/
+    }
     else
         rlSrc = dvmCompilerGetSrc(cUnit, mir, 0);
-    if (mir->ssaRep->numDefs == 2)
+    if (mir->ssaRep->numDefs == 2) {
         rlDest = dvmCompilerGetDestWide(cUnit, mir, 0, 1);
+#ifdef WITH_TAINT_TRACKING
+        wideDest = true;
+#endif /*WITH_TAINT_TRACKING*/
+    }
     else
         rlDest = dvmCompilerGetDest(cUnit, mir, 0);
 
@@ -2002,22 +2539,65 @@ static bool handleFmt12x(CompilationUnit *cUnit, MIR *mir)
         case OP_FLOAT_TO_LONG:
         case OP_LONG_TO_FLOAT:
         case OP_DOUBLE_TO_LONG:
-        case OP_LONG_TO_DOUBLE:
+        case OP_LONG_TO_DOUBLE: {
+#ifdef WITH_TAINT_TRACKING
+            bool success = genConversion(cUnit, mir);
+            int taint = dvmCompilerAllocTemp(cUnit);
+            if (wideSrc)
+                loadTaintDirectWide(cUnit, rlSrc, taint);
+            else
+                loadTaintDirect(cUnit, rlSrc, taint);
+            if (wideDest)
+                storeTaintDirectWide(cUnit, rlDest, taint);
+            else
+                storeTaintDirect(cUnit, rlDest, taint);
+            dvmCompilerFreeTemp(cUnit, taint);
+            return success;
+#else
             return genConversion(cUnit, mir);
+#endif /*WITH_TAINT_TRACKING*/
+        }
         case OP_NEG_INT:
         case OP_NOT_INT:
             return genArithOpInt(cUnit, mir, rlDest, rlSrc, rlSrc);
         case OP_NEG_LONG:
         case OP_NOT_LONG:
             return genArithOpLong(cUnit, mir, rlDest, rlSrc, rlSrc);
-        case OP_NEG_FLOAT:
+        case OP_NEG_FLOAT: {
+#ifdef WITH_TAINT_TRACKING
+            bool success = genArithOpFloat(cUnit, mir, rlDest, rlSrc, rlSrc);
+            int taint = dvmCompilerAllocTemp(cUnit);
+            loadTaintDirect(cUnit, rlSrc, taint);
+            storeTaintDirect(cUnit, rlDest, taint);
+            dvmCompilerFreeTemp(cUnit, taint);
+            return success;
+#else
             return genArithOpFloat(cUnit, mir, rlDest, rlSrc, rlSrc);
-        case OP_NEG_DOUBLE:
+#endif /*WITH_TAINT_TRACKING*/
+        }
+        case OP_NEG_DOUBLE: {
+#ifdef WITH_TAINT_TRACKING
+            bool success = genArithOpDouble(cUnit, mir, rlDest, rlSrc, rlSrc);
+            int taint = dvmCompilerAllocTemp(cUnit);
+            loadTaintDirectWide(cUnit, rlSrc, taint);
+            storeTaintDirectWide(cUnit, rlDest, taint);
+            dvmCompilerFreeTemp(cUnit, taint);
+            return success;
+#else
             return genArithOpDouble(cUnit, mir, rlDest, rlSrc, rlSrc);
-        case OP_MOVE_WIDE:
+#endif /*WITH_TAINT_TRACKING*/
+        }
+        case OP_MOVE_WIDE: {
             storeValueWide(cUnit, rlDest, rlSrc);
+#ifdef WITH_TAINT_TRACKING
+            int taint = dvmCompilerAllocTemp(cUnit);
+            loadTaintDirectWide(cUnit, rlSrc, taint);
+            storeTaintDirectWide(cUnit, rlDest, taint);
+            dvmCompilerFreeTemp(cUnit, taint);
+#endif /*WITH_TAINT_TRACKING*/
             break;
-        case OP_INT_TO_LONG:
+        }
+        case OP_INT_TO_LONG: {
             rlSrc = dvmCompilerUpdateLoc(cUnit, rlSrc);
             rlResult = dvmCompilerEvalLoc(cUnit, rlDest, kCoreReg, true);
             //TUNING: shouldn't loadValueDirect already check for phys reg?
@@ -2029,33 +2609,68 @@ static bool handleFmt12x(CompilationUnit *cUnit, MIR *mir)
             opRegRegImm(cUnit, kOpAsr, rlResult.highReg,
                         rlResult.lowReg, 31);
             storeValueWide(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+            int taint = dvmCompilerAllocTemp(cUnit);
+            loadTaintDirect(cUnit, rlSrc, taint);
+            storeTaintDirectWide(cUnit, rlDest, taint);
+            dvmCompilerFreeTemp(cUnit, taint);
+#endif /*WITH_TAINT_TRACKING*/
             break;
+        }
         case OP_LONG_TO_INT:
             rlSrc = dvmCompilerUpdateLocWide(cUnit, rlSrc);
             rlSrc = dvmCompilerWideToNarrow(cUnit, rlSrc);
             // Intentional fallthrough
         case OP_MOVE:
-        case OP_MOVE_OBJECT:
+        case OP_MOVE_OBJECT: {
             storeValue(cUnit, rlDest, rlSrc);
+#ifdef WITH_TAINT_TRACKING
+            int taint = dvmCompilerAllocTemp(cUnit);
+            loadTaintDirect(cUnit, rlSrc, taint);
+            storeTaintDirect(cUnit, rlDest, taint);
+            dvmCompilerFreeTemp(cUnit, taint);
+#endif /*WITH_TAINT_TRACKING*/
             break;
-        case OP_INT_TO_BYTE:
+        }
+        case OP_INT_TO_BYTE: {
             rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
             rlResult = dvmCompilerEvalLoc(cUnit, rlDest, kCoreReg, true);
             opRegReg(cUnit, kOp2Byte, rlResult.lowReg, rlSrc.lowReg);
             storeValue(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+            int taint = dvmCompilerAllocTemp(cUnit);
+            loadTaintDirect(cUnit, rlSrc, taint);
+            storeTaintDirect(cUnit, rlDest, taint);
+            dvmCompilerFreeTemp(cUnit, taint);
+#endif /*WITH_TAINT_TRACKING*/
             break;
-        case OP_INT_TO_SHORT:
+        }
+        case OP_INT_TO_SHORT: {
             rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
             rlResult = dvmCompilerEvalLoc(cUnit, rlDest, kCoreReg, true);
             opRegReg(cUnit, kOp2Short, rlResult.lowReg, rlSrc.lowReg);
             storeValue(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+            int taint = dvmCompilerAllocTemp(cUnit);
+            loadTaintDirect(cUnit, rlSrc, taint);
+            storeTaintDirect(cUnit, rlDest, taint);
+            dvmCompilerFreeTemp(cUnit, taint);
+#endif /*WITH_TAINT_TRACKING*/
             break;
-        case OP_INT_TO_CHAR:
+        }
+        case OP_INT_TO_CHAR: {
             rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
             rlResult = dvmCompilerEvalLoc(cUnit, rlDest, kCoreReg, true);
             opRegReg(cUnit, kOp2Char, rlResult.lowReg, rlSrc.lowReg);
             storeValue(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+            int taint = dvmCompilerAllocTemp(cUnit);
+            loadTaintDirect(cUnit, rlSrc, taint);
+            storeTaintDirect(cUnit, rlDest, taint);
+            dvmCompilerFreeTemp(cUnit, taint);
+#endif /*WITH_TAINT_TRACKING*/
             break;
+        }
         case OP_ARRAY_LENGTH: {
             int lenOffset = OFFSETOF_MEMBER(ArrayObject, length);
             rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
@@ -2065,6 +2680,9 @@ static bool handleFmt12x(CompilationUnit *cUnit, MIR *mir)
             loadWordDisp(cUnit, rlSrc.lowReg, lenOffset,
                          rlResult.lowReg);
             storeValue(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+            setTaintClear(cUnit, rlDest);
+#endif /*WITH_TAINT_TRACKING*/
             break;
         }
         default:
@@ -2086,11 +2704,17 @@ static bool handleFmt21s(CompilationUnit *cUnit, MIR *mir)
         //TUNING: do high separately to avoid load dependency
         opRegRegImm(cUnit, kOpAsr, rlResult.highReg, rlResult.lowReg, 31);
         storeValueWide(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+        setTaintClearWide(cUnit, rlDest);
+#endif /*WITH_TAINT_TRACKING*/
     } else if (dalvikOpcode == OP_CONST_16) {
         rlDest = dvmCompilerGetDest(cUnit, mir, 0);
         rlResult = dvmCompilerEvalLoc(cUnit, rlDest, kAnyReg, true);
         loadConstantNoClobber(cUnit, rlResult.lowReg, BBBB);
         storeValue(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+        setTaintClear(cUnit, rlDest);
+#endif /*WITH_TAINT_TRACKING*/
     } else
         return true;
     return false;
@@ -2291,6 +2915,12 @@ static bool handleFmt22b_Fmt22s(CompilationUnit *cUnit, MIR *mir)
             opRegRegReg(cUnit, kOpSub, rlResult.lowReg,
                         tReg, rlSrc.lowReg);
             storeValue(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+            int taint = dvmCompilerAllocTemp(cUnit);
+            loadTaintDirect(cUnit, rlSrc, taint);
+            storeTaintDirect(cUnit, rlDest, taint);
+            dvmCompilerFreeTemp(cUnit, taint);
+#endif /*WITH_TAINT_TRACKING*/
             return false;
             break;
         }
@@ -2302,6 +2932,12 @@ static bool handleFmt22b_Fmt22s(CompilationUnit *cUnit, MIR *mir)
         case OP_MUL_INT_LIT8:
         case OP_MUL_INT_LIT16: {
             if (handleEasyMultiply(cUnit, rlSrc, rlDest, lit)) {
+#ifdef WITH_TAINT_TRACKING
+                int taint = dvmCompilerAllocTemp(cUnit);
+                loadTaintDirect(cUnit, rlSrc, taint);
+                storeTaintDirect(cUnit, rlDest, taint);
+                dvmCompilerFreeTemp(cUnit, taint);
+#endif /*WITH_TAINT_TRACKING*/
                 return false;
             }
             op = kOpMul;
@@ -2338,13 +2974,19 @@ static bool handleFmt22b_Fmt22s(CompilationUnit *cUnit, MIR *mir)
         case OP_DIV_INT_LIT8:
         case OP_DIV_INT_LIT16:
         case OP_REM_INT_LIT8:
-        case OP_REM_INT_LIT16:
+        case OP_REM_INT_LIT16: {
             if (lit == 0) {
                 /* Let the interpreter deal with div by 0 */
                 genInterpSingleStep(cUnit, mir);
                 return false;
             }
             if (handleEasyDivide(cUnit, dalvikOpcode, rlSrc, rlDest, lit)) {
+#ifdef WITH_TAINT_TRACKING
+                int taint = dvmCompilerAllocTemp(cUnit);
+                loadTaintDirect(cUnit, rlSrc, taint);
+                storeTaintDirect(cUnit, rlDest, taint);
+                dvmCompilerFreeTemp(cUnit, taint);
+#endif /*WITH_TAINT_TRACKING*/
                 return false;
             }
             dvmCompilerFlushAllRegs(cUnit);   /* Everything to home location */
@@ -2366,8 +3008,15 @@ static bool handleFmt22b_Fmt22s(CompilationUnit *cUnit, MIR *mir)
             else
                 rlResult = dvmCompilerGetReturnAlt(cUnit);
             storeValue(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+    	    int taint = dvmCompilerAllocTemp(cUnit);
+            loadTaintDirect(cUnit, rlSrc, taint);
+            storeTaintDirect(cUnit, rlDest, taint);
+            dvmCompilerFreeTemp(cUnit, taint);
+#endif /*WITH_TAINT_TRACKING*/
             return false;
             break;
+        }
         default:
             return true;
     }
@@ -2380,6 +3029,12 @@ static bool handleFmt22b_Fmt22s(CompilationUnit *cUnit, MIR *mir)
         opRegRegImm(cUnit, op, rlResult.lowReg, rlSrc.lowReg, lit);
     }
     storeValue(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+    int taint = dvmCompilerAllocTemp(cUnit);
+    loadTaintDirect(cUnit, rlSrc, taint);
+    storeTaintDirect(cUnit, rlDest, taint);
+    dvmCompilerFreeTemp(cUnit, taint);
+#endif /*WITH_TAINT_TRACKING*/
     return false;
 }
 
@@ -2483,6 +3138,9 @@ static bool handleFmt22c(CompilationUnit *cUnit, MIR *mir)
             branchOver->generic.target = (LIR *) target;
             rlResult = dvmCompilerGetReturn(cUnit);
             storeValue(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+            setTaintClear(cUnit, rlDest);
+#endif /*WITH_TAINT_TRACKING*/
             break;
         }
         case OP_INSTANCE_OF: {
@@ -2527,6 +3185,9 @@ static bool handleFmt22c(CompilationUnit *cUnit, MIR *mir)
             target->defMask = ENCODE_ALL;
             rlResult = dvmCompilerGetReturn(cUnit);
             storeValue(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+            setTaintClear(cUnit, rlDest);
+#endif /*WITH_TAINT_TRACKING*/
             branch1->generic.target = (LIR *)target;
             branch2->generic.target = (LIR *)target;
             break;
@@ -2660,12 +3321,24 @@ static bool handleFmt22x_Fmt32x(CompilationUnit *cUnit, MIR *mir)
         case OP_MOVE_OBJECT_FROM16: {
             storeValue(cUnit, dvmCompilerGetDest(cUnit, mir, 0),
                        dvmCompilerGetSrc(cUnit, mir, 0));
+#ifdef WITH_TAINT_TRACKING
+            int taint = dvmCompilerAllocTemp(cUnit);
+            loadTaintDirect(cUnit, dvmCompilerGetSrc(cUnit, mir, 0), taint);
+            storeTaintDirect(cUnit, dvmCompilerGetDest(cUnit, mir, 0), taint);
+            dvmCompilerFreeTemp(cUnit, taint);
+#endif /*WITH_TAINT_TRACKING*/
             break;
         }
         case OP_MOVE_WIDE_16:
         case OP_MOVE_WIDE_FROM16: {
             storeValueWide(cUnit, dvmCompilerGetDestWide(cUnit, mir, 0, 1),
                            dvmCompilerGetSrcWide(cUnit, mir, 0, 1));
+#ifdef WITH_TAINT_TRACKING
+            int taint = dvmCompilerAllocTemp(cUnit);
+            loadTaintDirectWide(cUnit, dvmCompilerGetSrcWide(cUnit, mir, 0, 1), taint);
+            storeTaintDirectWide(cUnit, dvmCompilerGetDestWide(cUnit, mir, 0, 1), taint);
+            dvmCompilerFreeTemp(cUnit, taint);
+#endif /*WITH_TAINT_TRACKING*/
             break;
         }
         default:
@@ -2720,11 +3393,23 @@ static bool handleFmt23x(CompilationUnit *cUnit, MIR *mir)
         case OP_CMPL_FLOAT:
         case OP_CMPG_FLOAT:
         case OP_CMPL_DOUBLE:
-        case OP_CMPG_DOUBLE:
+        case OP_CMPG_DOUBLE: {
+#ifdef WITH_TAINT_TRACKING
+            bool success;
+            success = genCmpFP(cUnit, mir, rlDest, rlSrc1, rlSrc2);
+            setTaintClear(cUnit, rlDest);
+    	    return success;
+#else
             return genCmpFP(cUnit, mir, rlDest, rlSrc1, rlSrc2);
-        case OP_CMP_LONG:
+#endif /*WITH_TAINT_TRACKING*/
+        }
+        case OP_CMP_LONG: {
             genCmpLong(cUnit, mir, rlDest, rlSrc1, rlSrc2);
+#ifdef WITH_TAINT_TRACKING
+            setTaintClear(cUnit, rlDest);
+#endif /*WITH_TAINT_TRACKING*/ 
             break;
+        }
         case OP_AGET_WIDE:
             genArrayGet(cUnit, mir, kLong, rlSrc1, rlSrc2, rlDest, 3);
             break;
@@ -3013,6 +3698,11 @@ static bool handleFmt35c_3rc(CompilationUnit *cUnit, MIR *mir,
                 cUnit->method->clazz->pDvmDex->pResMethods[dInsn->vB]->
                 methodIndex;
 
+#ifdef WITH_TAINT_TRACKING
+            const Method *calleeMethod = mir->meta.callsiteInfo->method;
+            bool nativeTarget = dvmIsNativeMethod(calleeMethod);
+#endif /*WITH_TAINT_TRACKING*/
+
             /*
              * If the invoke has non-null misPredBranchOver, we need to generate
              * the non-inlined version of the invoke here to handle the
@@ -3022,10 +3712,18 @@ static bool handleFmt35c_3rc(CompilationUnit *cUnit, MIR *mir,
                 genLandingPadForMispredictedCallee(cUnit, mir, bb, labelList);
             }
 
+#ifdef WITH_TAINT_TRACKING
+            int numArgs = 0;
+            if (mir->dalvikInsn.opcode == OP_INVOKE_VIRTUAL)
+                numArgs = genProcessArgsNoRange(cUnit, mir, dInsn, nativeTarget, &pcrLabel);
+            else
+                numArgs = genProcessArgsRange(cUnit, mir, dInsn, nativeTarget, &pcrLabel);
+#else
             if (mir->dalvikInsn.opcode == OP_INVOKE_VIRTUAL)
                 genProcessArgsNoRange(cUnit, mir, dInsn, &pcrLabel);
             else
                 genProcessArgsRange(cUnit, mir, dInsn, &pcrLabel);
+#endif /*WITH_TAINT_TRACKING*/
 
             genInvokeVirtualCommon(cUnit, mir, methodIndex,
                                    retChainingCell,
@@ -3045,10 +3743,20 @@ static bool handleFmt35c_3rc(CompilationUnit *cUnit, MIR *mir,
                                      cUnit->method->clazz->pDvmDex->
                                        pResMethods[dInsn->vB]->methodIndex]);
 
+#ifdef WITH_TAINT_TRACKING
+            bool nativeTarget = dvmIsNativeMethod(calleeMethod);
+
+            int numArgs = 0;
+            if (mir->dalvikInsn.opcode == OP_INVOKE_SUPER)
+                numArgs = genProcessArgsNoRange(cUnit, mir, dInsn, nativeTarget, &pcrLabel);
+            else
+                numArgs = genProcessArgsRange(cUnit, mir, dInsn, nativeTarget, &pcrLabel);
+#else
             if (mir->dalvikInsn.opcode == OP_INVOKE_SUPER)
                 genProcessArgsNoRange(cUnit, mir, dInsn, &pcrLabel);
             else
                 genProcessArgsRange(cUnit, mir, dInsn, &pcrLabel);
+#endif /*WITH_TAINT_TRACKING*/
 
             if (mir->OptimizationFlags & MIR_INVOKE_METHOD_JIT) {
                 const Method *calleeMethod = mir->meta.callsiteInfo->method;
@@ -3073,10 +3781,20 @@ static bool handleFmt35c_3rc(CompilationUnit *cUnit, MIR *mir,
             assert(calleeMethod ==
                    cUnit->method->clazz->pDvmDex->pResMethods[dInsn->vB]);
 
+#ifdef WITH_TAINT_TRACKING
+            bool nativeTarget = dvmIsNativeMethod(calleeMethod);
+
+            int numArgs = 0;
+            if (mir->dalvikInsn.opcode == OP_INVOKE_DIRECT)
+                numArgs = genProcessArgsNoRange(cUnit, mir, dInsn, nativeTarget, &pcrLabel);
+            else
+                numArgs = genProcessArgsRange(cUnit, mir, dInsn, nativeTarget, &pcrLabel);
+#else
             if (mir->dalvikInsn.opcode == OP_INVOKE_DIRECT)
                 genProcessArgsNoRange(cUnit, mir, dInsn, &pcrLabel);
             else
                 genProcessArgsRange(cUnit, mir, dInsn, &pcrLabel);
+#endif /*WITH_TAINT_TRACKING*/
 
             /* r0 = calleeMethod */
             loadConstant(cUnit, r0, (int) calleeMethod);
@@ -3093,12 +3811,24 @@ static bool handleFmt35c_3rc(CompilationUnit *cUnit, MIR *mir,
             assert(calleeMethod ==
                    cUnit->method->clazz->pDvmDex->pResMethods[dInsn->vB]);
 
+#ifdef WITH_TAINT_TRACKING
+            bool nativeTarget = dvmIsNativeMethod(calleeMethod);
+
+            int numArgs = 0;
+            if (mir->dalvikInsn.opcode == OP_INVOKE_STATIC)
+                numArgs = genProcessArgsNoRange(cUnit, mir, dInsn, nativeTarget,
+                                      NULL /* no null check */);
+            else
+                numArgs = genProcessArgsRange(cUnit, mir, dInsn, nativeTarget,
+                                    NULL /* no null check */);
+#else
             if (mir->dalvikInsn.opcode == OP_INVOKE_STATIC)
                 genProcessArgsNoRange(cUnit, mir, dInsn,
                                       NULL /* no null check */);
             else
                 genProcessArgsRange(cUnit, mir, dInsn,
                                     NULL /* no null check */);
+#endif /*WITH_TAINT_TRACKING*/
 
             if (mir->OptimizationFlags & MIR_INVOKE_METHOD_JIT) {
                 const Method *calleeMethod = mir->meta.callsiteInfo->method;
@@ -3199,10 +3929,21 @@ static bool handleFmt35c_3rc(CompilationUnit *cUnit, MIR *mir,
                 genLandingPadForMispredictedCallee(cUnit, mir, bb, labelList);
             }
 
+#ifdef WITH_TAINT_TRACKING
+            const Method *calleeMethod = mir->meta.callsiteInfo->method;
+            bool nativeTarget = dvmIsNativeMethod(calleeMethod);
+
+            int numArgs = 0;
+            if (mir->dalvikInsn.opcode == OP_INVOKE_INTERFACE)
+                numArgs = genProcessArgsNoRange(cUnit, mir, dInsn, nativeTarget, &pcrLabel);
+            else
+                numArgs = genProcessArgsRange(cUnit, mir, dInsn, nativeTarget, &pcrLabel);
+#else
             if (mir->dalvikInsn.opcode == OP_INVOKE_INTERFACE)
                 genProcessArgsNoRange(cUnit, mir, dInsn, &pcrLabel);
             else
                 genProcessArgsRange(cUnit, mir, dInsn, &pcrLabel);
+#endif /*WITH_TAINT_TRACKING*/
 
             /* "this" is already left in r0 by genProcessArgs* */
 
@@ -3375,11 +4116,21 @@ static bool handleFmt35ms_3rms(CompilationUnit *cUnit, MIR *mir,
                 genLandingPadForMispredictedCallee(cUnit, mir, bb, labelList);
             }
 
+#ifdef WITH_TAINT_TRACKING
+            const Method *calleeMethod = mir->meta.callsiteInfo->method;
+            bool nativeTarget = dvmIsNativeMethod(calleeMethod);
+
+            int numArgs = 0;
+            if (mir->dalvikInsn.opcode == OP_INVOKE_VIRTUAL_QUICK)
+                numArgs = genProcessArgsNoRange(cUnit, mir, dInsn, nativeTarget, &pcrLabel);
+            else
+                numArgs = genProcessArgsRange(cUnit, mir, dInsn, nativeTarget, &pcrLabel);
+#else
             if (mir->dalvikInsn.opcode == OP_INVOKE_VIRTUAL_QUICK)
                 genProcessArgsNoRange(cUnit, mir, dInsn, &pcrLabel);
             else
                 genProcessArgsRange(cUnit, mir, dInsn, &pcrLabel);
-
+#endif /*WITH_TAINT_TRACKING*/
 
             if (mir->OptimizationFlags & MIR_INVOKE_METHOD_JIT) {
                 const Method *calleeMethod = mir->meta.callsiteInfo->method;
@@ -3403,10 +4154,20 @@ static bool handleFmt35ms_3rms(CompilationUnit *cUnit, MIR *mir,
             assert(calleeMethod ==
                    cUnit->method->clazz->super->vtable[dInsn->vB]);
 
+#ifdef WITH_TAINT_TRACKING
+            bool nativeTarget = dvmIsNativeMethod(calleeMethod);
+
+            int numArgs = 0;
+            if (mir->dalvikInsn.opcode == OP_INVOKE_SUPER_QUICK)
+                numArgs = genProcessArgsNoRange(cUnit, mir, dInsn, nativeTarget, &pcrLabel);
+            else
+                numArgs = genProcessArgsRange(cUnit, mir, dInsn, nativeTarget, &pcrLabel);
+#else
             if (mir->dalvikInsn.opcode == OP_INVOKE_SUPER_QUICK)
                 genProcessArgsNoRange(cUnit, mir, dInsn, &pcrLabel);
             else
                 genProcessArgsRange(cUnit, mir, dInsn, &pcrLabel);
+#endif /*WITH_TAINT_TRACKING*/
 
             /* r0 = calleeMethod */
             loadConstant(cUnit, r0, (int) calleeMethod);
@@ -3447,8 +4208,15 @@ static bool genInlinedCompareTo(CompilationUnit *cUnit, MIR *mir)
      * expansion.
      */
     genDispatchToHandler(cUnit, TEMPLATE_STRING_COMPARETO);
+#ifdef WITH_TAINT_TRACKING
+    RegLocation rlDest = inlinedTarget(cUnit, mir, false);
+    storeValue(cUnit, rlDest,
+               dvmCompilerGetReturn(cUnit));
+    setTaintClear(cUnit, rlDest);
+#else
     storeValue(cUnit, inlinedTarget(cUnit, mir, false),
                dvmCompilerGetReturn(cUnit));
+#endif /*WITH_TAINT_TRACKING*/
     return false;
 #endif
 }
@@ -3468,8 +4236,15 @@ static bool genInlinedFastIndexOf(CompilationUnit *cUnit, MIR *mir)
     /* Test objects for NULL */
     genNullCheck(cUnit, rlThis.sRegLow, r0, mir->offset, NULL);
     genDispatchToHandler(cUnit, TEMPLATE_STRING_INDEXOF);
+#ifdef WITH_TAINT_TRACKING
+    RegLocation rlDest = inlinedTarget(cUnit, mir, false);
+    storeValue(cUnit, rlDest,
+               dvmCompilerGetReturn(cUnit));
+    setTaintClear(cUnit, rlDest);
+#else
     storeValue(cUnit, inlinedTarget(cUnit, mir, false),
                dvmCompilerGetReturn(cUnit));
+#endif /*WITH_TAINT_TRACKING*/
     return false;
 #endif
 }
@@ -3493,6 +4268,9 @@ static bool genInlinedStringIsEmptyOrLength(CompilationUnit *cUnit, MIR *mir,
         opRegRegReg(cUnit, kOpAdc, rlResult.lowReg, rlResult.lowReg, tReg);
     }
     storeValue(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+    setTaintClear(cUnit, rlDest);
+#endif /*WITH_TAINT_TRACKING*/
     return false;
 }
 
@@ -3523,12 +4301,25 @@ static bool genInlinedStringCharAt(CompilationUnit *cUnit, MIR *mir)
     loadWordDisp(cUnit, rlObj.lowReg, gDvm.offJavaLangString_count, regMax);
     loadWordDisp(cUnit, rlObj.lowReg, gDvm.offJavaLangString_offset, regOff);
     loadWordDisp(cUnit, rlObj.lowReg, gDvm.offJavaLangString_value, regPtr);
+#ifdef WITH_TAINT_TRACKING
+    int strTaint = dvmCompilerAllocTemp(cUnit);
+    int idxTaint = dvmCompilerAllocTemp(cUnit);
+    int taintOffset = OFFSETOF_MEMBER(ArrayObject, taint);
+    loadWordDisp(cUnit, regPtr, taintOffset, strTaint);
+    loadTaintDirect(cUnit, rlIdx, idxTaint);
+#endif /*WITH_TAINT_TRACKING*/
     genBoundsCheck(cUnit, rlIdx.lowReg, regMax, mir->offset, pcrLabel);
     dvmCompilerFreeTemp(cUnit, regMax);
     opRegImm(cUnit, kOpAdd, regPtr, contents);
     opRegReg(cUnit, kOpAdd, regOff, rlIdx.lowReg);
     rlResult = dvmCompilerEvalLoc(cUnit, rlDest, kCoreReg, true);
     loadBaseIndexed(cUnit, regPtr, regOff, rlResult.lowReg, 1, kUnsignedHalf);
+#ifdef WITH_TAINT_TRACKING
+    opRegRegReg(cUnit, kOpOr, strTaint, idxTaint, strTaint);
+    storeTaintDirect(cUnit, rlDest, strTaint);
+    dvmCompilerFreeTemp(cUnit, strTaint);
+    dvmCompilerFreeTemp(cUnit, idxTaint);
+#endif /*WITH_TAINT_TRACKING*/
     storeValue(cUnit, rlDest, rlResult);
     return false;
 }
@@ -3549,6 +4340,12 @@ static bool genInlinedAbsInt(CompilationUnit *cUnit, MIR *mir)
     opRegRegReg(cUnit, kOpAdd, rlResult.lowReg, rlSrc.lowReg, signReg);
     opRegReg(cUnit, kOpXor, rlResult.lowReg, signReg);
     storeValue(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+    int taint = dvmCompilerAllocTemp(cUnit);
+    loadTaintDirect(cUnit, rlSrc, taint);
+    storeTaintDirect(cUnit, rlDest, taint);
+    dvmCompilerFreeTemp(cUnit, taint);
+#endif /*WITH_TAINT_TRACKING*/
     return false;
 }
 
@@ -3571,6 +4368,12 @@ static bool genInlinedAbsLong(CompilationUnit *cUnit, MIR *mir)
     opRegReg(cUnit, kOpXor, rlResult.lowReg, signReg);
     opRegReg(cUnit, kOpXor, rlResult.highReg, signReg);
     storeValueWide(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+    int taint = dvmCompilerAllocTemp(cUnit);
+    loadTaintDirectWide(cUnit, rlSrc, taint);
+    storeTaintDirectWide(cUnit, rlDest, taint);
+    dvmCompilerFreeTemp(cUnit, taint);
+#endif /*WITH_TAINT_TRACKING*/
     return false;
 }
 
@@ -3580,6 +4383,12 @@ static bool genInlinedIntFloatConversion(CompilationUnit *cUnit, MIR *mir)
     RegLocation rlSrc = dvmCompilerGetSrc(cUnit, mir, 0);
     RegLocation rlDest = inlinedTarget(cUnit, mir, false);
     storeValue(cUnit, rlDest, rlSrc);
+#ifdef WITH_TAINT_TRACKING
+    int taint = dvmCompilerAllocTemp(cUnit);
+    loadTaintDirect(cUnit, rlSrc, taint);
+    storeTaintDirect(cUnit, rlDest, taint);
+    dvmCompilerFreeTemp(cUnit, taint);
+#endif /*WITH_TAINT_TRACKING*/
     return false;
 }
 
@@ -3589,6 +4398,12 @@ static bool genInlinedLongDoubleConversion(CompilationUnit *cUnit, MIR *mir)
     RegLocation rlSrc = dvmCompilerGetSrcWide(cUnit, mir, 0, 1);
     RegLocation rlDest = inlinedTargetWide(cUnit, mir, false);
     storeValueWide(cUnit, rlDest, rlSrc);
+#ifdef WITH_TAINT_TRACKING
+    int taint = dvmCompilerAllocTemp(cUnit);
+    loadTaintDirectWide(cUnit, rlSrc, taint);
+    storeTaintDirectWide(cUnit, rlDest, taint);
+    dvmCompilerFreeTemp(cUnit, taint);
+#endif /*WITH_TAINT_TRACKING*/
     return false;
 }
 
@@ -3612,15 +4427,33 @@ static bool handleExecuteInlineC(CompilationUnit *cUnit, MIR *mir)
     dvmCompilerClobber(cUnit, r4PC);
     dvmCompilerClobber(cUnit, r7);
     int offset = offsetof(Thread, interpSave.retval);
-    opRegRegImm(cUnit, kOpAdd, r4PC, r6SELF, offset);
-    opImm(cUnit, kOpPush, (1<<r4PC) | (1<<r7));
+#ifdef WITH_TAINT_TRACKING
+    int offset_rtaint = offsetof(Thread, interpSave.rtaint);
+
+//    opRegRegImm(cUnit, kOpAdd, r4PC, r6SELF, offset);
+//    opImm(cUnit, kOpPush, (1<<r4PC) | (1<<r7));
+    // using r2, r3, r4PC, r7 as temps
+    opRegRegImm(cUnit, kOpAdd, r7, r6SELF, offset);
+    opRegRegImm(cUnit, kOpAdd, r4PC, r6SELF, offset_rtaint);
+    loadConstant(cUnit, r2, 0);
+    loadConstant(cUnit, r3, 0);
+    if (dInsn->vA > 1)
+        loadTaintDirect(cUnit, dvmCompilerGetSrc(cUnit, mir, 1), r3);
+    if (dInsn->vA > 0)
+        loadTaintDirect(cUnit, dvmCompilerGetSrc(cUnit, mir, 0), r2);
+    opImm(cUnit, kOpPush, (1<<r2) | (1<<r3) | (1<<r4PC) | (1<<r7) );    // push arg0_taint, arg1_taint, push rtaint, retval
+#endif /*WITH_TAINT_TRACKING*/
     LOAD_FUNC_ADDR(cUnit, r4PC, fn);
     genExportPC(cUnit, mir);
     for (i=0; i < dInsn->vA; i++) {
         loadValueDirect(cUnit, dvmCompilerGetSrc(cUnit, mir, i), i);
     }
     opReg(cUnit, kOpBlx, r4PC);
-    opRegImm(cUnit, kOpAdd, r13sp, 8);
+#ifdef WITH_TAINT_TRACKING
+     opRegImm(cUnit, kOpAdd, r13sp, 16);
+#else
+     opRegImm(cUnit, kOpAdd, r13sp, 8);
+#endif /*WITH_TAINT_TRACKING*/
     /* NULL? */
     ArmLIR *branchOver = genCmpImmBranch(cUnit, kArmCondNe, r0, 0);
     loadConstant(cUnit, r0, (int) (cUnit->method->insns + mir->offset));
@@ -3711,6 +4544,9 @@ static bool handleFmt51l(CompilationUnit *cUnit, MIR *mir)
     loadConstantNoClobber(cUnit, rlResult.highReg,
                           (mir->dalvikInsn.vB_wide>>32) & 0xFFFFFFFFUL);
     storeValueWide(cUnit, rlDest, rlResult);
+#ifdef WITH_TAINT_TRACKING
+    setTaintClearWide(cUnit, rlDest);
+#endif /*WITH_TAINT_TRACKING*/
     return false;
 }
 

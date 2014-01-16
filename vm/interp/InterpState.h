@@ -24,6 +24,10 @@
 #ifndef DALVIK_INTERP_STATE_H_
 #define DALVIK_INTERP_STATE_H_
 
+#ifdef WITH_TAINT_TRACKING
+#include "interp/Taint.h"
+#endif
+
 /*
  * For x86 JIT. In the lowered code sequences for bytecodes, at most 10
  * temporary variables may be live at the same time. Therefore, at most
@@ -111,6 +115,9 @@ struct InterpSaveState {
     const Method    *method;    // Method being executed
     DvmDex*         methodClassDex;
     JValue          retval;
+#ifdef WITH_TAINT_TRACKING
+    Taint       rtaint;			// return taint value
+#endif /* WITH_TAINT_TRACKING */
     void*           bailPtr;
 #if defined(WITH_TRACKREF_CHECKS)
     int             debugTrackedRefStart;

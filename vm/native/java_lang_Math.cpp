@@ -62,6 +62,20 @@ static void Math_sqrt(const u4* args, JValue* pResult)
     MAKE_INTRINSIC_TRAMPOLINE(javaLangMath_sqrt);
 }
 
+#ifdef WITH_TAINT_TRACKING
+const DalvikNativeMethod dvm_java_lang_Math[] = {
+    { "abs_intrinsic",  "(D)D",  Math_absD },
+    { "abs_intrinsic",  "(F)F",  Math_absF },
+    { "abs_intrinsic",  "(I)I",  Math_absI },
+    { "abs_intrinsic",  "(J)J",  Math_absJ },
+    { "cos_intrinsic",  "(D)D",  Math_cos },
+    { "max_intrinsic",  "(II)I", Math_maxI },
+    { "min_intrinsic",  "(II)I", Math_minI },
+    { "sin_intrinsic",  "(D)D",  Math_sin },
+    { "sqrt_intrinsic", "(D)D",  Math_sqrt },
+    { NULL, NULL, NULL },
+};
+#else
 const DalvikNativeMethod dvm_java_lang_Math[] = {
     { "abs",  "(D)D",  Math_absD },
     { "abs",  "(F)F",  Math_absF },
@@ -74,3 +88,4 @@ const DalvikNativeMethod dvm_java_lang_Math[] = {
     { "sqrt", "(D)D",  Math_sqrt },
     { NULL, NULL, NULL },
 };
+#endif /*WITH_TAINT_TRACKING*/

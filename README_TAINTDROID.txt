@@ -30,6 +30,9 @@ The TaintDroidNotify app was originally written by:
 
  Gabriel Maganis <maganis@cs.ucdavis.edu>
 
+The port of TaintDroid to Android 4.3 was implemented by:
+ Ben Andow <beandow@ncsu.edu>
+
 
 Unless otherwise noted, all code additions are ...
 

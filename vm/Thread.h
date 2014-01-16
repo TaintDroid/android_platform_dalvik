@@ -75,9 +75,15 @@ void dvmSlayDaemons(void);
 #define kInternalRefDefault     32      /* equally arbitrary */
 #define kInternalRefMax         4096    /* mainly a sanity check */
 
+#ifdef WITH_TAINT_TRACKING
+# define kMinStackSize       (1024 + STACK_OVERFLOW_RESERVE)
+# define kDefaultStackSize   (32*1024)    /* eight 4K pages */
+# define kMaxStackSize       (512*1024 + STACK_OVERFLOW_RESERVE)
+#else
 #define kMinStackSize       (512 + STACK_OVERFLOW_RESERVE)
 #define kDefaultStackSize   (16*1024)   /* four 4K pages */
 #define kMaxStackSize       (256*1024 + STACK_OVERFLOW_RESERVE)
+#endif
 
 /*
  * Interpreter control struction.  Packed into a long long to enable

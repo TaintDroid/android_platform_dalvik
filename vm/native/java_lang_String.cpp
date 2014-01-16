@@ -57,6 +57,18 @@ static void String_length(const u4* args, JValue* pResult)
     MAKE_INTRINSIC_TRAMPOLINE(javaLangString_length);
 }
 
+#ifdef WITH_TAINT_TRACKING
+const DalvikNativeMethod dvm_java_lang_String[] = {
+    { "charAt_intrinsic",      "(I)C",                  String_charAt },
+    { "compareTo_intrinsic",   "(Ljava/lang/String;)I", String_compareTo },
+    { "equals_intrinsic",      "(Ljava/lang/Object;)Z", String_equals },
+    { "fastIndexOf_intrinsic", "(II)I",                 String_fastIndexOf },
+    { "intern",      "()Ljava/lang/String;",  String_intern },
+    { "isEmpty_intrinsic",     "()Z",                   String_isEmpty },
+    { "length_intrinsic",      "()I",                   String_length },
+    { NULL, NULL, NULL },
+};
+#else
 const DalvikNativeMethod dvm_java_lang_String[] = {
     { "charAt",      "(I)C",                  String_charAt },
     { "compareTo",   "(Ljava/lang/String;)I", String_compareTo },
@@ -67,3 +79,4 @@ const DalvikNativeMethod dvm_java_lang_String[] = {
     { "length",      "()I",                   String_length },
     { NULL, NULL, NULL },
 };
+#endif /*WITH_TAINT_TRACKING*/

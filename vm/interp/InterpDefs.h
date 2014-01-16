@@ -24,6 +24,10 @@
 #ifndef DALVIK_INTERP_DEFS_H_
 #define DALVIK_INTERP_DEFS_H_
 
+#ifdef WITH_TAINT_TRACKING
+#include "interp/Taint.h"
+#endif
+
 #if defined(WITH_JIT)
 /*
  * Size of save area for callee-save FP regs, which are not automatically

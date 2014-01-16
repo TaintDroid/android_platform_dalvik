@@ -32,9 +32,18 @@ static void Double_longBitsToDouble(const u4* args, JValue* pResult)
     MAKE_INTRINSIC_TRAMPOLINE(javaLangDouble_longBitsToDouble);
 }
 
+#ifdef WITH_TAINT_TRACKING
+const DalvikNativeMethod dvm_java_lang_Double[] = {
+    { "doubleToLongBits_intrinsic",    "(D)J", Double_doubleToLongBits },
+    { "doubleToRawLongBits_intrinsic", "(D)J", Double_doubleToRawLongBits },
+    { "longBitsToDouble_intrinsic",    "(J)D", Double_longBitsToDouble },
+    { NULL, NULL, NULL },
+};
+#else
 const DalvikNativeMethod dvm_java_lang_Double[] = {
     { "doubleToLongBits",    "(D)J", Double_doubleToLongBits },
     { "doubleToRawLongBits", "(D)J", Double_doubleToRawLongBits },
     { "longBitsToDouble",    "(J)D", Double_longBitsToDouble },
     { NULL, NULL, NULL },
 };
+#endif /*WITH_TAINT_TRACKING*/

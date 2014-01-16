@@ -60,8 +60,14 @@ static void loadValueDirect(CompilationUnit *cUnit, RegLocation rlSrc,
         loadWordDisp(cUnit, rSELF, offsetof(Thread, interpSave.retval), reg1);
     } else {
         assert(rlSrc.location == kLocDalvikFrame);
+#ifdef WITH_TAINT_TRACKING
+        // interleaved taint tags
+        loadWordDisp(cUnit, rFP, dvmCompilerS2VReg(cUnit, rlSrc.sRegLow) << 3,
+                     reg1);
+#else
         loadWordDisp(cUnit, rFP, dvmCompilerS2VReg(cUnit, rlSrc.sRegLow) << 2,
                      reg1);
+#endif /*WITH_TAINT_TRACKING*/
     }
 }
 
@@ -95,9 +101,15 @@ static void loadValueDirectWide(CompilationUnit *cUnit, RegLocation rlSrc,
                          regLo, regHi, INVALID_SREG);
     } else {
         assert(rlSrc.location == kLocDalvikFrame);
+#ifdef WITH_TAINT_TRACKING
+        // interleaved taint tags
+        loadWordDisp(cUnit, rFP, dvmCompilerS2VReg(cUnit, rlSrc.sRegLow) << 3, regLo);
+        loadWordDisp(cUnit, rFP, (dvmCompilerS2VReg(cUnit, rlSrc.sRegLow) << 3) + 8, regHi);
+#else
             loadBaseDispWide(cUnit, NULL, rFP,
                              dvmCompilerS2VReg(cUnit, rlSrc.sRegLow) << 2,
                              regLo, regHi, INVALID_SREG);
+#endif /*WITH_TAINT_TRACKING*/
     }
 }
 
@@ -174,13 +186,67 @@ static void storeValue(CompilationUnit *cUnit, RegLocation rlDest,
         if (dvmCompilerLiveOut(cUnit, rlDest.sRegLow)) {
             defStart = (LIR *)cUnit->lastLIRInsn;
             int vReg = dvmCompilerS2VReg(cUnit, rlDest.sRegLow);
+#ifdef WITH_TAINT_TRACKING
+            storeBaseDisp(cUnit, rFP, vReg << 3, rlDest.lowReg, kWord);
+#else
             storeBaseDisp(cUnit, rFP, vReg << 2, rlDest.lowReg, kWord);
+#endif /*WITH_TAINT_TRACKING*/
             dvmCompilerMarkClean(cUnit, rlDest.lowReg);
             defEnd = (LIR *)cUnit->lastLIRInsn;
             dvmCompilerMarkDef(cUnit, rlDest, defStart, defEnd);
         }
     }
 }
+
+#ifdef WITH_TAINT_TRACKING
+static void storeTaintDirect(CompilationUnit *cUnit, RegLocation rlDest, int reg1)
+{
+    int vReg = dvmCompilerS2VReg(cUnit, rlDest.sRegLow);
+    storeBaseDisp(cUnit, rFP, (vReg << 3) + 4, reg1, kWord);
+}
+
+static void storeTaintDirectWide(CompilationUnit *cUnit, RegLocation rlDest, int reg1)
+{
+    int vReg = dvmCompilerS2VReg(cUnit, rlDest.sRegLow);
+    storeBaseDisp(cUnit, rFP, (vReg << 3) + 4, reg1, kWord);
+    storeBaseDisp(cUnit, rFP, (vReg << 3) + 12, reg1, kWord);
+}
+
+static void loadTaintDirect(CompilationUnit *cUnit, RegLocation rlSrc, int reg1)
+{
+    rlSrc = dvmCompilerUpdateLoc(cUnit, rlSrc);
+// PJG: this was incorrect
+//    assert(rlSrc.location == kLocDalvikFrame);
+    loadWordDisp(cUnit, rFP, (dvmCompilerS2VReg(cUnit, rlSrc.sRegLow) << 3) + 4, reg1);
+}
+
+static void loadTaintDirectWide(CompilationUnit *cUnit, RegLocation rlSrc, int reg1)
+{
+    rlSrc = dvmCompilerUpdateLocWide(cUnit, rlSrc);
+    loadWordDisp(cUnit, rFP, (dvmCompilerS2VReg(cUnit, rlSrc.sRegLow) << 3) + 4, reg1);
+}
+
+static void loadTaintDirectFixed(CompilationUnit *cUnit, RegLocation rlSrc, int reg1)
+{
+    dvmCompilerClobber(cUnit, reg1);
+    dvmCompilerMarkInUse(cUnit, reg1);
+    loadTaintDirect(cUnit, rlSrc, reg1);
+}
+
+static void setTaintClear(CompilationUnit *cUnit, RegLocation rlDest) {
+    int taintClear = dvmCompilerAllocTemp(cUnit);
+    loadConstant(cUnit, taintClear, TAINT_CLEAR);
+    storeTaintDirect(cUnit, rlDest, taintClear);
+    dvmCompilerFreeTemp(cUnit, taintClear);
+}
+
+static void setTaintClearWide(CompilationUnit *cUnit, RegLocation rlDest) {
+    int taintClear = dvmCompilerAllocTemp(cUnit);
+    loadConstant(cUnit, taintClear, TAINT_CLEAR);
+    storeTaintDirectWide(cUnit, rlDest, taintClear);
+    dvmCompilerFreeTemp(cUnit, taintClear);
+}
+#endif /*WITH_TAINT_TRACKING*/
 
 static RegLocation loadValueWide(CompilationUnit *cUnit, RegLocation rlSrc,
                                  RegisterClass opKind)
@@ -257,8 +323,14 @@ static void storeValueWide(CompilationUnit *cUnit, RegLocation rlDest,
             int vReg = dvmCompilerS2VReg(cUnit, rlDest.sRegLow);
             assert((vReg+1) == dvmCompilerS2VReg(cUnit,
                                      dvmCompilerSRegHi(rlDest.sRegLow)));
+#ifdef WITH_TAINT_TRACKING
+            // interleaved taint tags
+            storeBaseDisp(cUnit, rFP, vReg << 3, rlDest.lowReg, kWord);
+            storeBaseDisp(cUnit, rFP, (vReg << 3) + 8, rlDest.highReg, kWord);
+#else
             storeBaseDispWide(cUnit, rFP, vReg << 2, rlDest.lowReg,
                               rlDest.highReg);
+#endif /*WITH_TAINT_TRACKING*/
             dvmCompilerMarkClean(cUnit, rlDest.lowReg);
             dvmCompilerMarkClean(cUnit, rlDest.highReg);
             defEnd = (LIR *)cUnit->lastLIRInsn;

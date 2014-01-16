@@ -57,9 +57,16 @@ static void genMethodInflateAndPunt(CompilationUnit *cUnit, MIR *mir,
     /* Send everything to home location */
     dvmCompilerFlushAllRegs(cUnit);
 
+#ifdef WITH_TAINT_TRACKING
+    // PJG: FIXME: is this correct?
+    /* oldStackSave = r5FP + sizeof(current frame) */
+    opRegRegImm(cUnit, kOpAdd, oldStackSave, r5FP,
+                cUnit->method->registersSize * 8 + 4);
+#else
     /* oldStackSave = r5FP + sizeof(current frame) */
     opRegRegImm(cUnit, kOpAdd, oldStackSave, r5FP,
                 cUnit->method->registersSize * 4);
+#endif /*WITH_TAINT_TRACKING*/
     /* oldFP = oldStackSave + sizeof(stackSaveArea) */
     opRegRegImm(cUnit, kOpAdd, oldFP, oldStackSave, sizeof(StackSaveArea));
     /* newStackSave = r5FP - sizeof(StackSaveArea) */
@@ -123,6 +130,7 @@ static bool handleMethodFmt10t_Fmt20t_Fmt30t(CompilationUnit *cUnit, MIR *mir,
 static bool handleMethodFmt10x(CompilationUnit *cUnit, MIR *mir)
 {
     Opcode dalvikOpcode = mir->dalvikInsn.opcode;
+// PJG: TODO: clear return taint?
     switch (dalvikOpcode) {
         case OP_RETURN_VOID:
             return false;
@@ -260,8 +268,14 @@ static bool methodBlockCodeGen(CompilationUnit *cUnit, BasicBlock *bb)
     if (bb->blockType == kEntryBlock) {
         /* r0 = callsitePC */
         opImm(cUnit, kOpPush, (1 << r0 | 1 << r1 | 1 << r5FP | 1 << r14lr));
+#ifdef WITH_TAINT_TRACKING
+        // PJG: FIXME: is this correct?
+        opRegImm(cUnit, kOpSub, r5FP,
+                 sizeof(StackSaveArea) + cUnit->method->registersSize * 8 + 4);
+#else
         opRegImm(cUnit, kOpSub, r5FP,
                  sizeof(StackSaveArea) + cUnit->method->registersSize * 4);
+#endif /*WITH_TAINT_TRACKING*/
 
     } else if (bb->blockType == kExitBlock) {
         /* No need to pop r0 and r1 */

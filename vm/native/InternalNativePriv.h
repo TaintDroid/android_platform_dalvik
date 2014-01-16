@@ -35,6 +35,13 @@
 #define RETURN_FLOAT(_val)      do { pResult->f = (_val); return; } while(0)
 #define RETURN_DOUBLE(_val)     do { pResult->d = (_val); return; } while(0)
 #define RETURN_PTR(_val)        do { pResult->l = (Object*)(_val); return; } while(0)
+#ifdef WITH_TAINT_TRACKING
+/* use "->i" instead of "->c" and "->b" because interpreter expects 32-bit
+ * value, as described above */
+#define RETURN_CHAR(_val)       do { pResult->i = (_val); return; } while(0)
+#define RETURN_BYTE(_val)       do { pResult->i = (_val); return; } while(0)
+#define RETURN_SHORT(_val)      do { pResult->i = (_val); return; } while(0)
+#endif
 
 /*
  * Normally a method that has an "inline native" will be invoked using
@@ -44,10 +51,19 @@
  *
  * This macro is used to implement the native methods that bridge this gap.
  */
+#ifdef WITH_TAINT_TRACKING
 #define MAKE_INTRINSIC_TRAMPOLINE(INTRINSIC_FN) \
-    extern bool INTRINSIC_FN(u4 arg0, u4 arg1, u4 arg2, u4 arg3, \
+    extern bool INTRINSIC_FN(u4 arg0, u4 arg1, u4 arg2, u4 arg3, u4 arg0_taint, u4 arg1_taint, struct Taint* rtaint, \
+            JValue* pResult); \
+	Taint rtaint;		\
+	rtaint.tag = args[4]; \
+    INTRINSIC_FN(args[0], args[1], args[2], args[3], args[5], args[6], &rtaint, pResult);
+#else
+#define MAKE_INTRINSIC_TRAMPOLINE(INTRINSIC_FN) \
+	extern bool INTRINSIC_FN(u4 arg0, u4 arg1, u4 arg2, u4 arg3, \
             JValue* pResult); \
     INTRINSIC_FN(args[0], args[1], args[2], args[3], pResult);
+#endif
 
 /*
  * Verify that "obj" is non-null and is an instance of "clazz".
@@ -111,5 +127,8 @@ extern const DalvikNativeMethod dvm_org_apache_harmony_dalvik_ddmc_DdmServer[];
 extern const DalvikNativeMethod dvm_org_apache_harmony_dalvik_ddmc_DdmVmInternal[];
 extern const DalvikNativeMethod dvm_org_apache_harmony_dalvik_NativeTestTarget[];
 extern const DalvikNativeMethod dvm_sun_misc_Unsafe[];
+#ifdef WITH_TAINT_TRACKING
+extern const DalvikNativeMethod dvm_dalvik_system_Taint[];
+#endif
 
 #endif  // DALVIK_NATIVE_INTERNALNATIVEPRIV_H_

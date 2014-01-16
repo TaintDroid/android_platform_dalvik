@@ -2197,7 +2197,12 @@ static Object* getThisObject(const u4* framePtr)
 {
     const StackSaveArea* saveArea = SAVEAREA_FROM_FP(framePtr);
     const Method* method = saveArea->method;
+#ifdef WITH_TAINT_TRACKING
+    /* taint tags are interleaved */
+    int argOffset = (method->registersSize - method->insSize) <<1;
+#else
     int argOffset = method->registersSize - method->insSize;
+#endif
     Object* thisObj;
 
     if (method == NULL) {
@@ -2263,7 +2268,12 @@ void dvmDbgGetLocalValue(ObjectId threadId, FrameId frameId, int slot,
 
     UNUSED_PARAMETER(threadId);
 
+#ifdef WITH_TAINT_TRACKING
+    /* Taint tags are interleaved */
+    slot = untweakSlot(slot, framePtr) <<1;     // Eclipse workaround
+#else
     slot = untweakSlot(slot, framePtr);     // Eclipse workaround
+#endif
 
     switch (tag) {
     case JT_BOOLEAN:
@@ -2322,7 +2332,16 @@ void dvmDbgGetLocalValue(ObjectId threadId, FrameId frameId, int slot,
     case JT_DOUBLE:
     case JT_LONG:
         assert(expectedLen == 8);
+#ifdef WITH_TAINT_TRACKING
+	{
+	    union { u8 ll; u4 parts[2]; } conv;
+	    conv.parts[0] = framePtr[slot];
+	    conv.parts[1] = framePtr[slot+2];
+	    longVal = conv.ll;
+	}
+#else
         memcpy(&longVal, &framePtr[slot], 8);
+#endif
         set8BE(buf+1, longVal);
         break;
     default:
@@ -2345,7 +2364,12 @@ void dvmDbgSetLocalValue(ObjectId threadId, FrameId frameId, int slot, u1 tag,
 
     UNUSED_PARAMETER(threadId);
 
+#ifdef WITH_TAINT_TRACKING
+    /* taint tag is interleaved */
+    slot = untweakSlot(slot, framePtr)<<1;     // Eclipse workaround
+#else
     slot = untweakSlot(slot, framePtr);     // Eclipse workaround
+#endif
 
     switch (tag) {
     case JT_BOOLEAN:
@@ -2378,7 +2402,17 @@ void dvmDbgSetLocalValue(ObjectId threadId, FrameId frameId, int slot, u1 tag,
     case JT_DOUBLE:
     case JT_LONG:
         assert(width == 8);
+#ifdef WITH_TAINT_TRACKING
+        /* taint tag is interleaved */
+        {
+        	union { u8 ll; u4 parts[2]; } conv;
+        	conv.ll = value;
+        	framePtr[slot] = conv.parts[0];
+        	framePtr[slot+2] = conv.parts[1];
+        }
+#else
         memcpy(&framePtr[slot], &value, 8);
+#endif
         break;
     case JT_VOID:
     case JT_CLASS_OBJECT:

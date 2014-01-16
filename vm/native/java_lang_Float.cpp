@@ -32,9 +32,18 @@ static void Float_intBitsToFloat(const u4* args, JValue* pResult)
     MAKE_INTRINSIC_TRAMPOLINE(javaLangFloat_intBitsToFloat);
 }
 
+#ifdef WITH_TAINT_TRACKING
+const DalvikNativeMethod dvm_java_lang_Float[] = {
+    { "floatToIntBits_intrinsic",    "(F)I", Float_floatToIntBits },
+    { "floatToRawIntBits_intrinsic", "(F)I", Float_floatToRawIntBits },
+    { "intBitsToFloat_intrinsic",    "(I)F", Float_intBitsToFloat },
+    { NULL, NULL, NULL },
+};
+#else
 const DalvikNativeMethod dvm_java_lang_Float[] = {
     { "floatToIntBits",    "(F)I", Float_floatToIntBits },
     { "floatToRawIntBits", "(F)I", Float_floatToRawIntBits },
     { "intBitsToFloat",    "(I)F", Float_intBitsToFloat },
     { NULL, NULL, NULL },
 };
+#endif /*WITH_TAINT_TRACKING*/
